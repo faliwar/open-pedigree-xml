@@ -211,7 +211,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
           // rgb
           let colourSplit = rgbRegex.exec(colour);
           if (colourSplit != null){
-            colour = '#' + parseInt(colourSplit[1]).toString(16) + parseInt(colourSplit[2]).toString(16) + parseInt(colourSplit[3]).toString(16);
+            colour = '#' + parseInt(colourSplit[1]).toString(16).padStart(2, '0') + parseInt(colourSplit[2]).toString(16).padStart(2, '0') + parseInt(colourSplit[3]).toString(16).padStart(2, '0');
           }
         }
       }
