@@ -1,18 +1,20 @@
-FROM node:14
+FROM docker.io/library/node:14
 
-# create the app directory
-RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
-# install any dependencies
-# we copy package*.json over to make use of docker's cached builds
-COPY package*.json .
-RUN npm install \
-    && npm cache clean --force
+COPY package*.json ./
 
-# copy over the rest of the source code
+RUN npm install && npm cache clean --force
+
 COPY . .
 
-# run the application and make it available outside the container
-CMD ["npm", "run", "start-docker"]
+# Roda o build usando o script que acabamos de consertar no package.json
+RUN npm run build
+
+# Instala o servidor leve
+RUN npm install -g serve@14
+
 EXPOSE 9000
+
+# Executa o servidor leve consumindo quase 0 de RAM
+CMD ["serve", "-s", "dist", "-l", "9000"]
