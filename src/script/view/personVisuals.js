@@ -74,7 +74,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       var shape = editor.getPaper().path(['M',x, y, 'l', height, -height, 'l', height, height,'z']);
       shape.attr(PedigreeEditorParameters.attributes.nodeShape);
       this._genderShape = shape;
-      shape = editor.getPaper().set(shape.glow({width: 5, fill: true, opacity: 0.1}).transform(['t',3,3,'...']), shape);
+      shape = editor.getPaper().set(shape);
 
       if(this.getNode().isProband()) {
         shape.transform(['...s', 1.07]);
@@ -108,7 +108,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   },
 
   generateProbandArrow: function() {
-    var icon = editor.getPaper().path(editor.getView().__probandArrowPath).attr({fill: '#595959', stroke: 'none', opacity: 1});
+    var icon = editor.getPaper().path(editor.getView().__probandArrowPath).attr({fill: '#000000', stroke: 'none', opacity: 1});
     var x = this.getX()-this._shapeRadius-26;
     var y = this.getY()+this._shapeRadius-12;
     if (this.getNode().getGender() == 'F') {
@@ -221,11 +221,6 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       return;
     }
 
-    var gradient = function(color, angle) {
-      var hsb = Raphael.rgb2hsb(color),
-        darker = Raphael.hsb2rgb(hsb['h'],hsb['s'],hsb['b']-.25)['hex'];
-      return angle +'-'+darker+':0-'+color+':100';
-    };
     var disorderShapes = editor.getPaper().set();
     var delta, color;
 
@@ -249,7 +244,8 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
           corner = ['L', this.getX(), this.getY()-height];
         }
         var slice = editor.getPaper().path(['M', x1, y1, corner,'L', x2, y2, 'L',this.getX(), this.getY(),'z']);
-        color = gradient(colors[k], 70);
+        // Use flat/plain color fill (Invitae style - no gradients)
+        color = colors[k];
         disorderShapes.push(slice.attr({fill: color, 'stroke-width':.5, stroke: 'none' }));
         x1 = x2;
         y1 = y2;
@@ -270,12 +266,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       }                     // TODO: magic number hack: due to a Raphael transform bug (?) just using correct this._shapeRadius does not work
 
       for(var i = 0; i < colors.length; i++) {
-        color = gradient(colors[i], (i * disorderAngle)+delta);
+        // Use flat/plain color fill (Invitae style - no gradients)
+        color = colors[i];
         disorderShapes.push(sector(editor.getPaper(), this.getX(), this.getY(), radius,
           this.getNode().getGender(), i * disorderAngle, (i+1) * disorderAngle, color));
       }
 
-      (disorderShapes.length < 2) ? disorderShapes.attr('stroke', 'none') : disorderShapes.attr({stroke: '#595959', 'stroke-width':.03});
+      (disorderShapes.length < 2) ? disorderShapes.attr('stroke', 'none') : disorderShapes.attr({stroke: '#000000', 'stroke-width':.03});
       if(this.getNode().isProband()) {
         disorderShapes.transform(['...s', 1.04, 1.04, this.getX(), this.getY()]);
       }

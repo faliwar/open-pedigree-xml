@@ -124,7 +124,7 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
     if (this.glow) {
       return;
     }
-    this.glow = this._genderShape.glow({width: 11, fill: true, opacity: 0.4, color: 'green'});
+    this.glow = this._genderShape.glow({width: 11, fill: true, opacity: 0.4, color: '#4a90d9'});
     if (this.marked) {
       this.marked.hide();
     }
@@ -309,16 +309,9 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
       shape.attr(PedigreeEditorParameters.attributes.nodeShape);
     }
 
-    if (!editor.isUnsupportedBrowser()) {
-      //var shadow = shape.glow({width: 5, fill: true, opacity: 0.1}).translate(3,3);
-      var shadow = shape.clone().attr({stroke: 'none', fill: 'gray', opacity: .3});
-      shadow.translate(3,3);
-      shadow.insertBefore(shape);
-    }
-
     this._genderShape = shape;
 
-    this._genderGraphics = editor.getPaper().set(shadow, shape);
+    this._genderGraphics = editor.getPaper().set(shape);
   },
 
   /**
