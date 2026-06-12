@@ -50,7 +50,7 @@ module.exports = {
          loader: 'file-loader',
          options: {
            outputPath: 'assets',
-           publicPath: 'dist/assets',
+           publicPath: 'assets',
          }
        }]
       }
