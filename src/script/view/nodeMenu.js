@@ -115,28 +115,42 @@ var NodeMenu = Class.create({
       if (!item.hasClassName('initialized')) {
         // Create the Suggest.
         item._suggest = new PhenoTips.widgets.Suggest(item, {
-          script: Disorder.getOMIMServiceURL() + '&',
-          queryProcessor: typeof(PhenoTips.widgets.SolrQueryProcessor) == 'undefined' ? null : new PhenoTips.widgets.SolrQueryProcessor({
-            'name' : {'wordBoost': 20, 'phraseBoost': 40},
-            'nameSpell' : {'wordBoost': 50, 'phraseBoost': 100, 'stubBoost': 20},
-            'keywords' : {'wordBoost': 2, 'phraseBoost': 6, 'stubBoost': 2},
-            'text' : {'wordBoost': 1, 'phraseBoost': 3, 'stubBoost': 1},
-            'textSpell' : {'wordBoost': 2, 'phraseBoost': 5, 'stubBoost': 2, 'stubTrigger': true}
-          }, {
-            '-nameSort': ['\\**', '\\+*', '\\^*']
-          }),
+          minchars: 0,
+          script: function(input, callback) {
+            var legend = editor.getDisorderLegend();
+            var knownCases = legend._affectedNodes || {};
+            var results = [];
+            for (var disorderId in knownCases) {
+               if (knownCases.hasOwnProperty(disorderId)) {
+                  var disorder = legend.getDisorder(disorderId);
+                  var name = disorder.getName();
+                  if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
+                     results.push({id: disorderId, value: name, info: ''});
+                  }
+               }
+            }
+            callback(results);
+          },
           varname: 'q',
           noresults: 'No matching terms',
           json: true,
           resultsParameter : 'rows',
           resultId : 'id',
-          resultValue : 'name',
+          resultValue : 'value',
           resultInfo : {},
           enableHierarchy: false,
           fadeOnClear : false,
           timeout : 30000,
           parentContainer : $('body')
         });
+        item._suggest.doAjaxRequests = function(h) {
+          if (h < this.latestRequest) return;
+          if (this.fld.value.length < this.options.minchars) return;
+          this.options.script(this.fld.value.strip(), function(results) {
+            this.aSuggestions = results;
+            this.createList(this.aSuggestions, this.sources[0]);
+          }.bind(this));
+        }.bind(item._suggest);
         if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
           item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
             'showKey' : false,
@@ -151,6 +165,15 @@ var NodeMenu = Class.create({
           });
         }
         item.addClassName('initialized');
+        var showAllSuggestions = function() {
+          if (!item._suggest.isActive) {
+            item._suggest.prepareContainer();
+            item._suggest.latestRequest++;
+            item._suggest.doAjaxRequests(item._suggest.latestRequest);
+          }
+        };
+        item.observe('focus', showAllSuggestions);
+        item.observe('click', showAllSuggestions);
         document.observe('ms:suggest:containerCreated', function(event) {
           if (event.memo && event.memo.suggest === item._suggest) {
             item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});
@@ -161,15 +184,27 @@ var NodeMenu = Class.create({
     // genes
     this.form.select('input.suggest-genes').each(function(item) {
       if (!item.hasClassName('initialized')) {
-        var geneServiceURL = new XWiki.Document('GeneNameService', 'PhenoTips').getURL('get', 'outputSyntax=plain');
         item._suggest = new PhenoTips.widgets.Suggest(item, {
-          script: geneServiceURL + '&json=true&',
+          minchars: 0,
+          script: function(input, callback) {
+            var legend = editor.getGeneLegend();
+            var knownCases = legend._affectedNodes || {};
+            var results = [];
+            for (var geneId in knownCases) {
+               if (knownCases.hasOwnProperty(geneId)) {
+                  if (input === '' || geneId.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
+                     results.push({id: geneId, value: geneId, info: ''});
+                  }
+               }
+            }
+            callback(results);
+          },
           varname: 'q',
           noresults: 'No matching terms',
           resultsParameter : 'docs',
           json: true,
-          resultId : 'symbol',
-          resultValue : 'symbol',
+          resultId : 'id',
+          resultValue : 'value',
           resultInfo : {},
           enableHierarchy: false,
           tooltip :false,
@@ -177,6 +212,14 @@ var NodeMenu = Class.create({
           timeout : 30000,
           parentContainer : $('body')
         });
+        item._suggest.doAjaxRequests = function(h) {
+          if (h < this.latestRequest) return;
+          if (this.fld.value.length < this.options.minchars) return;
+          this.options.script(this.fld.value.strip(), function(results) {
+            this.aSuggestions = results;
+            this.createList(this.aSuggestions, this.sources[0]);
+          }.bind(this));
+        }.bind(item._suggest);
         if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
           item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
             'showKey' : false,
@@ -191,6 +234,15 @@ var NodeMenu = Class.create({
           });
         }
         item.addClassName('initialized');
+        var showAllSuggestions = function() {
+          if (!item._suggest.isActive) {
+            item._suggest.prepareContainer();
+            item._suggest.latestRequest++;
+            item._suggest.doAjaxRequests(item._suggest.latestRequest);
+          }
+        };
+        item.observe('focus', showAllSuggestions);
+        item.observe('click', showAllSuggestions);
         document.observe('ms:suggest:containerCreated', function(event) {
           if (event.memo && event.memo.suggest === item._suggest) {
             item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});
@@ -201,36 +253,29 @@ var NodeMenu = Class.create({
     // HPO terms
     this.form.select('input.suggest-hpo').each(function(item) {
       if (!item.hasClassName('initialized')) {
-        var solrServiceURL = HPOTerm.getServiceURL();
         item._suggest = new PhenoTips.widgets.Suggest(item, {
-          script: solrServiceURL + 'rows=100&',
-          queryProcessor: typeof(PhenoTips.widgets.SolrQueryProcessor) == 'undefined' ? null : new PhenoTips.widgets.SolrQueryProcessor({
-            'name' : {'wordBoost': 10, 'phraseBoost': 20},
-            'nameSpell' : {'wordBoost': 18, 'phraseBoost': 36, 'stubBoost': 14},
-            'nameExact' : {'phraseBoost': 100},
-            'namePrefix' : {'phraseBoost': 30},
-            'synonym' : {'wordBoost': 6, 'phraseBoost': 15},
-            'synonymSpell' : {'wordBoost': 10, 'phraseBoost': 25, 'stubBoost': 7},
-            'synonymExact' : {'phraseBoost': 70},
-            'synonymPrefix' : {'phraseBoost': 20},
-            'text' : {'wordBoost': 1, 'phraseBoost': 3, 'stubBoost': 1},
-            'textSpell' : {'wordBoost': 2, 'phraseBoost': 5, 'stubBoost': 2, 'stubTrigger': true},
-            'id' : {'activationRegex' : /^HP:[0-9]+$/i, 'mandatory' : true, 'transform': function(query) {
-              return query.toUpperCase().replace(/:/g, '\\:');
-            }},
-            'alt_id' : {'activationRegex' : /^HP:[0-9]+$/i, 'mandatory' : true, 'transform': function(query) {
-              return query.toUpperCase().replace(/:/g, '\\:');
-            }}
-          }, {
-            'term_category': ['HP:0000118']
-          }
-          ),
+          minchars: 0,
+          script: function(input, callback) {
+            var legend = editor.getHPOLegend();
+            var knownCases = legend._affectedNodes || {};
+            var results = [];
+            for (var hpoId in knownCases) {
+               if (knownCases.hasOwnProperty(hpoId)) {
+                  var term = legend.getTerm(hpoId);
+                  var name = term.getName();
+                  if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
+                     results.push({id: hpoId, value: name, info: ''});
+                  }
+               }
+            }
+            callback(results);
+          },
           varname: 'q',
           noresults: 'No matching terms',
           json: true,
           resultsParameter : 'rows',
           resultId : 'id',
-          resultValue : 'name',
+          resultValue : 'value',
           resultAltName: 'synonym',
           resultCategory : 'term_category',
           resultInfo : {},
@@ -240,6 +285,14 @@ var NodeMenu = Class.create({
           timeout : 30000,
           parentContainer : $('body')
         });
+        item._suggest.doAjaxRequests = function(h) {
+          if (h < this.latestRequest) return;
+          if (this.fld.value.length < this.options.minchars) return;
+          this.options.script(this.fld.value.strip(), function(results) {
+            this.aSuggestions = results;
+            this.createList(this.aSuggestions, this.sources[0]);
+          }.bind(this));
+        }.bind(item._suggest);
         if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
           item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
             'showKey' : false,
@@ -254,6 +307,15 @@ var NodeMenu = Class.create({
           });
         }
         item.addClassName('initialized');
+        var showAllSuggestions = function() {
+          if (!item._suggest.isActive) {
+            item._suggest.prepareContainer();
+            item._suggest.latestRequest++;
+            item._suggest.doAjaxRequests(item._suggest.latestRequest);
+          }
+        };
+        item.observe('focus', showAllSuggestions);
+        item.observe('click', showAllSuggestions);
         document.observe('ms:suggest:containerCreated', function(event) {
           if (event.memo && event.memo.suggest === item._suggest) {
             item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});

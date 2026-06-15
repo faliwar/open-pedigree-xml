@@ -64,10 +64,11 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var indi = indiElements[i];
     var indiId = indi.getAttribute('id');
     var markedBy = InvitaeConverter._getChildAttr(indi, 'marked_by', 'value');
+    var isPat = indi.getAttribute('pat');
     var multipleEl = indi.querySelector(':scope > multiple');
     var isGroup = (multipleEl && multipleEl.getAttribute('value') === '1');
 
-    if (markedBy === '2' && !isGroup && probandInvitaeId === null) {
+    if ((markedBy === '2' || isPat === '1') && !isGroup && probandInvitaeId === null) {
       probandInvitaeId = indiId;
     }
   }
@@ -210,12 +211,12 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
 InvitaeConverter._parseIndividual = function (indiEl) {
   var properties = {};
 
-  // Gender: 0=female, 1=male, 2=unknown
+  // Gender: 0=male, 1=female, 2=unknown
   var genderVal = InvitaeConverter._getChildAttr(indiEl, 'gender', 'value');
   if (genderVal === '0') {
-    properties.gender = 'F';
-  } else if (genderVal === '1') {
     properties.gender = 'M';
+  } else if (genderVal === '1') {
+    properties.gender = 'F';
   } else {
     properties.gender = 'U';
   }
@@ -549,12 +550,12 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     xml += '<last_name value=""/>';
   }
 
-  // Gender: M→1, F→0, U→2
+  // Gender: M→0, F→1, U→2
   var genderVal = '2';
   if (props.gender === 'M') {
-    genderVal = '1';
-  } else if (props.gender === 'F') {
     genderVal = '0';
+  } else if (props.gender === 'F') {
+    genderVal = '1';
   }
   xml += '<gender value="' + genderVal + '"/>';
 
