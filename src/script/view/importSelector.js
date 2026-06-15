@@ -51,12 +51,11 @@ var ImportSelector = Class.create( {
       return optionWrapper;
     };
     var typeListElement = new Element('table');
-    //TODO: typeListElement.insert(_addTypeOption(true,  "Autodetect", "auto"));
-    typeListElement.insert(_addTypeOption(true,  'PED or LINKAGE (pre- or post- makeped)', 'ped'));
+    typeListElement.insert(_addTypeOption(false,  'PED or LINKAGE (pre- or post- makeped)', 'ped'));
     typeListElement.insert(_addTypeOption(false, 'GEDCOM', 'gedcom'));
     typeListElement.insert(_addTypeOption(false, 'BOADICEA', 'BOADICEA'));
     typeListElement.insert(_addTypeOption(false, 'GA4GH FHIR(JSON)', 'GA4GH'));
-    typeListElement.insert(_addTypeOption(false, 'Invitae/Progeny (XML)', 'invitae'));
+    typeListElement.insert(_addTypeOption(true, 'Invitae/Progeny (XML)', 'invitae'));
 
     var promptType = new Element('div', {'class': 'import-section'}).update('Data format:');
     var dataSection2 = new Element('div', {'class': 'import-block'});
@@ -75,9 +74,10 @@ var ImportSelector = Class.create( {
     };
     var configListElement = new Element('table', {id : 'import-type'});
     configListElement.insert(_addConfigOption(true,  'Treat non-standard phenotype values as new disorders', 'accept'));
-    configListElement.insert(_addConfigOption(false, 'Treat non-standard phenotype values as "no information"', 'dontaccept'));
+    // Disable since XML is default
+    configListElement.select('input[type="radio"]').invoke('disable');
 
-    var markEvaluated = new Element('input', {'type' : 'checkbox', 'value': '1', 'name': 'mark-evaluated'});
+    var markEvaluated = new Element('input', {'type' : 'checkbox', 'value': '1', 'name': 'mark-evaluated', 'disabled': 'disabled'});
     var markLabel1     = new Element('label', {'class': 'import-mark-label1'}).insert(markEvaluated).insert('Mark all patients with known disorder status with \'documented evaluation\' mark').wrap('td').wrap('tr');
     configListElement.insert(markLabel1);
     var markExternal = new Element('input', {'type' : 'checkbox', 'value': '1', 'name': 'mark-external'});

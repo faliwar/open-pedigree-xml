@@ -25,9 +25,9 @@ var ExportSelector = Class.create({
       return optionWrapper;
     };
     var typeListElement = new Element('table');
-    typeListElement.insert(_addTypeOption(true, 'PED', 'ped'));
+    typeListElement.insert(_addTypeOption(false, 'PED', 'ped'));
     typeListElement.insert(_addTypeOption(false, 'GA4GH FHIR', 'GA4GH'));
-    typeListElement.insert(_addTypeOption(false, 'Invitae/Progeny (XML)', 'invitae'));
+    typeListElement.insert(_addTypeOption(true, 'Invitae/Progeny (XML)', 'invitae'));
     typeListElement.insert(_addTypeOption(false, 'SVG', 'svg'));
     typeListElement.insert(_addTypeOption(false, 'PDF', 'pdf'));
 
@@ -49,14 +49,14 @@ var ExportSelector = Class.create({
       optionWrapper.insert(label.wrap('td'));
       return optionWrapper;
     };
-    var configListElementPED = new Element('table', { 'id': 'pedOptions' });
+    var configListElementPED = new Element('table', { 'id': 'pedOptions', 'style': 'display:none' });
     var label = new Element('label', { 'class': 'export-config-header' }).insert('Which of the following fields should be used to generate person IDs?');
     configListElementPED.insert(label.wrap('td').wrap('tr'));
     configListElementPED.insert(_addConfigOption(true, 'ped-options', 'export-subconfig-label', 'External ID', 'external'));
     configListElementPED.insert(_addConfigOption(false, 'ped-options', 'export-subconfig-label', 'Name', 'name'));
     configListElementPED.insert(_addConfigOption(false, 'ped-options', 'export-subconfig-label', 'None, generate new numeric ID for everyone', 'newid'));
 
-    var configListElementPrivacy = new Element('table', { 'id': 'privacyOptions', 'style': 'display:none' });
+    var configListElementPrivacy = new Element('table', { 'id': 'privacyOptions' });
     var privLabel = new Element('label', { 'class': 'export-config-header' }).insert('Privacy export options:');
     configListElementPrivacy.insert(privLabel.wrap('td').wrap('tr'));
     configListElementPrivacy.insert(_addConfigOption(true, 'privacy-options', 'export-subconfig-label', 'All data', 'all'));

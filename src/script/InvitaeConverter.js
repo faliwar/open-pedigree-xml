@@ -57,6 +57,8 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   var invitaeIdToPedigreeId = {};
   var probandInvitaeId = null;
   var nextPedigreeId = 1; // reserve 0 for the proband
+  var nextTwinGroup = 1;
+  var twinGroupIdMap = {};
 
   // First, find the proband (marked_by == 2 on an individual that is NOT a group spouse placeholder)
   // We look for the first individual with marked_by="2" that is not a group
@@ -83,6 +85,26 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var indi = indiElements[i];
     var indiId = indi.getAttribute('id');
     var properties = InvitaeConverter._parseIndividual(indi);
+
+    // Handle twins
+    if (properties.twinInfo) {
+      var tg = twinGroupIdMap[indiId];
+      if (!tg) {
+        tg = nextTwinGroup++;
+        twinGroupIdMap[indiId] = tg;
+      }
+      properties.twinGroup = tg;
+      if (properties.twinInfo.some(t => t.type === '2')) {
+        properties.monozygotic = true;
+      } else {
+        properties.monozygotic = false;
+      }
+      // Map other twins to this group
+      for (var t = 0; t < properties.twinInfo.length; t++) {
+        twinGroupIdMap[properties.twinInfo[t].id] = tg;
+      }
+      delete properties.twinInfo;
+    }
 
     var useId;
     if (indiId === probandInvitaeId) {
@@ -259,7 +281,8 @@ InvitaeConverter._parseIndividual = function (indiEl) {
 
   // Adoption
   var adoptionVal = InvitaeConverter._getChildAttr(indiEl, 'adoption', 'value');
-  if (adoptionVal === '1') {
+  var adoptionFromVal = InvitaeConverter._getChildAttr(indiEl, 'adoption_from', 'value');
+  if (adoptionVal === '1' || adoptionFromVal === '1') {
     properties.isAdopted = true;
   }
 
@@ -368,6 +391,19 @@ InvitaeConverter._parseIndividual = function (indiEl) {
           }
           properties.comments += (properties.comments ? '\n' : '') + noteValue;
         }
+      }
+    }
+  }
+
+  // Siblings / Twins
+  var siblingsEl = indiEl.querySelector(':scope > siblings');
+  if (siblingsEl) {
+    var sibEls = siblingsEl.querySelectorAll(':scope > sibling');
+    for (var s = 0; s < sibEls.length; s++) {
+      var sibType = sibEls[s].getAttribute('type');
+      if (sibType === '1' || sibType === '2') {
+        if (!properties.twinInfo) properties.twinInfo = [];
+        properties.twinInfo.push({ id: sibEls[s].getAttribute('id'), type: sibType });
       }
     }
   }
@@ -612,7 +648,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Adoption
   xml += '<adoption value="' + (props.isAdopted ? '1' : '0') + '"/>';
-  xml += '<adoption_from value="0"/>';
+  xml += '<adoption_from value="' + (props.isAdopted ? '1' : '0') + '"/>';
   xml += '<smoker value="3"/>';
   xml += '<obese value="0"/>';
 
@@ -648,8 +684,13 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   if (siblings.length > 0) {
     xml += '<siblings>';
     for (var s = 0; s < siblings.length; s++) {
-      if (idToInvitaeId[siblings[s]] !== undefined) {
-        xml += '<sibling id="' + idToInvitaeId[siblings[s]] + '" type="0"/>';
+      var sibId = siblings[s];
+      if (idToInvitaeId[sibId] !== undefined) {
+        var sibType = "0";
+        if (props.twinGroup !== undefined && pedigree.GG.properties[sibId] && props.twinGroup === pedigree.GG.properties[sibId].twinGroup) {
+          sibType = props.monozygotic ? "2" : "1";
+        }
+        xml += '<sibling id="' + idToInvitaeId[sibId] + '" type="' + sibType + '"/>';
       }
     }
     xml += '</siblings>';
