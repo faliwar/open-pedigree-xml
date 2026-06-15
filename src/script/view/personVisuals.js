@@ -354,21 +354,19 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     } else if(person.getLifeStatus() == 'alive') {
       if (person.getBirthDate()) {
         var age = getAge(person.getBirthDate(), null);
-        if (age.indexOf('day') != -1) {
-          text = age;                                                                // 5 days
-        } else if (age.indexOf(' y') == -1) {
-          text = 'b. ' + person.getBirthDate().getFullYear() + ' (' + age + ')';     // b. 2014 (3 wk)
+        if (age.indexOf(' y') !== -1) {
+            text = age.replace(' y', ' yrs');
         } else {
-          text = 'b. ' + person.getBirthDate().getFullYear();                        // b. 1972
+            text = age;
         }
       }
     } else {
       if(person.getDeathDate() && person.getBirthDate()) {
         var age = getAge(person.getBirthDate(), person.getDeathDate());
-        if (age.indexOf('day') != -1 || age.indexOf('wk') != -1 || age.indexOf('mo') != -1) {
-          text = 'd. ' + person.getDeathDate().getFullYear() + ' (' + age + ')';
+        if (age.indexOf(' y') !== -1) {
+            text = 'd. ' + age.replace(' y', ' yrs');
         } else {
-          text = person.getBirthDate().getFullYear() + ' – ' + person.getDeathDate().getFullYear();
+            text = 'd. ' + age;
         }
       } else if (person.getDeathDate()) {
         text = 'd. ' + person.getDeathDate().getFullYear();
@@ -618,6 +616,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     for(var i = 0; i<labels.length; i++) {
       labels[i].stop().animate({'y': labels[i].oy + shift}, 200,'>');
     }
+    if (this._labelsBox) {
+      this._labelsBox.stop().animate({'y': this._labelsBox.oy + shift}, 200,'>');
+    }
   },
 
   /**
@@ -630,6 +631,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var firstLable = this._childlessStatusLabel ? 1 : 0;
     for(var i = 0; i<labels.length; i++) {
       labels[i].stop().animate({'y': labels[i].oy}, 200,'>');
+    }
+    if (this._labelsBox) {
+      this._labelsBox.stop().animate({'y': this._labelsBox.oy}, 200,'>');
     }
   },
 
@@ -663,14 +667,48 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var lowerBound = PedigreeEditorParameters.attributes.radius * (this.getNode().isPersonGroup() ? PedigreeEditorParameters.attributes.groupNodesScale : 1.0);
 
     var startY = this.getY() + lowerBound * 1.8 + selectionOffset + childlessOffset;
+    
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    var hasLabels = false;
+
     for (var i = 0; i < labels.length; i++) {
       var offset = (labels[i].alignTop) ? (getElementHalfHeight(labels[i]) - 7) : 0;
       labels[i].attr('y', startY + offset);
       labels[i].oy = (labels[i].attr('y') - selectionOffset);
       startY = labels[i].getBBox().y2 + 11;
+      
+      var bbox = labels[i].getBBox();
+      if (bbox.x < minX) minX = bbox.x;
+      if (bbox.x2 > maxX) maxX = bbox.x2;
+      if (bbox.y < minY) minY = bbox.y;
+      if (bbox.y2 > maxY) maxY = bbox.y2;
+      hasLabels = true;
     }
     if(!editor.isUnsupportedBrowser()) {
       labels.flatten().insertBefore(this.getHoverBox().getFrontElements().flatten());
+    }
+
+    if (hasLabels) {
+      if (!this._labelsBox) {
+        this._labelsBox = editor.getPaper().rect(0, 0, 10, 10).attr({
+          fill: '#FFFFFF',
+          'fill-opacity': 0.75,
+          stroke: 'none'
+        });
+      }
+      this._labelsBox.attr({
+        x: minX - 4,
+        y: minY - 2,
+        width: (maxX - minX) + 8,
+        height: (maxY - minY) + 4
+      });
+      this._labelsBox.oy = (this._labelsBox.attr('y') - selectionOffset);
+      this._labelsBox.insertBefore(labels[0]);
+    } else {
+      if (this._labelsBox) {
+        this._labelsBox.remove();
+        this._labelsBox = null;
+      }
     }
   },
 
@@ -710,7 +748,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   getAllGraphics: function($super) {
     //console.log("Node " + this.getNode().getID() + " getAllGraphics");
-    return $super().push(this.getHoverBox().getBackElements(), this.getLabels(), this.getCarrierGraphics(), this.getEvaluationGraphics(), this.getHoverBox().getFrontElements());
+    var g = $super().push(this.getHoverBox().getBackElements(), this.getLabels(), this.getCarrierGraphics(), this.getEvaluationGraphics(), this.getHoverBox().getFrontElements());
+    if (this._labelsBox) g.push(this._labelsBox);
+    return g;
   },
 
   /**
