@@ -107,6 +107,7 @@ var ExportSelector = Class.create( {
 
     var buttons = new Element('div', {'class' : 'buttons import-block-bottom'});
     buttons.insert(new Element('input', {type: 'button', name : 'export', 'value': 'Export', 'class' : 'button', 'id': 'export_button'}).wrap('span', {'class' : 'buttonwrapper'}));
+    buttons.insert(new Element('input', {type: 'button', name : 'copy', 'value': 'Copy to clipboard', 'class' : 'button', 'id': 'copy_button'}).wrap('span', {'class' : 'buttonwrapper'}));
     buttons.insert(new Element('input', {type: 'button', name : 'cancel', 'value': 'Cancel', 'class' : 'button secondary'}).wrap('span', {'class' : 'buttonwrapper'}));
     mainDiv.insert(buttons);
 
@@ -116,7 +117,11 @@ var ExportSelector = Class.create( {
     });
     var exportButton = buttons.down('input[name="export"]');
     exportButton.observe('click', function(event) {
-      _this._onExportStarted();
+      _this._onExportStarted(false);
+    });
+    var copyButton = buttons.down('input[name="copy"]');
+    copyButton.observe('click', function(event) {
+      _this._onExportStarted(true);
     });
 
     var closeShortcut = ['Esc'];
@@ -140,10 +145,13 @@ var ExportSelector = Class.create( {
       pedOptionsTable.hide();
       privacyOptionsTable.show();
     }
+    var copyButton = $$('input[name="copy"]')[0];
     if (exportType == 'pdf') {
       pdfOptionsTable.show();
+      if (copyButton) copyButton.up('.buttonwrapper').hide();
     } else {
       pdfOptionsTable.hide();
+      if (copyButton) copyButton.up('.buttonwrapper').show();
     }
   },
 
@@ -154,7 +162,7 @@ var ExportSelector = Class.create( {
      * @param pictureBox
      * @private
      */
-  _onExportStarted: function() {
+  _onExportStarted: function(isCopy) {
     this.hide();
 
     var exportType = $$('input:checked[type=radio][name="export-type"]')[0].value;
@@ -164,29 +172,45 @@ var ExportSelector = Class.create( {
       var exportString = PedigreeExport.exportAsPED(editor.getGraph().DG, idGenerationSetting);
       var fileName = 'open-pedigree.ped';
       var mimeType = 'text/plain';
-      // Uses FileSaver global
-      /* eslint-disable no-undef */
-      saveTextAs(exportString, fileName);
+      if (isCopy) {
+        navigator.clipboard.writeText(exportString);
+      } else {
+        // Uses FileSaver global
+        /* eslint-disable no-undef */
+        saveTextAs(exportString, fileName);
+      }
     } else {
       var privacySetting = $$('input:checked[type=radio][name="privacy-options"]')[0].value;
       if (exportType == 'GA4GH') {
         var exportString = PedigreeExport.exportAsGA4GH(editor.getGraph().DG, privacySetting);
         var fileName = 'open-pedigree-GA4GH-fhir.json';
         var mimeType = 'application/fhir+json';
-        // Uses FileSaver global
-        /* eslint-disable no-undef */
-        saveTextAs(exportString, fileName);
+        if (isCopy) {
+          navigator.clipboard.writeText(exportString);
+        } else {
+          // Uses FileSaver global
+          /* eslint-disable no-undef */
+          saveTextAs(exportString, fileName);
+        }
       } else if (exportType == 'invitae') {
         var exportString = PedigreeExport.exportAsInvitae(editor.getGraph().DG, privacySetting);
         var fileName = 'open-pedigree-invitae.xml';
-        // Uses FileSaver global
-        /* eslint-disable no-undef */
-        saveTextAs(exportString, fileName);
+        if (isCopy) {
+          navigator.clipboard.writeText(exportString);
+        } else {
+          // Uses FileSaver global
+          /* eslint-disable no-undef */
+          saveTextAs(exportString, fileName);
+        }
       } else if (exportType == 'svg') {
         var exportString = PedigreeExport.exportAsSVG(editor.getGraph().DG, privacySetting);
         var fileName = 'open-pedigree.svg';
         var mimeType = 'image/svg+xml';
-        saveTextAs(exportString, fileName);
+        if (isCopy) {
+          navigator.clipboard.writeText(exportString);
+        } else {
+          saveTextAs(exportString, fileName);
+        }
       } else if (exportType == 'pdf') {
         var pageSize = $$('select[name="pdf-page-size"]')[0].value;
         var layout = $$('select[name="pdf-page-orientation"]')[0].value;
