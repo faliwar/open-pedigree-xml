@@ -286,15 +286,31 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     properties.isAdopted = true;
   }
 
+  // DOB
+  var dobVal = indiEl.getAttribute('date_of_birth') || indiEl.getAttribute('dob') || indiEl.getAttribute('DOB') ||
+               InvitaeConverter._getChildAttr(indiEl, 'date_of_birth', 'value') || 
+               InvitaeConverter._getChildAttr(indiEl, 'dob', 'value');
+               
+  if (!dobVal) {
+    var dobEl = indiEl.querySelector(':scope > date_of_birth') || indiEl.querySelector(':scope > dob');
+    if (dobEl) dobVal = dobEl.textContent || dobEl.getAttribute('value');
+  }
+
+  if (dobVal && dobVal !== '' && dobVal !== 'undefined') {
+    properties.dob = dobVal;
+  }
+
   // Age — stored as "N yrs" string. We don't have a DOB, but store as comment info.
   var ageVal = InvitaeConverter._getChildAttr(indiEl, 'age', 'value');
-  if (ageVal && ageVal !== '' && ageVal !== 'undefined') {
-    // Try to compute a rough birth year from age
+  if (ageVal && ageVal !== '' && ageVal !== 'undefined' && !properties.dob) {
     var ageMatch = ageVal.match(/(\d+)\s*yrs?/i);
     if (ageMatch) {
       var ageNum = parseInt(ageMatch[1]);
       var birthYear = new Date().getFullYear() - ageNum;
       properties.dob = '01/01/' + birthYear;
+    } else if (ageVal.match(/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/) || ageVal.match(/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/)) {
+      // If age is directly a date like "02/20/1985"
+      properties.dob = ageVal;
     }
   }
 

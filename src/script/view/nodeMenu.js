@@ -488,9 +488,58 @@ var NodeMenu = Class.create({
       var datePicker = new Element('input', {type: 'text', 'class': 'xwiki-date', name: data.name, 'title': data.format, alt : '' });
       result.insert(datePicker);
       datePicker._getValue = function() {
-        return [this.alt && Date.parseISO_8601(this.alt)];
+        if (this.value) {
+          var val = this.value;
+          var parts = val.split(/[\/\-\.]/);
+          if (parts.length === 3) {
+            var p0 = parseInt(parts[0], 10);
+            var p1 = parseInt(parts[1], 10);
+            var p2 = parseInt(parts[2], 10);
+            var year, month, day;
+            if (p2 > 31) {
+              year = p2;
+              if (p1 > 12 && p0 <= 12) {
+                // MM/DD/YYYY
+                month = p0 - 1;
+                day = p1;
+              } else {
+                // DD/MM/YYYY
+                day = p0;
+                month = p1 - 1;
+              }
+            } else if (p0 > 31) {
+              // YYYY-MM-DD
+              year = p0;
+              month = p1 - 1;
+              day = p2;
+            } else {
+              // Fallback assumption: DD/MM/YY
+              year = p2;
+              day = p0;
+              month = p1 - 1;
+            }
+            if (year < 100) year += (year < 50 ? 2000 : 1900);
+            var parsed = new Date(year, month, day);
+            if (!isNaN(parsed.getTime())) {
+              this.alt = parsed.toISO8601 ? parsed.toISO8601() : parsed.toISOString();
+            } else {
+              this.alt = '';
+            }
+          } else {
+            var ms = Date.parse(this.value);
+            if (!isNaN(ms)) {
+              var parsed = new Date(ms);
+              this.alt = parsed.toISO8601 ? parsed.toISO8601() : parsed.toISOString();
+            } else {
+              this.alt = '';
+            }
+          }
+        } else {
+          this.alt = '';
+        }
+        return [this.alt ? (Date.parseISO_8601 ? Date.parseISO_8601(this.alt) : new Date(this.alt)) : ''];
       }.bind(datePicker);
-      this._attachFieldEventListeners(datePicker, ['xwiki:date:changed']);
+      this._attachFieldEventListeners(datePicker, ['xwiki:date:changed', 'change', 'blur']);
       return result;
     },
     'disease-picker' : function (data) {
@@ -743,6 +792,7 @@ var NodeMenu = Class.create({
       if (target) {
         target.value = value && value.toFormattedString({'format_mask' : target.title}) || '';
         target.alt = value && value.toISO8601() || '';
+        target.readOnly = false;
       }
     },
     'disease-picker' : function (container, values) {
