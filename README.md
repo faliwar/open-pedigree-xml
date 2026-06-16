@@ -6,6 +6,12 @@
   <a href="https://github.com/phenotips/open-pedigree/actions/workflows/ci.yml">
     <img src="https://github.com/phenotips/open-pedigree/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
   </a>
+  <a href="https://open-pedigree-xml.onrender.com" target="_blank">
+    <img src="https://img.shields.io/badge/Deployed%20on-Render-4642b4?logo=render&logoColor=white" alt="Deployed on Render">
+  </a>
+  <a href="https://fabianoposwar.com/heredograma" target="_blank">
+    <img src="https://img.shields.io/badge/Website-External%20Link-blue?logo=google-chrome&logoColor=white" alt="External Website">
+  </a>
   <a href="https://opensource.org/licenses/LGPL-2.1" target="_blank">
     <img src="https://img.shields.io/badge/license-LGPL--2.1-blue.svg" alt="LGPL-2.1">
   </a>
