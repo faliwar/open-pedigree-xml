@@ -35,13 +35,11 @@ Open Pedigree is a robust browser-based genomic pedigree drawing solution using 
 
 This repository is a modified fork of the original Open Pedigree project. Key changes and improvements include:
 
-*   **Enhanced XML Support:** Corrections and improvements to XML import functionality.
-*   **Export to Clipboard:** A new feature to quickly export pedigree data to the clipboard.
+*   **XML Support:** Implementation of XML import and export functionality.
+*   **Export to Clipboard:** Added feature to quickly export pedigree data to the clipboard.
 *   **Visual & Styling Improvements:** Several styling corrections, including a white background for better visibility and exporting.
 *   **Demographics Handling:** Improved handling of date of birth and calculation of current age.
-*   **Optimized Docker Build:** The Dockerfile has been updated to run a lightweight, optimized production build using `serve`, consuming minimal RAM.
-*   **Dependency Fixes:** Updated `package.json` and `webpack` configurations for stable development and production builds.
-
+*   **Optimized Docker Build:** The Dockerfile has been updated to run a lightweight, optimized production build using `serve`.
 
 
 ## Getting started
