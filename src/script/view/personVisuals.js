@@ -413,7 +413,8 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   updateEvaluationLabel: function() {
     this._evalLabel && this._evalLabel.remove();
-    if (this.getNode().getEvaluated()) {
+    var evaluated = this.getNode().getEvaluated();
+    if (evaluated) {
       if (this.getNode().getLifeStatus() == 'aborted' || this.getNode().getLifeStatus() == 'miscarriage') {
         var x = this.getX() + this._shapeRadius * 1.6;
         var y = this.getY() + this._shapeRadius * 0.6;
@@ -424,13 +425,21 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
         } else if (this.getNode().getGender() == 'M') {
           mult = 1.4;
         }
-        if (this.getNode().isProband) {
+        if (this.getNode().isProband()) {
           mult *= 1.1;
         }
         var x = this.getX() + this._shapeRadius*mult - 5;
         var y = this.getY() + this._shapeRadius*mult;
       }
-      this._evalLabel = editor.getPaper().text(x, y, '*').attr(PedigreeEditorParameters.attributes.evaluationShape).toBack();
+      
+      var displayChar = '*';
+      if (evaluated === '+') {
+        displayChar = '+';
+      } else if (evaluated === '-') {
+        displayChar = '-';
+      }
+      
+      this._evalLabel = editor.getPaper().text(x, y, displayChar).attr(PedigreeEditorParameters.attributes.evaluationShape);
     } else {
       this._evalLabel = null;
     }

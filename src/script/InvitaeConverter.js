@@ -70,7 +70,7 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var multipleEl = indi.querySelector(':scope > multiple');
     var isGroup = (multipleEl && multipleEl.getAttribute('value') === '1');
 
-    if ((markedBy === '2' || isPat === '1') && !isGroup && probandInvitaeId === null) {
+    if (isPat === '1' && !isGroup && probandInvitaeId === null) {
       probandInvitaeId = indiId;
     }
   }
@@ -241,6 +241,16 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     properties.gender = 'F';
   } else {
     properties.gender = 'U';
+  }
+
+  // Marked By (Evaluation status)
+  var markedBy = InvitaeConverter._getChildAttr(indiEl, 'marked_by', 'value');
+  if (markedBy === '1') {
+    properties.evaluated = '+';
+  } else if (markedBy === '2') {
+    properties.evaluated = '-';
+  } else if (markedBy === '3') {
+    properties.evaluated = '*';
   }
 
   // Names
@@ -589,8 +599,15 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   var xml = '<indi id="' + invitaeId + '" pat="' + (nodeId === 0 ? '1' : '0') + '" MRN="' + InvitaeConverter._escapeXml(mrn) + '">';
 
-  // marked_by: 2 = proband
-  var markedBy = (nodeId === 0) ? '2' : '0';
+  // marked_by: 1 = positive, 2 = negative, 3 = documented, 0 = none
+  var markedBy = '0';
+  if (props.evaluated === '+') {
+    markedBy = '1';
+  } else if (props.evaluated === '-') {
+    markedBy = '2';
+  } else if (props.evaluated === '*') {
+    markedBy = '3';
+  }
   xml += '<marked_by value="' + markedBy + '"/>';
 
   // Names

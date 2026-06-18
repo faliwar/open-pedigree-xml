@@ -190,6 +190,12 @@ var Person = Class.create(AbstractPerson, {
      * @method setEvaluated
      */
   setEvaluated: function(evaluationStatus) {
+    if (evaluationStatus === true) {
+      evaluationStatus = '*';
+    } else if (evaluationStatus === false || evaluationStatus === '') {
+      evaluationStatus = null;
+    }
+    
     if (evaluationStatus == this._evaluated) {
       return;
     }

@@ -764,7 +764,7 @@ var NodeMenu = Class.create({
 
   _setFieldValue : {
     'radio' : function (container, value) {
-      var target = container.down('input[type=radio][value=' + value + ']');
+      var target = container.down('input[type=radio][value="' + value + '"]');
       if (target) {
         target.checked = true;
       }
@@ -840,7 +840,7 @@ var NodeMenu = Class.create({
       }
     },
     'select' : function (container, value) {
-      var target = container.down('select option[value=' + value + ']');
+      var target = container.down('select option[value="' + value + '"]');
       if (target) {
         target.selected = 'selected';
       }

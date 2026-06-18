@@ -426,7 +426,13 @@ var PedigreeEditor = Class.create({
       {
         'name' : 'evaluated',
         'label' : 'Documented evaluation',
-        'type' : 'checkbox',
+        'type' : 'select',
+        'values': [
+          { 'actual' : '', 'displayed' : 'None' },
+          { 'actual' : '*', 'displayed' : 'Documented (*)' },
+          { 'actual' : '+', 'displayed' : 'Positive +' },
+          { 'actual' : '-', 'displayed' : 'Negative -' }
+        ],
         'tab': 'Clinical',
         'function' : 'setEvaluated'
       },
@@ -622,7 +628,13 @@ var PedigreeEditor = Class.create({
       {
         'name' : 'evaluatedGrp',
         'label' : 'Documented evaluation',
-        'type' : 'checkbox',
+        'type' : 'select',
+        'values': [
+          { 'actual' : '', 'displayed' : 'None' },
+          { 'actual' : '*', 'displayed' : 'Documented (*)' },
+          { 'actual' : '+', 'displayed' : 'Positive +' },
+          { 'actual' : '-', 'displayed' : 'Negative -' }
+        ],
         'function' : 'setEvaluated'
       },
       {
