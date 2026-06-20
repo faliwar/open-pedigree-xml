@@ -58,6 +58,8 @@ var Person = Class.create(AbstractPerson, {
     this._monozygotic = false;
     this._evaluated = false;
     this._lostContact = false;
+    this._dobApprox = false;
+    this._ageInput = '';
   },
 
   /**
@@ -394,6 +396,81 @@ var Person = Class.create(AbstractPerson, {
       this._birthDate = newDate;
       this.getGraphics().updateAgeLabel();
     }
+  },
+
+  /**
+     * Returns whether the birth date is approximate (derived from a direct age input)
+     *
+     * @method getDobApprox
+     * @return {Boolean}
+     */
+  getDobApprox: function() {
+    return this._dobApprox;
+  },
+
+  /**
+     * Sets whether the birth date is approximate
+     *
+     * @method setDobApprox
+     * @param {Boolean} isApprox
+     */
+  setDobApprox: function(isApprox) {
+    this._dobApprox = !!isApprox;
+    this.getGraphics().updateAgeLabel();
+  },
+
+  /**
+     * Returns the raw age input string (e.g. "44", "4 mo", "3 wk")
+     *
+     * @method getAgeInput
+     * @return {String}
+     */
+  getAgeInput: function() {
+    return this._ageInput;
+  },
+
+  /**
+     * Sets the age directly. Parses the input string to determine the unit
+     * (default: years; "mo" = months; "wk" = weeks) and calculates an
+     * approximate date of birth.
+     *
+     * @method setAgeInput
+     * @param {String} ageStr e.g. "44", "4 mo", "3 wk"
+     */
+  setAgeInput: function(ageStr) {
+    if (!ageStr || ageStr === '') {
+      this._ageInput = '';
+      // Don't clear birthDate here — let the UI handle clearing if needed
+      this._dobApprox = false;
+      this.getGraphics().updateAgeLabel();
+      return;
+    }
+
+    this._ageInput = String(ageStr).trim();
+
+    // Parse: "4 mo", "4mo", "4 wk", "4wk", or plain number (years)
+    var moMatch = this._ageInput.match(/^(\d+)\s*mo$/i);
+    var wkMatch = this._ageInput.match(/^(\d+)\s*wk$/i);
+    var yrMatch = this._ageInput.match(/^(\d+)\s*(?:yrs?|y)?$/i);
+
+    var approxDob = new Date();
+    if (moMatch) {
+      var months = parseInt(moMatch[1], 10);
+      approxDob.setMonth(approxDob.getMonth() - months);
+    } else if (wkMatch) {
+      var weeks = parseInt(wkMatch[1], 10);
+      approxDob.setDate(approxDob.getDate() - (weeks * 7));
+    } else if (yrMatch) {
+      var years = parseInt(yrMatch[1], 10);
+      approxDob.setFullYear(approxDob.getFullYear() - years);
+    } else {
+      // unrecognized format, do nothing
+      return;
+    }
+
+    this._dobApprox = true;
+    this._birthDate = approxDob;
+    this.getGraphics().updateAgeLabel();
   },
 
   /**
@@ -824,6 +901,7 @@ var Person = Class.create(AbstractPerson, {
       last_name:     {value : this.getLastName()},
       external_id:   {value : this.getExternalID()},
       gender:        {value : this.getGender(), inactive: inactiveGenders},
+      age_input:     {value : this.getAgeInput(), inactive: this.isFetus()},
       date_of_birth: {value : this.getBirthDate(), inactive: this.isFetus()},
       carrier:       {value : this.getCarrierStatus(), disabled: inactiveCarriers},
       disorders:     {value : disorders},
@@ -907,6 +985,12 @@ var Person = Class.create(AbstractPerson, {
     if (this.getLostContact()) {
       info['lostContact'] = this.getLostContact();
     }
+    if (this.getDobApprox()) {
+      info['dobApprox'] = true;
+    }
+    if (this.getAgeInput() && this.getAgeInput() !== '') {
+      info['ageInput'] = this.getAgeInput();
+    }
     return info;
   },
 
@@ -971,6 +1055,12 @@ var Person = Class.create(AbstractPerson, {
       }
       if (info.hasOwnProperty('lostContact') && this.getLostContact() != info.lostContact) {
         this.setLostContact(info.lostContact);
+      }
+      if (info.hasOwnProperty('dobApprox')) {
+        this._dobApprox = !!info.dobApprox;
+      }
+      if (info.hasOwnProperty('ageInput') && info.ageInput !== '') {
+        this._ageInput = info.ageInput;
       }
       return true;
     }

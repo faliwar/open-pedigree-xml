@@ -357,7 +357,9 @@ PedigreeExport.internalToJSONPropertyMapping = {
   'numPersons':    'numPersons',
   'hpoTerms':      'hpoTerms',
   'candidateGenes':'candidateGenes',
-  'lostContact':   'lostContact'
+  'lostContact':   'lostContact',
+  'dobApprox':     'birthDateApprox',
+  'ageInput':      'ageInput'
 };
 
 /*

@@ -310,17 +310,50 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     properties.dob = dobVal;
   }
 
-  // Age — stored as "N yrs" string. We don't have a DOB, but store as comment info.
+  // Age — stored as "N yrs" string or as a date. When it's an age string,
+  // compute an approximate DOB from today minus the age value.
   var ageVal = InvitaeConverter._getChildAttr(indiEl, 'age', 'value');
   if (ageVal && ageVal !== '' && ageVal !== 'undefined' && !properties.dob) {
     var ageMatch = ageVal.match(/(\d+)\s*yrs?/i);
+    var moMatch = ageVal.match(/(\d+)\s*mo/i);
+    var wkMatch = ageVal.match(/(\d+)\s*wk/i);
     if (ageMatch) {
       var ageNum = parseInt(ageMatch[1]);
-      var birthYear = new Date().getFullYear() - ageNum;
-      properties.dob = '01/01/' + birthYear;
+      var approxDob = new Date();
+      approxDob.setFullYear(approxDob.getFullYear() - ageNum);
+      properties.dob = (approxDob.getMonth() + 1) + '/' + approxDob.getDate() + '/' + approxDob.getFullYear();
+      properties.dobApprox = true;
+      properties.ageInput = String(ageNum);
+    } else if (moMatch) {
+      var moNum = parseInt(moMatch[1]);
+      var approxDob = new Date();
+      approxDob.setMonth(approxDob.getMonth() - moNum);
+      properties.dob = (approxDob.getMonth() + 1) + '/' + approxDob.getDate() + '/' + approxDob.getFullYear();
+      properties.dobApprox = true;
+      properties.ageInput = moNum + ' mo';
+    } else if (wkMatch) {
+      var wkNum = parseInt(wkMatch[1]);
+      var approxDob = new Date();
+      approxDob.setDate(approxDob.getDate() - (wkNum * 7));
+      properties.dob = (approxDob.getMonth() + 1) + '/' + approxDob.getDate() + '/' + approxDob.getFullYear();
+      properties.dobApprox = true;
+      properties.ageInput = wkNum + ' wk';
     } else if (ageVal.match(/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/) || ageVal.match(/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/)) {
       // If age is directly a date like "02/20/1985"
       properties.dob = ageVal;
+    }
+  }
+
+  // Detect "approximate DOB" note — also set dobApprox if found
+  var notesElForApprox = indiEl.querySelector(':scope > notes');
+  if (notesElForApprox) {
+    var noteElsForApprox = notesElForApprox.querySelectorAll(':scope > note');
+    for (var na = 0; na < noteElsForApprox.length; na++) {
+      var noteVal = noteElsForApprox[na].getAttribute('string_value') || noteElsForApprox[na].getAttribute('value');
+      if (noteVal && noteVal.toLowerCase() === 'approximate dob') {
+        properties.dobApprox = true;
+        break;
+      }
     }
   }
 
@@ -655,15 +688,16 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   }
   xml += '<cause value="' + InvitaeConverter._escapeXml(cause) + '"/>';
 
-  // Age — compute from DOB
+  // Age — export the DOB date (approximate or exact) in MM/DD/YYYY format
   var ageStr = '';
   if (privacySetting === 'all' && props.dob) {
     try {
       var dob = new Date(props.dob);
-      var now = new Date();
-      var age = now.getFullYear() - dob.getFullYear();
-      if (age > 0) {
-        ageStr = age + ' yrs';
+      if (!isNaN(dob.getTime())) {
+        var mm = String(dob.getMonth() + 1).padStart(2, '0');
+        var dd = String(dob.getDate()).padStart(2, '0');
+        var yyyy = dob.getFullYear();
+        ageStr = mm + '/' + dd + '/' + yyyy;
       }
     } catch (e) { /* ignore */ }
   }
@@ -749,14 +783,25 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     xml += '</conditions>';
   }
 
-  // Notes (HPO terms as phenotype notes)
-  if (props.hpoTerms && props.hpoTerms.length > 0) {
+  // Notes (HPO terms as phenotype notes + approximate DOB note)
+  var hasHpoNotes = props.hpoTerms && props.hpoTerms.length > 0;
+  var hasDobApproxNote = !!props.dobApprox;
+  if (hasHpoNotes || hasDobApproxNote) {
     xml += '<notes>';
-    for (var h = 0; h < props.hpoTerms.length; h++) {
-      xml += '<note id="' + (h + 12) + '" note_id="' + (h + 12) + '"';
-      xml += ' value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"';
-      xml += ' string_type="composite" string_title="Phenotype"';
-      xml += ' string_value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"/>';
+    var noteIdx = 12;
+    if (hasHpoNotes) {
+      for (var h = 0; h < props.hpoTerms.length; h++) {
+        xml += '<note id="' + noteIdx + '" note_id="' + noteIdx + '"';
+        xml += ' value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"';
+        xml += ' string_type="composite" string_title="Phenotype"';
+        xml += ' string_value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"/>';
+        noteIdx++;
+      }
+    }
+    if (hasDobApproxNote) {
+      xml += '<note id="' + noteIdx + '" note_id="' + noteIdx + '"';
+      xml += ' value="approximate DOB" string_type="multiline" string_title="Note"';
+      xml += ' string_value="approximate DOB"/>';
     }
     xml += '</notes>';
   }

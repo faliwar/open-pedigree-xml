@@ -458,6 +458,14 @@ var PedigreeEditor = Class.create({
         'function' : 'setHPO'
       },
       {
+        'name' : 'age_input',
+        'label' : 'Age',
+        'type' : 'text',
+        'tab': 'Personal',
+        'tip' : 'e.g. 44, 4 mo, 3 wk',
+        'function' : 'setAgeInput'
+      },
+      {
         'name' : 'date_of_birth',
         'label' : 'Date of birth',
         'type' : 'date-picker',

@@ -1022,7 +1022,9 @@ PedigreeImport.JSONToInternalPropertyMapping = {
   'carrierstatus':   'carrierStatus',
   'externalid':      'externalID',
   'numpersons':      'numPersons',
-  'lostcontact':     'lostContact'
+  'lostcontact':     'lostContact',
+  'birthdateapprox': 'dobApprox',
+  'ageinput':        'ageInput'
 };
 
 

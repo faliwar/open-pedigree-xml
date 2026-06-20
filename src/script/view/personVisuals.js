@@ -359,6 +359,10 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
         } else {
             text = age;
         }
+        // Add ~ prefix for approximate ages
+        if (person.getDobApprox() && text) {
+          text = '~' + text;
+        }
       }
     } else {
       if(person.getDeathDate() && person.getBirthDate()) {
@@ -368,10 +372,17 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
         } else {
             text = 'd. ' + age;
         }
+        // Add ~ prefix for approximate ages
+        if (person.getDobApprox() && text) {
+          text = text.replace('d. ', 'd. ~');
+        }
       } else if (person.getDeathDate()) {
         text = 'd. ' + person.getDeathDate().getFullYear();
       } else if(person.getBirthDate()) {
         text = person.getBirthDate().getFullYear() + ' – ?';
+        if (person.getDobApprox()) {
+          text = '~' + text;
+        }
       }
     }
     this.getAgeLabel() && this.getAgeLabel().remove();
