@@ -453,6 +453,31 @@ var Person = Class.create(AbstractPerson, {
     var wkMatch = this._ageInput.match(/^(\d+)\s*wk$/i);
     var yrMatch = this._ageInput.match(/^(\d+)\s*(?:yrs?|y)?$/i);
 
+    // If there is an exact birth date, and the submitted age string exactly matches
+    // the calculated age for that exact birth date, do NOT overwrite it with an approximation.
+    // This prevents the UI's auto-calculated age from destroying precise DOBs upon saving.
+    if (this._birthDate && !this._dobApprox) {
+      var now = this.getDeathDate() || new Date();
+      var dob = this._birthDate;
+
+      var exactYears = now.getFullYear() - dob.getFullYear();
+      if (now.getMonth() < dob.getMonth() || (now.getMonth() == dob.getMonth() && now.getDate() < dob.getDate())) {
+        exactYears--;
+      }
+
+      var exactMonths = (now.getFullYear() - dob.getFullYear()) * 12 + now.getMonth() - dob.getMonth();
+      if (now.getDate() < dob.getDate()) {
+        exactMonths--;
+      }
+
+      var ageDiffDays = Math.floor((now.getTime() - dob.getTime()) / (1000 * 60 * 60 * 24));
+      var exactWeeks = Math.floor(ageDiffDays / 7);
+
+      if (yrMatch && parseInt(yrMatch[1], 10) === exactYears) return;
+      if (moMatch && parseInt(moMatch[1], 10) === exactMonths) return;
+      if (wkMatch && parseInt(wkMatch[1], 10) === exactWeeks) return;
+    }
+
     var approxDob = new Date();
     if (moMatch) {
       var months = parseInt(moMatch[1], 10);
