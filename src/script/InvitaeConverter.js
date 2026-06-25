@@ -503,7 +503,7 @@ InvitaeConverter._parseIndividual = function (indiEl) {
             properties.hpoTerms = [];
           }
           properties.hpoTerms.push(noteValue);
-        } else {
+        } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
             properties.comments = '';
@@ -512,6 +512,12 @@ InvitaeConverter._parseIndividual = function (indiEl) {
         }
       }
     }
+  }
+
+  // Scrub any lingering "approximate DOB" from comments
+  if (properties.comments) {
+    properties.comments = properties.comments.replace(/approximate DOB(\r?\n)?/igm, '');
+    properties.comments = properties.comments.replace(/^\s*[\r\n]/gm, '').trim();
   }
 
   // Siblings / Twins

@@ -394,6 +394,8 @@ var Person = Class.create(AbstractPerson, {
     newDate = newDate ? (new Date(newDate)) : '';
     if (!newDate || !this.getDeathDate() || newDate.getTime() < this.getDeathDate().getTime()) {
       this._birthDate = newDate;
+      this._dobApprox = false;
+      this._ageInput = '';
       this.getGraphics().updateAgeLabel();
     }
   },
@@ -440,7 +442,9 @@ var Person = Class.create(AbstractPerson, {
   setAgeInput: function(ageStr) {
     if (!ageStr || ageStr === '') {
       this._ageInput = '';
-      // Don't clear birthDate here — let the UI handle clearing if needed
+      if (this._dobApprox) {
+        this._birthDate = '';
+      }
       this._dobApprox = false;
       this.getGraphics().updateAgeLabel();
       return;
@@ -1082,7 +1086,7 @@ var Person = Class.create(AbstractPerson, {
         this.setLostContact(info.lostContact);
       }
       if (info.hasOwnProperty('dobApprox')) {
-        this._dobApprox = !!info.dobApprox;
+        this.setDobApprox(info.dobApprox);
       }
       if (info.hasOwnProperty('ageInput') && info.ageInput !== '') {
         this._ageInput = info.ageInput;

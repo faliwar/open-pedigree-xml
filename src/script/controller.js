@@ -156,6 +156,12 @@ var Controller = Class.create({
         if (propertySetFunction == 'setDeathDate') {
           undoEvent.memo.properties['setLifeStatus'] = node.getLifeStatus();
         }
+        if (propertySetFunction == 'setBirthDate') {
+          undoEvent.memo.properties['setAgeInput'] = node.getAgeInput();
+        }
+        if (propertySetFunction == 'setAgeInput') {
+          undoEvent.memo.properties['setBirthDate'] = node.getBirthDate();
+        }
         if (propertySetFunction == 'setDisorders') {
           undoEvent.memo.properties['setCarrierStatus'] = node.getCarrierStatus();
         }
