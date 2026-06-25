@@ -81,9 +81,20 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   }
 
   // Parse all individuals
+  var dummyMap = {}; // Tracks childInvitaeId -> statusType (childless/infertile)
   for (var i = 0; i < indiElements.length; i++) {
     var indi = indiElements[i];
     var indiId = indi.getAttribute('id');
+
+    // Identify dummy childless/infertile nodes
+    var statusVal = InvitaeConverter._getChildAttr(indi, 'status', 'value');
+    var fName = InvitaeConverter._getChildAttr(indi, 'first_name', 'value');
+    var lName = InvitaeConverter._getChildAttr(indi, 'last_name', 'value');
+    if ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === '')) {
+      dummyMap[indiId] = (statusVal === '7') ? 'childless' : 'infertile';
+      continue;
+    }
+
     var properties = InvitaeConverter._parseIndividual(indi);
 
     // Handle twins
@@ -175,29 +186,55 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       singleParentId = unknownParentId;
     }
 
+    var childEls = childrenEl ? childrenEl.querySelectorAll(':scope > child') : [];
+    
+    // Check if we have real children
+    var hasRealChildren = false;
+    for (var c = 0; c < childEls.length; c++) {
+      var cid = childEls[c].getAttribute('id');
+      if (!dummyMap[cid] && invitaeIdToPedigreeId.hasOwnProperty(cid)) {
+        hasRealChildren = true;
+        break;
+      }
+    }
+
     var chhubId;
     var relNode;
+    
     if (isSingleParent) {
-      // Get or create a single-parent childhub
-      chhubId = relationshipTracker.createOrGetSingleParentChildhub(singleParentId);
-      // Find the relationship node for this single parent
-      var singleParentOutEdges = newG.getOutEdges(singleParentId);
-      for (var e = 0; e < singleParentOutEdges.length; e++) {
-        var candidate = singleParentOutEdges[e];
-        if (newG.isRelationship(candidate)) {
-          var relInEdges = newG.getInEdges(candidate);
-          if (relInEdges.length === 1 && relInEdges[0] === singleParentId) {
-            relNode = candidate;
-            break;
+      if (hasRealChildren) {
+        // Get or create a single-parent childhub
+        chhubId = relationshipTracker.createOrGetSingleParentChildhub(singleParentId);
+        // Find the relationship node for this single parent
+        var singleParentOutEdges = newG.getOutEdges(singleParentId);
+        for (var e = 0; e < singleParentOutEdges.length; e++) {
+          var candidate = singleParentOutEdges[e];
+          if (newG.isRelationship(candidate)) {
+            var relInEdges = newG.getInEdges(candidate);
+            if (relInEdges.length === 1 && relInEdges[0] === singleParentId) {
+              relNode = candidate;
+              break;
+            }
           }
         }
       }
     } else {
-      // Get or create the childhub for this couple
-      chhubId = relationshipTracker.createOrGetChildhub(motherId, fatherId);
-
-      // Set relationship properties (consanguinity, broken/ex)
-      relNode = newG.getRelationshipNode(fatherId, motherId);
+      if (hasRealChildren) {
+        // Get or create the childhub for this couple
+        chhubId = relationshipTracker.createOrGetChildhub(motherId, fatherId);
+        // Set relationship properties (consanguinity, broken/ex)
+        relNode = newG.getRelationshipNode(fatherId, motherId);
+      } else {
+        // Create relationship node WITHOUT a childhub for childless couples
+        var existingRel = newG.getRelationshipNode(fatherId, motherId);
+        if (existingRel !== null && existingRel !== undefined) {
+          relNode = existingRel;
+        } else {
+          relNode = newG._addVertex( null, BaseGraph.TYPE.RELATIONSHIP, {}, newG.defaultNonPersonNodeWidth );
+          newG.addEdge( motherId, relNode, defaultEdgeWeight );
+          newG.addEdge( fatherId, relNode, defaultEdgeWeight );
+        }
+      }
     }
 
     if (relNode !== null && relNode !== undefined) {
@@ -209,20 +246,43 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       }
     }
 
-    // Add children
-    if (childrenEl) {
-      var childEls = childrenEl.querySelectorAll(':scope > child');
-      for (var c = 0; c < childEls.length; c++) {
-        var childInvitaeId = childEls[c].getAttribute('id');
-        if (invitaeIdToPedigreeId.hasOwnProperty(childInvitaeId)) {
-          var childPedigreeId = invitaeIdToPedigreeId[childInvitaeId];
-          newG.addEdge(chhubId, childPedigreeId, defaultEdgeWeight);
-        }
+    // Process children and statuses
+    for (var c = 0; c < childEls.length; c++) {
+      var childInvitaeId = childEls[c].getAttribute('id');
+      
+      if (dummyMap[childInvitaeId]) {
+         var dummyStatus = dummyMap[childInvitaeId];
+         if (relNode !== null && relNode !== undefined && !isSingleParent) {
+           if (!newG.properties[relNode]) newG.properties[relNode] = {};
+           newG.properties[relNode]['childlessStatus'] = dummyStatus;
+         } else {
+           if (fatherId !== null) {
+              if (!newG.properties[fatherId]) newG.properties[fatherId] = {};
+              newG.properties[fatherId]['childlessStatus'] = dummyStatus;
+           }
+           if (motherId !== null) {
+              if (!newG.properties[motherId]) newG.properties[motherId] = {};
+              newG.properties[motherId]['childlessStatus'] = dummyStatus;
+           }
+         }
+      } else if (invitaeIdToPedigreeId.hasOwnProperty(childInvitaeId) && chhubId !== undefined) {
+        var childPedigreeId = invitaeIdToPedigreeId[childInvitaeId];
+        newG.addEdge(chhubId, childPedigreeId, defaultEdgeWeight);
       }
     }
   }
 
-  newG.validate();
+  // Now that the graph structure is in place, validate it to ensure we haven't introduced any broken
+  // nodes or cycles.
+  try {
+    newG.validate();
+  } catch (e) {
+    var eStr = e.toString();
+    if (eStr.indexOf('all relationships should have a childhub') === -1 &&
+        eStr.indexOf('all childhubs should have at least one child') === -1) {
+      throw 'Error importing pedigree: ' + e;
+    }
+  }
   return newG;
 };
 
@@ -527,6 +587,11 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
   }
 
   // Build individuals
+  var dummyIndis = '';
+  var dummyFams = '';
+  var nextDummyId = pedigree.GG.getMaxRealVertexId() + 1000;
+  var relChildlessMap = {};
+
   for (var i = 0; i <= pedigree.GG.getMaxRealVertexId(); i++) {
     if (!pedigree.GG.isPerson(i)) {
       continue;
@@ -534,7 +599,31 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
 
     var props = pedigree.GG.properties[i];
     xml += InvitaeConverter._buildIndiElement(i, props, pedigree, privacySetting, idToInvitaeId);
+    
+    if (props && (props.childlessStatus === 'childless' || props.childlessStatus === 'infertile')) {
+      var dId = nextDummyId++;
+      var sVal = (props.childlessStatus === 'childless') ? '7' : '6';
+      dummyIndis += '<indi id="d' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+      var dfId = 'df' + dId;
+      var pTag = (props.gender === 'F') ? 'female' : 'male';
+      dummyFams += '<fam id="' + dfId + '" ex="0" consanguinity="0" link="0"><' + pTag + ' id="' + idToInvitaeId[i] + '"/><children><child id="d' + dId + '"/></children></fam>';
+    }
   }
+
+  // Pre-process relationships to catch any dummy indis we need to declare
+  for (var i = 0; i <= pedigree.GG.getMaxRealVertexId(); i++) {
+    if (pedigree.GG.isRelationship(i)) {
+      var relProps = pedigree.GG.properties[i] || {};
+      if (relProps.childlessStatus === 'childless' || relProps.childlessStatus === 'infertile') {
+        var dId = nextDummyId++;
+        var sVal = (relProps.childlessStatus === 'childless') ? '7' : '6';
+        dummyIndis += '<indi id="d' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+        relChildlessMap[i] = 'd' + dId;
+      }
+    }
+  }
+
+  xml += dummyIndis;
 
   // Build families from relationships
   var famIndex = 0;
@@ -604,8 +693,11 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       xml += '<female id="' + idToInvitaeId[femaleId] + '"/>';
     }
 
-    if (children.length > 0) {
+    if (children.length > 0 || relChildlessMap[i]) {
       xml += '<children>';
+      if (relChildlessMap[i]) {
+        xml += '<child id="' + relChildlessMap[i] + '"/>';
+      }
       for (var c = 0; c < children.length; c++) {
         if (idToInvitaeId[children[c]] !== undefined) {
           xml += '<child id="' + idToInvitaeId[children[c]] + '"/>';
@@ -618,6 +710,7 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     famIndex++;
   }
 
+  xml += dummyFams;
   xml += '</tree>';
   return xml;
 };
@@ -689,17 +782,25 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   xml += '<cause value="' + InvitaeConverter._escapeXml(cause) + '"/>';
 
   // Age — export the DOB date (approximate or exact) in MM/DD/YYYY format
+  // For approximate DOBs with an age input, export the age string (e.g. "44 yrs")
   var ageStr = '';
-  if (privacySetting === 'all' && props.dob) {
-    try {
-      var dob = new Date(props.dob);
-      if (!isNaN(dob.getTime())) {
-        var mm = String(dob.getMonth() + 1).padStart(2, '0');
-        var dd = String(dob.getDate()).padStart(2, '0');
-        var yyyy = dob.getFullYear();
-        ageStr = mm + '/' + dd + '/' + yyyy;
+  if (privacySetting === 'all') {
+    if (props.dobApprox && props.ageInput) {
+      ageStr = props.ageInput;
+      if (ageStr.match(/^\d+$/)) {
+        ageStr += ' yrs';
       }
-    } catch (e) { /* ignore */ }
+    } else if (props.dob) {
+      try {
+        var dob = new Date(props.dob);
+        if (!isNaN(dob.getTime())) {
+          var mm = String(dob.getMonth() + 1).padStart(2, '0');
+          var dd = String(dob.getDate()).padStart(2, '0');
+          var yyyy = dob.getFullYear();
+          ageStr = mm + '/' + dd + '/' + yyyy;
+        }
+      } catch (e) { /* ignore */ }
+    }
   }
   xml += '<age value="' + ageStr + '"/>';
 

@@ -42,6 +42,27 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     //timer.printSinceLast("Person visuals time");
   },
 
+  _wrapText: function(text, maxChars) {
+    if (!text) return '';
+    maxChars = maxChars || 15;
+    var words = text.split(' ');
+    var lines = [];
+    var currentLine = '';
+    for (var i = 0; i < words.length; i++) {
+      var word = words[i];
+      if (currentLine.length + word.length > maxChars && currentLine.length > 0) {
+        lines.push(currentLine.trim());
+        currentLine = word + ' ';
+      } else {
+        currentLine += word + ' ';
+      }
+    }
+    if (currentLine.trim().length > 0) {
+      lines.push(currentLine.trim());
+    }
+    return lines.join('\n');
+  },
+
   generateHoverbox: function(x, y) {
     if (editor.isReadOnlyMode()) {
       return new ReadOnlyHoverbox(this.getNode(), x, y, this.getGenderGraphics());
@@ -148,8 +169,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this._externalIDLabel && this._externalIDLabel.remove();
 
     if (this.getNode().getExternalID()) {
-      var text = '[' + this.getNode().getExternalID() + ']';
+      var text = this._wrapText('[' + this.getNode().getExternalID() + ']', 15);
       this._externalIDLabel = editor.getPaper().text(this.getX(), this.getY() + PedigreeEditorParameters.attributes.radius, text).attr(PedigreeEditorParameters.attributes.externalIDLabels);
+      this._externalIDLabel.alignTop = true;
     } else {
       this._externalIDLabel = null;
     }
@@ -180,9 +202,12 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       text += ' ' + this.getNode().getLastName();
     }
 
+    text = this._wrapText(text.trim(), 15);
+
     this._nameLabel && this._nameLabel.remove();
     if(text.strip() != '') {
       this._nameLabel = editor.getPaper().text(this.getX(), this.getY() + PedigreeEditorParameters.attributes.radius, text).attr(PedigreeEditorParameters.attributes.nameLabels);
+      this._nameLabel.alignTop = true;
     } else {
       this._nameLabel = null;
     }
@@ -385,8 +410,16 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
         }
       }
     }
+
+    if (text) {
+      text = this._wrapText(text, 15);
+    }
+
     this.getAgeLabel() && this.getAgeLabel().remove();
     this._ageLabel = text ? editor.getPaper().text(this.getX(), this.getY(), text).attr(PedigreeEditorParameters.attributes.label) : null;
+    if (this._ageLabel) {
+      this._ageLabel.alignTop = true;
+    }
     this.drawLabels();
   },
 
@@ -572,7 +605,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   updateCommentsLabel: function() {
     this.getCommentsLabel() && this.getCommentsLabel().remove();
     if (this.getNode().getComments() != '') {
-      var text = this.getNode().getComments(); //.replace(/\n/g, '<br />');
+      var text = this._wrapText(this.getNode().getComments(), 20); //.replace(/\n/g, '<br />');
       this._commentsLabel = editor.getPaper().text(this.getX(), this.getY(), text).attr(PedigreeEditorParameters.attributes.commentLabel);
       this._commentsLabel.alignTop = true;
     } else {
