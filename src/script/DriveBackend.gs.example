@@ -1,0 +1,151 @@
+/**
+ * ============================================================================
+ *  Google Apps Script (Server-Side) — DriveBackend
+ * ============================================================================
+ *
+ * Este arquivo contém as funções server-side que são chamadas pelo frontend
+ * via google.script.run. Copie este conteúdo para um arquivo .gs no seu
+ * projeto Google Apps Script.
+ *
+ * CONFIGURAÇÃO:
+ *   1. Substitua YOUR_FOLDER_ID_HERE pelo ID da pasta do Google Drive onde
+ *      seus arquivos XML de pedigree estão armazenados.
+ *   2. O ID da pasta pode ser encontrado na URL ao abrir a pasta no Drive:
+ *      https://drive.google.com/drive/folders/FOLDER_ID_HERE
+ *
+ * FUNÇÕES DISPONÍVEIS:
+ *   - listXmlFiles()                  → Lista os arquivos .xml da pasta
+ *   - loadXmlFile(fileId)             → Carrega o conteúdo de um arquivo XML
+ *   - saveXmlFile(fileId, content)    → Sobrescreve um arquivo XML existente
+ *   - createXmlFile(fileName, content)→ Cria um novo arquivo XML na pasta
+ *   - onOpen()                        → Cria o menu no Google Sheets/Docs
+ *   - showPedigreeEditor()            → Abre o editor como sidebar
+ *
+ * ============================================================================
+ */
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CONFIGURAÇÃO — Altere o ID abaixo
+// ─────────────────────────────────────────────────────────────────────────────
+
+var DRIVE_FOLDER_ID = 'YOUR_FOLDER_ID_HERE';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MENU E SIDEBAR
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Cria um menu customizado quando o documento é aberto.
+ * Adicione isso ao seu Google Sheets, Docs ou Slides.
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi(); // ou DocumentApp.getUi(), SlidesApp.getUi()
+  ui.createMenu('Pedigree Editor')
+    .addItem('Abrir Editor', 'showPedigreeEditor')
+    .addToUi();
+}
+
+/**
+ * Abre o Pedigree Editor como sidebar.
+ * O arquivo index.html deve conter o HTML do editor com os scripts carregados.
+ */
+function showPedigreeEditor() {
+  var html = HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('Pedigree Editor')
+    .setWidth(1200);
+  SpreadsheetApp.getUi().showSidebar(html); // ou showModalDialog(html, 'Pedigree Editor')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  OPERAÇÕES COM ARQUIVOS DO DRIVE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lista todos os arquivos XML na pasta configurada do Drive.
+ *
+ * @returns {Array<Object>} Array de objetos { id, name, lastUpdated }
+ */
+function listXmlFiles() {
+  var folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+  var files = folder.getFiles();
+  var result = [];
+
+  while (files.hasNext()) {
+    var file = files.next();
+    var name = file.getName();
+
+    // Filtra apenas arquivos .xml
+    if (name.toLowerCase().indexOf('.xml') === name.length - 4) {
+      result.push({
+        id: file.getId(),
+        name: name,
+        lastUpdated: file.getLastUpdated().toISOString()
+      });
+    }
+  }
+
+  // Ordena por nome
+  result.sort(function (a, b) {
+    return a.name.localeCompare(b.name);
+  });
+
+  return result;
+}
+
+/**
+ * Carrega o conteúdo de um arquivo XML do Drive.
+ *
+ * @param {String} fileId  O ID do arquivo no Google Drive
+ * @returns {String}  O conteúdo do arquivo como string
+ */
+function loadXmlFile(fileId) {
+  var file = DriveApp.getFileById(fileId);
+  return file.getBlob().getDataAsString();
+}
+
+/**
+ * Sobrescreve o conteúdo de um arquivo XML existente no Drive.
+ *
+ * @param {String} fileId   O ID do arquivo no Google Drive
+ * @param {String} content  O novo conteúdo XML
+ */
+function saveXmlFile(fileId, content) {
+  var file = DriveApp.getFileById(fileId);
+
+  // DriveApp não tem setContent direto — usamos a API avançada ou
+  // removemos e recriamos no mesmo local
+  var folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+  var fileName = file.getName();
+  var mimeType = file.getMimeType();
+
+  // Remove o arquivo antigo
+  file.setTrashed(true);
+
+  // Cria novo arquivo com o mesmo nome
+  var newBlob = Utilities.newBlob(content, mimeType || 'text/xml', fileName);
+  folder.createFile(newBlob);
+}
+
+/**
+ * Cria um novo arquivo XML na pasta configurada do Drive.
+ *
+ * @param {String} fileName  Nome do novo arquivo (deve terminar com .xml)
+ * @param {String} content   O conteúdo XML
+ * @returns {Object}  { id, name } do arquivo criado
+ */
+function createXmlFile(fileName, content) {
+  var folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+
+  // Garante extensão .xml
+  if (fileName.toLowerCase().indexOf('.xml') !== fileName.length - 4) {
+    fileName += '.xml';
+  }
+
+  var blob = Utilities.newBlob(content, 'text/xml', fileName);
+  var file = folder.createFile(blob);
+
+  return {
+    id: file.getId(),
+    name: file.getName()
+  };
+}

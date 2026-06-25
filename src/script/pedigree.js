@@ -12,6 +12,7 @@ import ImportSelector from 'pedigree/view/importSelector';
 import NodeMenu from 'pedigree/view/nodeMenu';
 import NodetypeSelectionBubble from 'pedigree/view/nodetypeSelectionBubble';
 import TemplateSelector from 'pedigree/view/templateSelector';
+import DriveFileSelector from 'pedigree/view/driveFileSelector';
 import ActionStack from 'pedigree/undoRedo';
 import VersionUpdater from 'pedigree/versionUpdater';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
@@ -73,6 +74,7 @@ var PedigreeEditor = Class.create({
     this._templateSelector = new TemplateSelector();
     this._importSelector = new ImportSelector();
     this._exportSelector = new ExportSelector();
+    this._driveFileSelector = new DriveFileSelector();
     this._versionUpdater = new VersionUpdater();
     this._saveLoadEngine = new SaveLoadEngine(backend);
 
@@ -116,6 +118,15 @@ var PedigreeEditor = Class.create({
     var exportButton = $('action-export');
     exportButton && exportButton.on('click', function(event) {
       editor.getExportSelector().show();
+    });
+
+    var openDriveButton = $('action-open-drive');
+    openDriveButton && openDriveButton.on('click', function(event) {
+      editor.getDriveFileSelector().show();
+    });
+    var saveDriveButton = $('action-save-drive');
+    saveDriveButton && saveDriveButton.on('click', function(event) {
+      editor.getDriveFileSelector().saveCurrentPedigree();
     });
 
     var closeButton = $('action-close');
@@ -342,6 +353,14 @@ var PedigreeEditor = Class.create({
      */
   getExportSelector: function() {
     return this._exportSelector;
+  },
+
+  /**
+     * @method getDriveFileSelector
+     * @return {DriveFileSelector}
+     */
+  getDriveFileSelector: function() {
+    return this._driveFileSelector;
   },
 
   /**

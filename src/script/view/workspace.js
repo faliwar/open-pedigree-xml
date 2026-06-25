@@ -167,6 +167,12 @@ var Workspace = Class.create({
       }];
     } else {
       submenus = [{
+        name : 'drive',
+        items: [
+          { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
+          { key : 'save-drive', label : 'Save XML', icon : 'save'}
+        ]
+      }, {
         name : 'input',
         items: [
           { key : 'templates', label : 'Templates', icon : 'copy'},

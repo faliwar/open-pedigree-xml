@@ -733,3 +733,140 @@
   bottom: 10px;
   right: 10px;
 }
+
+/* =========================================
+ * DRIVE FILE SELECTOR
+ */
+
+/* Highlight Drive buttons in the menu */
+#editor-menu .menu-item.open-drive,
+#editor-menu .menu-item.save-drive {
+  color: #0066CC;
+  font-weight: bold;
+}
+#editor-menu .menu-item.open-drive:hover,
+#editor-menu .menu-item.save-drive:hover {
+  color: #0044AA;
+  box-shadow: #0066CC 0 0 5px 0;
+}
+
+/* Drive selector modal */
+.drive-file-selector {
+  min-width: 500px;
+  max-width: 700px;
+}
+
+.drive-selector-header {
+  font-weight: bold;
+  margin-bottom: 1em;
+  font-size: 1em;
+  color: #333;
+}
+
+.drive-selector-loading {
+  text-align: center;
+  padding: 2em 1em;
+  color: #666;
+  font-size: 1.1em;
+}
+
+.drive-selector-loading .fa-spinner {
+  margin-right: 0.5em;
+  color: #0066CC;
+}
+
+.drive-selector-error {
+  text-align: center;
+  padding: 1.5em 1em;
+  color: #CC3300;
+  font-size: 0.95em;
+  background: #FFF5F5;
+  border: 1px solid #FFCCCC;
+  border-radius: 4px;
+  margin: 0.5em 0;
+}
+
+.drive-selector-error .fa-exclamation-triangle {
+  margin-right: 0.5em;
+}
+
+.drive-selector-error .fa-info-circle {
+  color: #666;
+  margin-right: 0.5em;
+}
+
+/* File list */
+.drive-file-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 0.5em 0;
+}
+
+.drive-file-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.drive-file-table thead th {
+  text-align: left;
+  padding: 0.6em 0.8em;
+  border-bottom: 2px solid #DDD;
+  color: #555;
+  font-weight: bold;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.drive-file-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.drive-file-row:hover {
+  background-color: #E8F0FE;
+}
+
+.drive-file-row td {
+  padding: 0.6em 0.8em;
+  border-bottom: 1px solid #EEE;
+}
+
+.drive-file-name {
+  font-weight: 500;
+  color: #222;
+}
+
+.drive-file-icon {
+  color: #0066CC;
+  margin-right: 0.4em;
+}
+
+.drive-file-date {
+  color: #777;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.drive-file-action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.drive-open-btn {
+  padding: 0.3em 0.8em !important;
+  font-size: 0.85em !important;
+  border-radius: 3px !important;
+  cursor: pointer;
+}
+
+.drive-open-btn:hover {
+  background-color: #0066CC !important;
+  color: #FFF !important;
+}
+
+/* Drive chooser modal overrides */
+.pedigree-drive-chooser .msdialog-box {
+  width: 650px;
+}
