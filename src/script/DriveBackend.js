@@ -145,7 +145,7 @@ DriveBackend.saveFile = function (fileId, fileName, xmlContent, onSuccess, onFai
       saveTextAs(xmlContent, fileName || 'pedigree.xml');
       onSuccess();
     } catch (e) {
-      onFailure('Erro ao salvar localmente: ' + e.message);
+      onFailure('Error saving locally: ' + e.message);
     }
   }
 };
@@ -184,7 +184,7 @@ DriveBackend.createFile = function (fileName, xmlContent, onSuccess, onFailure) 
       saveTextAs(xmlContent, fileName);
       onSuccess({ id: null, name: fileName });
     } catch (e) {
-      onFailure('Erro ao criar arquivo localmente: ' + e.message);
+      onFailure('Error creating file locally: ' + e.message);
     }
   }
 };

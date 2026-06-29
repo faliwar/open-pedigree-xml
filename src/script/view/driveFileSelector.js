@@ -70,12 +70,12 @@ var DriveFileSelector = Class.create({
 
     // Header / description
     var header = new Element('div', { 'class': 'drive-selector-header' })
-      .update('Selecione um arquivo XML do Google Drive:');
+      .update('Select an XML file from Google Drive:');
     mainDiv.insert(header);
 
     // Loading indicator
     var loadingDiv = new Element('div', { 'class': 'drive-selector-loading' })
-      .update('<span class="fa fa-spinner fa-spin"></span> Carregando arquivos...');
+      .update('<span class="fa fa-spinner fa-spin"></span> Loading files...');
     mainDiv.insert(loadingDiv);
 
     // File list container (initially hidden)
@@ -95,7 +95,7 @@ var DriveFileSelector = Class.create({
     // Buttons
     var buttons = new Element('div', { 'class': 'buttons import-block-bottom' });
     buttons.insert(new Element('input', {
-      type: 'button', name: 'cancel', value: 'Cancelar', 'class': 'button secondary'
+      type: 'button', name: 'cancel', value: 'Cancel', 'class': 'button secondary'
     }).wrap('span', { 'class': 'buttonwrapper' }));
     mainDiv.insert(buttons);
 
@@ -110,7 +110,7 @@ var DriveFileSelector = Class.create({
       close: { method: this.hide.bind(this), keys: closeShortcut }
     }, {
       extraClassName: 'pedigree-import-chooser pedigree-drive-chooser',
-      title: 'Abrir XML do Drive',
+      title: 'Open XML from Drive',
       displayCloseButton: true
     });
 
@@ -153,7 +153,7 @@ var DriveFileSelector = Class.create({
     container.update(''); // clear
 
     if (!files || files.length === 0) {
-      errorDiv.update('<span class="fa fa-info-circle"></span> Nenhum arquivo XML encontrado na pasta configurada.');
+      errorDiv.update('<span class="fa fa-info-circle"></span> No XML files found in the configured folder.');
       errorDiv.show();
       return;
     }
@@ -164,8 +164,8 @@ var DriveFileSelector = Class.create({
     var table = new Element('table', { 'class': 'drive-file-table' });
     var thead = new Element('thead');
     var headerRow = new Element('tr');
-    headerRow.insert(new Element('th').update('Arquivo'));
-    headerRow.insert(new Element('th').update('Última modificação'));
+    headerRow.insert(new Element('th').update('File'));
+    headerRow.insert(new Element('th').update('Last modified'));
     headerRow.insert(new Element('th').update(''));
     thead.insert(headerRow);
     table.insert(thead);
@@ -210,7 +210,7 @@ var DriveFileSelector = Class.create({
     var actionCell = new Element('td', { 'class': 'drive-file-action' });
     var openBtn = new Element('input', {
       type: 'button',
-      value: 'Abrir',
+      value: 'Open',
       'class': 'button drive-open-btn',
       'data-file-id': file.id,
       'data-file-name': file.name
@@ -247,7 +247,7 @@ var DriveFileSelector = Class.create({
     // Show loading state
     if (this._fileListContainer) {
       this._fileListContainer.update(
-        '<div class="drive-selector-loading"><span class="fa fa-spinner fa-spin"></span> Carregando ' + fileName + '...</div>'
+        '<div class="drive-selector-loading"><span class="fa fa-spinner fa-spin"></span> Loading ' + fileName + '...</div>'
       );
     }
 
@@ -271,12 +271,12 @@ var DriveFileSelector = Class.create({
           console.log('[DriveFileSelector] Successfully loaded: ' + fileName);
         } catch (err) {
           console.error('[DriveFileSelector] Error importing XML:', err);
-          alert('Erro ao importar o arquivo XML: ' + err);
+          alert('Error importing XML file: ' + err);
         }
       },
       function (errMsg) {
         _this.hide();
-        alert('Erro ao carregar arquivo do Drive: ' + errMsg);
+        alert('Error loading file from Drive: ' + errMsg);
       }
     );
   },
@@ -295,30 +295,30 @@ var DriveFileSelector = Class.create({
     var xmlContent = PedigreeExport.exportAsInvitae(editor.getGraph().DG, 'all');
 
     if (!xmlContent || xmlContent.trim() === '') {
-      alert('Nenhum pedigree para salvar. Crie ou importe um pedigree primeiro.');
+      alert('No pedigree to save. Create or import a pedigree first.');
       return;
     }
 
     if (this._currentFileId) {
       // Overwrite existing file
-      var confirmMsg = 'Sobrescrever o arquivo "' + this._currentFileName + '" no Google Drive?';
+      var confirmMsg = 'Overwrite file "' + this._currentFileName + '" on Google Drive?';
       if (confirm(confirmMsg)) {
         DriveBackend.saveFile(
           this._currentFileId,
           this._currentFileName,
           xmlContent,
           function () {
-            alert('Arquivo "' + _this._currentFileName + '" salvo com sucesso!');
+            alert('File "' + _this._currentFileName + '" saved successfully!');
           },
           function (errMsg) {
-            alert('Erro ao salvar: ' + errMsg);
+            alert('Error saving: ' + errMsg);
           }
         );
       }
     } else {
       // No file loaded — prompt for a name and create new
       var fileName = prompt(
-        'Nenhum arquivo carregado do Drive.\nDigite o nome para o novo arquivo:',
+        'No file loaded from Drive.\nEnter a name for the new file:',
         'pedigree-' + new Date().toISOString().slice(0, 10) + '.xml'
       );
 
@@ -328,10 +328,10 @@ var DriveFileSelector = Class.create({
           xmlContent,
           function (fileInfo) {
             _this.setCurrentFile(fileInfo.id, fileInfo.name);
-            alert('Arquivo "' + fileInfo.name + '" criado com sucesso!');
+            alert('File "' + fileInfo.name + '" created successfully!');
           },
           function (errMsg) {
-            alert('Erro ao criar arquivo: ' + errMsg);
+            alert('Error creating file: ' + errMsg);
           }
         );
       }

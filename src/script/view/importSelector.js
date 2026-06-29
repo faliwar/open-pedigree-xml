@@ -123,7 +123,7 @@ var ImportSelector = Class.create( {
       fr.onload = function(e) {
         _this.importValue.value = e.target.result;  // e.target.result should contain the text
       };
-      fr.readAsText(nextFile);
+      fr.readAsText(nextFile, 'UTF-8');
     }
   },
 

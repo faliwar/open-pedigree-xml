@@ -71,7 +71,9 @@ Disorder.sanitizeID = function(disorderID) {
   }
   var temp = disorderID.replace(/[\(\[]/g, '_L_');
   temp = temp.replace(/[\)\]]/g, '_J_');
-  return temp.replace(/[^a-zA-Z0-9,;_\-*]/g, '__');
+  // Preserve Unicode letters (including accented characters like ç, á, ã, ê)
+  // while replacing spaces and other non-word symbols
+  return temp.replace(/[^\w,;_\-*\u00C0-\u024F\u1E00-\u1EFF]/g, '__');
 };
 
 Disorder.desanitizeID = function(disorderID) {
