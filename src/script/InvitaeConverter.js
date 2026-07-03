@@ -329,10 +329,14 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     properties.externalID = mrn;
   }
 
-  // Life status: 0=alive, 1=deceased, 7=miscarriage/stillborn
+  // Life status: 0=alive, 1=deceased, 3=abortion, 5=miscarriage, 7=stillborn
   var statusVal = InvitaeConverter._getChildAttr(indiEl, 'status', 'value');
   if (statusVal === '1') {
     properties.lifeStatus = 'deceased';
+  } else if (statusVal === '3') {
+    properties.lifeStatus = 'aborted';
+  } else if (statusVal === '5') {
+    properties.lifeStatus = 'miscarriage';
   } else if (statusVal === '7') {
     properties.lifeStatus = 'stillborn';
   }
@@ -444,9 +448,13 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     }
     properties.comments += (properties.comments ? '\n' : '') + commentsVal;
   }
-  // Clean up leading newline
+  // Clean up leading newline and sanitize 'undefined' string values
   if (properties.comments) {
     properties.comments = properties.comments.replace(/^\n/, '');
+    // Remove literal 'undefined' that may have been stored in the XML
+    if (properties.comments === 'undefined') {
+      delete properties.comments;
+    }
   }
 
   // Multiple / Person Group
@@ -751,22 +759,31 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     xml += '<last_name value=""/>';
   }
 
-  // Gender: M→0, F→1, U→2
+  // Gender and Status depend on lifeStatus for aborted/miscarriage
   var genderVal = '2';
-  if (props.gender === 'M') {
-    genderVal = '0';
-  } else if (props.gender === 'F') {
-    genderVal = '1';
+  var statusVal = '0';
+
+  if (props.lifeStatus === 'aborted') {
+    genderVal = '-2';
+    statusVal = '3';
+  } else if (props.lifeStatus === 'miscarriage') {
+    genderVal = '-2';
+    statusVal = '5';
+  } else {
+    // Normal gender mapping: M→0, F→1, U→2
+    if (props.gender === 'M') {
+      genderVal = '0';
+    } else if (props.gender === 'F') {
+      genderVal = '1';
+    }
+    // Normal status mapping: alive→0, deceased→1, stillborn→7
+    if (props.lifeStatus === 'deceased') {
+      statusVal = '1';
+    } else if (props.lifeStatus === 'stillborn') {
+      statusVal = '7';
+    }
   }
   xml += '<gender value="' + genderVal + '"/>';
-
-  // Status: alive→0, deceased→1, stillborn/miscarriage→7
-  var statusVal = '0';
-  if (props.lifeStatus === 'deceased') {
-    statusVal = '1';
-  } else if (props.lifeStatus === 'stillborn' || props.lifeStatus === 'miscarriage') {
-    statusVal = '7';
-  }
   xml += '<status value="' + statusVal + '"/>';
 
   // Comments

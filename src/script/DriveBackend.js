@@ -141,8 +141,22 @@ DriveBackend.saveFile = function (fileId, fileName, xmlContent, onSuccess, onFai
     // Fallback: download file locally
     console.warn('[DriveBackend] Not in Apps Script. Falling back to local download.');
     try {
-      /* eslint-disable no-undef */
-      saveTextAs(xmlContent, fileName || 'pedigree.xml');
+      if (typeof window.saveTextAs === 'function') {
+        window.saveTextAs(xmlContent, fileName || 'pedigree.xml');
+      } else if (typeof window.saveAs === 'function') {
+        var blob = new Blob([xmlContent], { type: 'text/plain;charset=utf-8' });
+        window.saveAs(blob, fileName || 'pedigree.xml');
+      } else {
+        var blob = new Blob([xmlContent], { type: 'text/plain;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = fileName || 'pedigree.xml';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
       onSuccess();
     } catch (e) {
       onFailure('Error saving locally: ' + e.message);
@@ -180,8 +194,22 @@ DriveBackend.createFile = function (fileName, xmlContent, onSuccess, onFailure) 
     // Fallback: download file locally
     console.warn('[DriveBackend] Not in Apps Script. Falling back to local download.');
     try {
-      /* eslint-disable no-undef */
-      saveTextAs(xmlContent, fileName);
+      if (typeof window.saveTextAs === 'function') {
+        window.saveTextAs(xmlContent, fileName);
+      } else if (typeof window.saveAs === 'function') {
+        var blob = new Blob([xmlContent], { type: 'text/plain;charset=utf-8' });
+        window.saveAs(blob, fileName);
+      } else {
+        var blob = new Blob([xmlContent], { type: 'text/plain;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
       onSuccess({ id: null, name: fileName });
     } catch (e) {
       onFailure('Error creating file locally: ' + e.message);

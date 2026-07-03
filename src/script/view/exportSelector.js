@@ -1,6 +1,31 @@
 import PedigreeExport from 'pedigree/model/export';
 
 /**
+ * Helper to save a text string as a file download.
+ * Uses the global saveTextAs from FileSaver.js, falling back to
+ * constructing a Blob and using saveAs directly.
+ */
+function downloadTextFile(text, fileName) {
+  if (typeof window.saveTextAs === 'function') {
+    window.saveTextAs(text, fileName);
+  } else if (typeof window.saveAs === 'function') {
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    window.saveAs(blob, fileName);
+  } else {
+    // Last-resort fallback using a download link
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
  * The UI Element for exporting pedigrees
  *
  * @class ExportSelector
@@ -175,9 +200,7 @@ var ExportSelector = Class.create({
       if (isCopy) {
         navigator.clipboard.writeText(exportString);
       } else {
-        // Uses FileSaver global
-        /* eslint-disable no-undef */
-        saveTextAs(exportString, fileName);
+        downloadTextFile(exportString, fileName);
       }
     } else {
       var privacySetting = $$('input:checked[type=radio][name="privacy-options"]')[0].value;
@@ -188,9 +211,7 @@ var ExportSelector = Class.create({
         if (isCopy) {
           navigator.clipboard.writeText(exportString);
         } else {
-          // Uses FileSaver global
-          /* eslint-disable no-undef */
-          saveTextAs(exportString, fileName);
+          downloadTextFile(exportString, fileName);
         }
       } else if (exportType == 'invitae') {
         var exportString = PedigreeExport.exportAsInvitae(editor.getGraph().DG, privacySetting);
@@ -198,9 +219,7 @@ var ExportSelector = Class.create({
         if (isCopy) {
           navigator.clipboard.writeText(exportString);
         } else {
-          // Uses FileSaver global
-          /* eslint-disable no-undef */
-          saveTextAs(exportString, fileName);
+          downloadTextFile(exportString, fileName);
         }
       } else if (exportType == 'svg') {
         var exportString = PedigreeExport.exportAsSVG(editor.getGraph().DG, privacySetting);
@@ -209,7 +228,7 @@ var ExportSelector = Class.create({
         if (isCopy) {
           navigator.clipboard.writeText(exportString);
         } else {
-          saveTextAs(exportString, fileName);
+          downloadTextFile(exportString, fileName);
         }
       } else if (exportType == 'pdf') {
         var pageSize = $$('select[name="pdf-page-size"]')[0].value;
