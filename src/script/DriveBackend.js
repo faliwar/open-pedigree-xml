@@ -75,7 +75,7 @@ DriveBackend.listXmlFiles = function (onSuccess, onFailure) {
       .listXmlFiles();
   } else {
     console.warn('[DriveBackend] Not in Apps Script environment. Cannot list Drive files.');
-    onFailure('Ambiente Google Apps Script não detectado.\n\nPara usar esta funcionalidade, faça o deploy como sidebar no Google Apps Script.');
+    onFailure('Google Apps Script environment not detected.\n\nTo use this functionality, deploy it as a showModelessDialog in Google Apps Script.');
   }
 };
 
@@ -106,7 +106,7 @@ DriveBackend.loadFile = function (fileId, onSuccess, onFailure) {
       .loadXmlFile(fileId);
   } else {
     console.warn('[DriveBackend] Not in Apps Script environment. Cannot load from Drive.');
-    onFailure('Ambiente Google Apps Script não detectado.');
+    onFailure('Google Apps Script environment not detected.');
   }
 };
 
