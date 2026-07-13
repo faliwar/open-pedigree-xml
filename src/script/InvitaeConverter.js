@@ -803,17 +803,10 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     }
   }
   xml += '<cause value="' + InvitaeConverter._escapeXml(cause) + '"/>';
-
   // Age — export the DOB date (approximate or exact) in MM/DD/YYYY format
-  // For approximate DOBs with an age input, export the age string (e.g. "44 yrs")
   var ageStr = '';
   if (privacySetting === 'all') {
-    if (props.dobApprox && props.ageInput) {
-      ageStr = props.ageInput;
-      if (ageStr.match(/^\d+$/)) {
-        ageStr += ' yrs';
-      }
-    } else if (props.dob) {
+    if (props.dob) {
       try {
         var dob = new Date(props.dob);
         if (!isNaN(dob.getTime())) {
@@ -931,6 +924,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   }
 
   xml += '<gail_properties/>';
+
   xml += '</indi>';
 
   return xml;
