@@ -1,3 +1,5 @@
+# Open Pedigree - XML 
+
 <p align="center">
   <img src="https://repository-images.githubusercontent.com/212736090/2759df80-fe9e-11e9-8fa0-8237e35cbaf7" width="400px" alt="Open Pedigree logo"/>
 </p>
@@ -24,6 +26,7 @@ Open Pedigree is a robust browser-based genomic pedigree drawing solution using 
 
 <img width="983" alt="image" src="https://user-images.githubusercontent.com/4251264/68103796-e1048080-fe9d-11e9-9353-6b491aae588d.png">
 
+This repository forks phenotips/open-pedigree and adapts it for compatibility with Invitae/Progeny XML formats. It is configured for deployment to Google Apps Script and uses Google Drive for storage.
 
 ## Features
 
@@ -41,12 +44,12 @@ Open Pedigree is a robust browser-based genomic pedigree drawing solution using 
 
 This repository is a modified fork of the original Open Pedigree project. Key changes and improvements include:
 
+*   **Platform Integrations:** Configured for deployment into Google Apps Script and uses Google Drive for data storage.
 *   **XML Support:** Implementation of XML import and export functionality.
 *   **Export to Clipboard:** Added feature to quickly export pedigree data to the clipboard.
 *   **Visual & Styling Improvements:** Several styling corrections, including a white background for better visibility and exporting.
 *   **Demographics Handling:** Improved handling of date of birth and calculation of current age.
 *   **Optimized Docker Build:** The Dockerfile has been updated to run a lightweight, optimized production build using `serve`.
-
 
 ## Getting started
 
@@ -54,8 +57,8 @@ This repository is a modified fork of the original Open Pedigree project. Key ch
 
 Quickly get started with open pedigree on your computer:
 ```
-git clone git@github.com:phenotips/open-pedigree.git
-cd open-pedigree
+git clone https://github.com/faliwar/open-pedigree-xml.git
+cd open-pedigree-xml
 npm install
 npm start
 ```
@@ -66,10 +69,10 @@ Open a browser to http://localhost:9000/
 You can also use the supplied Docker image to run the applicarion.  To get started:
 
 ```
-git clone git@github.com:phenotips/open-pedigree.git
-cd open-pedigree
-docker build . -t open-pedigree
-docker run -p 9000:9000 -d open-pedigree
+git clone https://github.com/faliwar/open-pedigree-xml.git
+cd open-pedigree-xml
+docker build . -t open-pedigree-xml
+docker run -p 3000:3000 -d open-pedigree-xml
 ```
 
 ## Contributing
@@ -89,6 +92,8 @@ If you are interested in the Enterprise/commercial version, please contact [Phen
 ## License
 
 Copyright (c) 2019-2022 Gene42 Inc. o/a PhenoTips
+
+Copyright (c) 2026 Fabiano Poswar
 
 Open Pedigree is distributed under the [LGPL-2.1](https://opensource.org/licenses/LGPL-2.1) (GNU Lesser General Public License).
 
