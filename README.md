@@ -5,9 +5,6 @@
 </p>
 
 <p align="center">
-  <a href="https://open-pedigree-xml.onrender.com" target="_blank">
-    <img src="https://img.shields.io/badge/Deployed%20on-Render-4642b4?logo=render&logoColor=white" alt="Deployed on Render">
-  </a>
   <a href="https://faliwar.github.io/open-pedigree-xml/" target="_blank">
     <img src="https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-181717?logo=github&logoColor=white" alt="Live Demo on GitHub Pages">
   </a>
