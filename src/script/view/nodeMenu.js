@@ -125,11 +125,36 @@ var NodeMenu = Class.create({
                   var disorder = legend.getDisorder(disorderId);
                   var name = disorder.getName();
                   if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: disorderId, value: name, info: ''});
+                     results.push({id: disorderId, value: name, info: 'Local'});
                   }
                }
             }
-            callback(results);
+            if (input === '') {
+              return callback(results);
+            }
+            new Ajax.Request('https://www.ebi.ac.uk/ols4/api/search?ontology=mondo&rows=10&q=' + encodeURIComponent(input), {
+              method: 'get',
+              onSuccess: function(response) {
+                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
+                if (data.response && data.response.docs) {
+                  data.response.docs.forEach(function(doc) {
+                    results.push({id: doc.obo_id || doc.short_form, value: doc.label, info: doc.ontology_prefix});
+                  });
+                }
+                var unique = [];
+                var ids = {};
+                results.forEach(function(r) {
+                  if (!ids[r.id]) {
+                    ids[r.id] = true;
+                    unique.push(r);
+                  }
+                });
+                callback(unique);
+              },
+              onFailure: function() {
+                callback(results);
+              }
+            });
           },
           varname: 'q',
           noresults: 'No matching terms',
@@ -193,11 +218,38 @@ var NodeMenu = Class.create({
             for (var geneId in knownCases) {
                if (knownCases.hasOwnProperty(geneId)) {
                   if (input === '' || geneId.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: geneId, value: geneId, info: ''});
+                     results.push({id: geneId, value: geneId, info: 'Local'});
                   }
                }
             }
-            callback(results);
+            if (input === '') {
+              return callback(results);
+            }
+            new Ajax.Request('https://mygene.info/v3/query?species=human&fields=symbol,name&size=10&q=' + encodeURIComponent(input + '*'), {
+              method: 'get',
+              onSuccess: function(response) {
+                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
+                if (data.hits) {
+                  data.hits.forEach(function(hit) {
+                    if (hit.symbol) {
+                      results.push({id: hit.symbol, value: hit.symbol, info: hit.name || ''});
+                    }
+                  });
+                }
+                var unique = [];
+                var ids = {};
+                results.forEach(function(r) {
+                  if (!ids[r.id]) {
+                    ids[r.id] = true;
+                    unique.push(r);
+                  }
+                });
+                callback(unique);
+              },
+              onFailure: function() {
+                callback(results);
+              }
+            });
           },
           varname: 'q',
           noresults: 'No matching terms',
@@ -264,11 +316,36 @@ var NodeMenu = Class.create({
                   var term = legend.getTerm(hpoId);
                   var name = term.getName();
                   if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: hpoId, value: name, info: ''});
+                     results.push({id: hpoId, value: name, info: 'Local'});
                   }
                }
             }
-            callback(results);
+            if (input === '') {
+              return callback(results);
+            }
+            new Ajax.Request('https://www.ebi.ac.uk/ols4/api/search?ontology=hp&rows=10&q=' + encodeURIComponent(input), {
+              method: 'get',
+              onSuccess: function(response) {
+                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
+                if (data.response && data.response.docs) {
+                  data.response.docs.forEach(function(doc) {
+                    results.push({id: doc.obo_id || doc.short_form, value: doc.label, info: doc.ontology_prefix});
+                  });
+                }
+                var unique = [];
+                var ids = {};
+                results.forEach(function(r) {
+                  if (!ids[r.id]) {
+                    ids[r.id] = true;
+                    unique.push(r);
+                  }
+                });
+                callback(unique);
+              },
+              onFailure: function() {
+                callback(results);
+              }
+            });
           },
           varname: 'q',
           noresults: 'No matching terms',

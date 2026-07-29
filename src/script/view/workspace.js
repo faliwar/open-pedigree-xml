@@ -1,4 +1,5 @@
 import Raphael from 'pedigree/raphael';
+import DriveBackend from '../DriveBackend';
 
 /**
  * Workspace contains the Raphael canvas, the zoom/pan controls and the menu bar
@@ -166,13 +167,19 @@ var Workspace = Class.create({
         ]
       }];
     } else {
-      submenus = [{
-        name : 'drive',
-        items: [
-          { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
-          { key : 'save-drive', label : 'Save XML', icon : 'save'}
-        ]
-      }, {
+      submenus = [];
+      
+      if (DriveBackend.isAppScriptEnvironment()) {
+        submenus.push({
+          name : 'drive',
+          items: [
+            { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
+            { key : 'save-drive', label : 'Save XML', icon : 'save'}
+          ]
+        });
+      }
+
+      submenus = submenus.concat([{
         name : 'input',
         items: [
           { key : 'templates', label : 'Templates', icon : 'copy'},
@@ -195,7 +202,7 @@ var Workspace = Class.create({
           { key : 'export',    label : 'Export', icon : 'file-export'},
           { key : 'close',     label : 'Close', icon : 'times'}
         ]
-      }];
+      }]);
     }
     var _createSubmenu = function(data) {
       var submenu = new Element('div', {'class' : data.name + '-actions action-group'});
