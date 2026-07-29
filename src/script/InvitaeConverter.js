@@ -647,7 +647,7 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     }
 
     var relProps = pedigree.GG.properties[i] || {};
-    var parents = pedigree.GG.getInEdges(i);
+    var parents = pedigree.GG.getParents(i);
     if (!parents || parents.length < 1) {
       continue;
     }
@@ -686,10 +686,12 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     var childhub = pedigree.GG.getOutEdges(i);
     var children = [];
     if (childhub && childhub.length > 0) {
-      var chhubId = childhub[0];
+      var chhubId = pedigree.GG.downTheChainUntilNonVirtual(childhub[0]);
       var childEdges = pedigree.GG.getOutEdges(chhubId);
       if (childEdges) {
-        children = childEdges;
+        for (var ce = 0; ce < childEdges.length; ce++) {
+          children.push(pedigree.GG.downTheChainUntilNonVirtual(childEdges[ce]));
+        }
       }
     }
 

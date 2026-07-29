@@ -75,6 +75,112 @@ docker build . -t open-pedigree-xml
 docker run -p 3000:3000 -d open-pedigree-xml
 ```
 
+### Google Apps Script / Google Sheets
+
+This version of Open Pedigree is optimized to run as a web app or sidebar within Google Apps Script / Google Sheets and can save/load XML files directly from a designated Google Drive folder.
+
+The best way to deploy it is by separating the HTML and JS files in your Apps Script project.
+
+1. Build the optimized bundle locally by running `npm install` and `npm run build`.
+2. In your Google Apps Script editor, create an `index.html` file using the `include` pattern:
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <base target="_top">
+    <title>Open Pedigree by PhenoTips&reg;</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.3/prototype.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/effects.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/dragdrop.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/slider.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Blob.js/1.1.464287437/Blob.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <?!= include('xwiki-js'); ?>
+    <?!= include('widgets-js'); ?>
+    <?!= include('datetime-js'); ?>
+    <?!= include('pedigree-js'); ?>
+  </head>
+  <body id='body'>
+  </body>
+</html>
+```
+
+3. Create the corresponding HTML files in your Apps Script project to hold the scripts:
+   - Create `xwiki-js.html` and paste the contents of `public/vendor/xwiki/xwiki-min.js` wrapped in `<script>` tags.
+   - Create `widgets-js.html` and paste the contents of `public/vendor/phenotips/Widgets.js` wrapped in `<script>` tags.
+   - Create `datetime-js.html` and paste the contents of `public/vendor/phenotips/DateTimePicker.js` wrapped in `<script>` tags.
+   - Create `pedigree-js.html` and paste the entire contents of your newly built `pedigree.min.js` wrapped in `<script>` tags.
+   
+   *Example structure for these files:*
+```html
+<script>
+  // Paste file contents here
+</script>
+```
+
+4. Create your `Code.gs` file with the following server-side logic:
+```javascript
+// Replace with the Google Drive folder ID where you want to save XMLs
+const FOLDER_ID = 'YOUR_FOLDER_ID_HERE';
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('Open Pedigree XML')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Utility for injecting HTML files into the index
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// Or to open it in a Google Sheets dialog/sidebar:
+function showPedigree() {
+  var html = HtmlService.createHtmlOutputFromFile('index')
+      .setWidth(1000)
+      .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Pedigree Editor');
+}
+
+// --- DriveBackend.js Server-Side Requirements ---
+
+function listXmlFiles() {
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var files = folder.getFilesByType(MimeType.XML);
+  var result = [];
+  while (files.hasNext()) {
+    var f = files.next();
+    result.push({
+      id: f.getId(),
+      name: f.getName(),
+      lastUpdated: f.getLastUpdated().toISOString()
+    });
+  }
+  result.sort(function(a, b) {
+    return new Date(b.lastUpdated) - new Date(a.lastUpdated);
+  });
+  return result;
+}
+
+function loadXmlFile(fileId) {
+  return DriveApp.getFileById(fileId).getBlob().getDataAsString();
+}
+
+function saveXmlFile(fileId, content) {
+  DriveApp.getFileById(fileId).setContent(content);
+}
+
+function createXmlFile(fileName, content) {
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var file = folder.createFile(fileName, content, MimeType.XML);
+  return { id: file.getId(), name: file.getName() };
+}
+```
+6. Deploy your script as a Web App to test the application!
+
 ## Contributing
 
 Contributions welcome! Fork the repository and create a pull request to share your improvements with the community.

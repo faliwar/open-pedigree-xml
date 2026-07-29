@@ -205,13 +205,18 @@ var ExportSelector = Class.create({
     } else {
       var privacySetting = $$('input:checked[type=radio][name="privacy-options"]')[0].value;
       if (exportType == 'GA4GH') {
-        var exportString = PedigreeExport.exportAsGA4GH(editor.getGraph().DG, privacySetting);
-        var fileName = 'open-pedigree-GA4GH-fhir.json';
-        var mimeType = 'application/fhir+json';
-        if (isCopy) {
-          navigator.clipboard.writeText(exportString);
-        } else {
-          downloadTextFile(exportString, fileName);
+        try {
+          var exportString = PedigreeExport.exportAsGA4GH(editor.getGraph().DG, privacySetting);
+          var fileName = 'open-pedigree-GA4GH-fhir.json';
+          var mimeType = 'application/fhir+json';
+          if (isCopy) {
+            navigator.clipboard.writeText(exportString);
+          } else {
+            downloadTextFile(exportString, fileName);
+          }
+        } catch (err) {
+          window.alert("GA4GH Export Error: " + err.message + "\n" + err.stack);
+          console.error("GA4GH Export Error", err);
         }
       } else if (exportType == 'invitae') {
         var exportString = PedigreeExport.exportAsInvitae(editor.getGraph().DG, privacySetting);

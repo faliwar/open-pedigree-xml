@@ -748,7 +748,21 @@ GA4GHFHIRConverter.exportAsFHIR = function (pedigree, privacySetting, knownFhirP
   let nodeIndexToRef = {}; // maps node index to ref
   let containedResources = [];
 
-  let probandRef = this.processTreeNode(0, pedigree, privacySetting, knownFhirPatienReference, pedigreeIndividuals,
+  let probandIndex = 0;
+  if (!pedigree.GG.properties[0]) {
+    for (let i = 1; i <= pedigree.GG.getMaxRealVertexId(); i++) {
+      if (pedigree.GG.isPerson(i)) {
+        if (pedigree.GG.properties[i] && pedigree.GG.properties[i].isProband) {
+          probandIndex = i;
+          break;
+        } else if (probandIndex === 0) {
+          probandIndex = i;
+        }
+      }
+    }
+  }
+
+  let probandRef = this.processTreeNode(probandIndex, pedigree, privacySetting, knownFhirPatienReference, pedigreeIndividuals,
     pedigreeRelationship, conditions, observations, nodeIndexToRef);
 
   // add any missing nodes, the recursion only goes up the tree
@@ -792,11 +806,13 @@ GA4GHFHIRConverter.exportAsFHIR = function (pedigree, privacySetting, knownFhirP
     },
     'entry': []
   };
-  for (let probandCond of conditions[probandRef]) {
-    reasonSection.entry.push({
-      'type': 'Condition',
-      'reference': this.getReference(probandCond.id)
-    });
+  if (probandRef && conditions[probandRef]) {
+    for (let probandCond of conditions[probandRef]) {
+      reasonSection.entry.push({
+        'type': 'Condition',
+        'reference': this.getReference(probandCond.id)
+      });
+    }
   }
 
   let individualsSection = {
@@ -1040,7 +1056,7 @@ GA4GHFHIRConverter.relationshipMap = {
 };
 
 GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, knownFhirPatienReference,
-  pedigreeIndividuals, pedigreeRelationship, condtions, observations, nodeIndexToRef) {
+  pedigreeIndividuals, pedigreeRelationship, conditions, observations, nodeIndexToRef) {
 
   if (pedigreeIndividuals[index]) {
     // already processed
@@ -1048,13 +1064,16 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
   }
 
   const nodeProperties = pedigree.GG.properties[index];
+  if (!nodeProperties) {
+    return null;
+  }
   const externalId = nodeProperties['externalID'];
   let ref = (knownFhirPatienReference && externalId && knownFhirPatienReference[externalId]) ? knownFhirPatienReference[externalId] : generateUUID();
   nodeIndexToRef[index] = ref;
   pedigreeIndividuals[index] = this.buildPedigreeIndividual(ref, nodeProperties, privacySetting);
 
 
-  this.addConditions(nodeProperties, ref, condtions);
+  this.addConditions(nodeProperties, ref, conditions);
 
   this.addObservations(nodeProperties, ref, observations);
 
@@ -1152,7 +1171,7 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
   for (let relIndex in relationshipsToBuild) {
     // recursion
     let relRef = this.processTreeNode(relIndex, pedigree, privacySetting, knownFhirPatienReference, pedigreeIndividuals,
-      pedigreeRelationship, condtions, observations, nodeIndexToRef);
+      pedigreeRelationship, conditions, observations, nodeIndexToRef);
     pedigreeRelationship.push(this.buildPedigreeRelation(ref, relRef, relationshipsToBuild[relIndex]));
   }
   return ref;
@@ -1313,7 +1332,7 @@ GA4GHFHIRConverter.buildPedigreeRelation = function (ref, relRef, relationship) 
   };
 };
 
-GA4GHFHIRConverter.addConditions = function (nodeProperties, ref, condtions) {
+GA4GHFHIRConverter.addConditions = function (nodeProperties, ref, conditions) {
   let conditionsForRef = [];
   let fhirTerminologyHelper = editor.getFhirTerminologyHelper();
   if (nodeProperties['disorders']) {
@@ -1333,7 +1352,7 @@ GA4GHFHIRConverter.addConditions = function (nodeProperties, ref, condtions) {
       conditionsForRef.push(fhirCondition);
     }
   }
-  condtions[ref] = conditionsForRef;
+  conditions[ref] = conditionsForRef;
 };
 
 GA4GHFHIRConverter.addObservations = function (nodeProperties, ref, observations) {
