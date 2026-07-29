@@ -5,9 +5,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/faliwar/open-pedigree-xml/actions/workflows/ci.yml">
-    <img src="https://github.com/faliwar/open-pedigree-xml/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
-  </a>
   <a href="https://open-pedigree-xml.onrender.com" target="_blank">
     <img src="https://img.shields.io/badge/Deployed%20on-Render-4642b4?logo=render&logoColor=white" alt="Deployed on Render">
   </a>
