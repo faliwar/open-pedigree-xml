@@ -1186,6 +1186,8 @@ DynamicPositionedGraph.prototype = {
 
     var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
 
+    // debug overlay removed - moved to addNewParents
+
     return {'moved': movedNodes};
   },
 
@@ -2629,10 +2631,19 @@ Heuristics.prototype = {
         continue;
       }
       var childhub  = this.DG.GG.getRelationshipChildhub(v);
-      var relX      = xcoord.xcoord[v];
+      var parents   = this.DG.GG.getInEdges(v);
+      // For single-parent relationships (child without partner), align childhub
+      // under the single parent instead of under the offset relationship node.
+      // This prevents the "staircase" effect where each generation steps to the right.
+      var targetX;
+      if (parents.length == 1) {
+        targetX = xcoord.xcoord[parents[0]];
+      } else {
+        targetX = xcoord.xcoord[v];
+      }
       var childhubX = xcoord.xcoord[childhub];
-      if (childhubX != relX) {
-        improved  = xcoord.moveNodeAsCloseToXAsPossible(childhub, relX);
+      if (childhubX != targetX) {
+        improved  = xcoord.moveNodeAsCloseToXAsPossible(childhub, targetX);
       }
     }
 
@@ -2698,21 +2709,27 @@ Heuristics.prototype = {
 
         // First try easy options: moving nodes without moving any other nodes (works in most cases and is fast)
 
-        // relationship withone child: special case for performance reasons
+        // relationship with one child: special case for performance reasons
         if (childInfo.orderedChildren.length == 1) {
           var childId = childInfo.orderedChildren[0];
-          if (xcoord.xcoord[childId] == childhubX) {
+          // For single-parent relationships, target the single parent's position
+          // instead of the childhub's position (which may be offset from the parent)
+          var targetChildX = childhubX;
+          if (parents.length == 1) {
+            targetChildX = xcoord.xcoord[parents[0]];
+          }
+          if (xcoord.xcoord[childId] == targetChildX) {
             continue;
           }
 
-          improved = xcoord.moveNodeAsCloseToXAsPossible(childId, childhubX);
+          improved = xcoord.moveNodeAsCloseToXAsPossible(childId, targetChildX);
 
-          if (xcoord.xcoord[childId] == childhubX) {
+          if (xcoord.xcoord[childId] == targetChildX) {
             continue;
           } // done
 
           // ok, we can't move the child. Try to move the relationship & the parent(s)
-          misalignment = xcoord.xcoord[childId] - childhubX;
+          misalignment = xcoord.xcoord[childId] - targetChildX;
         }
         // relationships with many children: want to position in the "middle" inbetween the left and right child
         //  (for one of the two definitionsof middle: exact center betoween leftmost and rightmost, or

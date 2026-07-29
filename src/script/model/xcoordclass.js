@@ -169,6 +169,30 @@ XCoord.prototype = {
     return amount;
   },
 
+  shiftLeftAndShiftOtherIfNecessary: function(v, amount) {
+    // shifts a vertex to the left by the given ``amount``, and shifts
+    // all left neighbours, the minimal amount to accomodate this shift
+    this.xcoord[v] -= amount; // amount is always positive
+
+    var leftEdge = this.getLeftEdge(v);
+    var rank     = this.graph.ranks[v];
+    var order    = this.graph.order.vOrder[v];
+
+    for (var i = order - 1; i >= 0; i--) {
+      var leftNeighbour = this.graph.order.order[rank][i];
+      if (this.getRightEdge(leftNeighbour) <= leftEdge - this.getSeparation(leftNeighbour, v)) {
+        // we are not interfering with the vertex to the left
+        break;
+      }
+      this.xcoord[leftNeighbour] = leftEdge - this.getSeparation(leftNeighbour, v) - this.halfWidth[leftNeighbour];
+
+      leftEdge = this.getLeftEdge(leftNeighbour);
+      v        = leftNeighbour;
+    }
+
+    return amount;
+  },
+
   moveNodeAsCloseToXAsPossible: function (v, targetX) {
     var x = this.xcoord[v];
     if (x > targetX) {
