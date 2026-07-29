@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/phenotips/open-pedigree/actions/workflows/ci.yml">
-    <img src="https://github.com/phenotips/open-pedigree/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
+  <a href="https://github.com/faliwar/open-pedigree-xml/actions/workflows/ci.yml">
+    <img src="https://github.com/faliwar/open-pedigree-xml/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
   </a>
   <a href="https://open-pedigree-xml.onrender.com" target="_blank">
     <img src="https://img.shields.io/badge/Deployed%20on-Render-4642b4?logo=render&logoColor=white" alt="Deployed on Render">
@@ -24,7 +24,7 @@
 
 Open Pedigree is a robust browser-based genomic pedigree drawing solution using [Prototype](prototypejs.org), [Raphaël](https://dmitrybaranovskiy.github.io/raphael/), and [PhenoTips](https://phenotips.com).
 
-<img width="983" alt="image" src="https://user-images.githubusercontent.com/4251264/68103796-e1048080-fe9d-11e9-9353-6b491aae588d.png">
+<img width="983" alt="image" src="https://fabianoposwar.com/pedigree/openpedigreexml.png">
 
 This repository forks phenotips/open-pedigree and adapts it for compatibility with Invitae/Progeny XML formats. It is configured for deployment to Google Apps Script and uses Google Drive for storage.
 

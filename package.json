@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "webpack-dev-server --mode=development --open",
-    "build": "webpack --mode=production",
+    "build": "webpack --mode=production && powershell -Command \"Copy-Item -Path dist\\pedigree.min.js -Destination .\\ -Force; New-Item -ItemType Directory -Force -Path assets; Copy-Item -Path dist\\assets\\* -Destination assets\\ -Recurse -Force\"",
     "start-docker": "webpack-dev-server --mode=production --output-public-path=dist --host=0.0.0.0"
   },
   "devDependencies": {

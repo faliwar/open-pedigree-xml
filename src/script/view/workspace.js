@@ -30,7 +30,7 @@ var Workspace = Class.create({
     this.background.node.setAttribute('class', 'panning-background');
 
     this.workArea.insert(new Element('div', {'id': 'attribution'})
-      .insert('&copy; 2019-2022 Gene42 Inc.'));
+      .insert('&copy; 2019-2022 Gene42 Inc. | &copy; 2026 Fabiano Poswar'));
 
     this.adjustSizeToScreen = this.adjustSizeToScreen.bind(this);
     Event.observe (window, 'resize', me.adjustSizeToScreen);
@@ -147,8 +147,8 @@ var Workspace = Class.create({
   generateTopMenu: function() {
     var menu = new Element('div', {'id' : 'editor-menu'});
 
-    menu.insert(new Element('a', {'class': 'title', 'href': 'https://github.com/phenotips/open-pedigree'})
-        .update('Open Pedigree'));
+    menu.insert(new Element('a', {'class': 'title', 'href': 'https://github.com/faliwar/open-pedigree-xml'})
+        .update('Open Pedigree XML'));
 
     this.getWorkArea().insert({before : menu});
     var submenus = [];

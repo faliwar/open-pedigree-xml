@@ -34,7 +34,7 @@ var PedigreeEditor = Class.create({
     options = options || {};
 
     // front end configurations
-    var returnUrl = options.returnUrl || 'https://github.com/phenotips/open-pedigree';
+    var returnUrl = options.returnUrl || 'https://github.com/faliwar/open-pedigree-xml';
     
     // URL to load patient data from and save data to
     var patientDataUrl = options.patientDataUrl || '';
