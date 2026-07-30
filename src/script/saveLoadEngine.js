@@ -1,4 +1,5 @@
 import TemplateSelector from 'pedigree/view/templateSelector';
+import PedigreeTemplates from 'pedigree/view/templates';
 
 /**
  * SaveLoadEngine is responsible for automatic and manual save and load operations.
@@ -145,8 +146,11 @@ var SaveLoadEngine = Class.create( {
       },
       onComplete: function() {
         if (!didLoadData) {
-          // If load failed, just open templates
-          new TemplateSelector(true);
+          if (args.onFailure) {
+            args.onFailure();
+          } else {
+            new TemplateSelector(true);
+          }
         }
       }
     });
@@ -269,14 +273,20 @@ var SaveLoadEngine = Class.create( {
 
   load: function(patientDataUrl) {
     console.log('initiating load process');
+
+    var fallbackToTrio = () => {
+      var trioTemplateData = JSON.stringify(PedigreeTemplates[1].data);
+      this.createGraphFromSerializedData(trioTemplateData, false, true);
+    };
+
     if (patientDataUrl || this._customBackend) {
       this._loadFunction({
         patientDataUrl: patientDataUrl,
         onSuccess: this._displayData.bind(this),
-        onFailure: () => { new TemplateSelector(true); }
+        onFailure: fallbackToTrio
       });
     } else {
-      new TemplateSelector(true);
+      fallbackToTrio();
     }
   }
 });
