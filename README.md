@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://faliwar.github.io/open-pedigree-xml/" target="_blank">
-    <img src="https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-181717?logo=github&logoColor=white" alt="Live Demo on GitHub Pages">
+  <a href="https://fabianoposwar.com/heredograma/" target="_blank">
+    <img src="https://img.shields.io/badge/Live%20Demo-fabianoposwar.com-0052cc?logo=googlechrome&logoColor=white" alt="Live Demo on fabianoposwar.com">
   </a>
   <a href="https://opensource.org/licenses/LGPL-2.1" target="_blank">
     <img src="https://img.shields.io/badge/license-LGPL--2.1-blue.svg" alt="LGPL-2.1">
