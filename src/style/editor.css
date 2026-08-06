@@ -870,3 +870,16 @@
 .pedigree-drive-chooser .msdialog-box {
   width: 650px;
 }
+
+/* Sibling Drag and Drop Reordering */
+.sibling-draggable {
+  cursor: grab !important;
+  cursor: -moz-grab !important;
+  cursor: -webkit-grab !important;
+}
+
+.sibling-draggable:active {
+  cursor: grabbing !important;
+  cursor: -moz-grabbing !important;
+  cursor: -webkit-grabbing !important;
+}

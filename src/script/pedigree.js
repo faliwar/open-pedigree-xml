@@ -162,6 +162,7 @@ var PedigreeEditor = Class.create({
       document.observe('pedigree:person:newsibling',         autosave);
       document.observe('pedigree:person:newpartnerandchild', autosave);
       document.observe('pedigree:partnership:newchild',      autosave);
+      document.observe('pedigree:sibling:reorder',           autosave);
     }
 
   },

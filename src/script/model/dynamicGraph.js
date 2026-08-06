@@ -1191,6 +1191,111 @@ DynamicPositionedGraph.prototype = {
     return {'moved': movedNodes};
   },
 
+  // Returns the list of siblings of the given person, sorted by left-to-right order.
+  // Siblings are children of the same parent relationship. Returns empty array if the person has no parents.
+  getSiblingsOf: function( personId ) {
+    if (!this.isPerson(personId)) {
+      throw 'Assertion failed: getSiblingsOf() is applied to a non-person';
+    }
+
+    var parentRel = this.getParentRelationship(personId);
+    if (parentRel === null) {
+      return [];
+    }
+
+    return this.getRelationshipChildrenSortedByOrder(parentRel);
+  },
+
+  // Swaps two siblings (or twin groups) in the graph ordering.
+  // personId: the person being dragged
+  // targetSiblingId: the sibling to swap with
+  // Twin groups move as a locked unit.
+  reorderSiblings: function( personId, targetSiblingId ) {
+    if (!this.isPerson(personId) || !this.isPerson(targetSiblingId)) {
+      throw 'Assertion failed: reorderSiblings() applied to non-person nodes';
+    }
+
+    var parentRel = this.getParentRelationship(personId);
+    if (parentRel === null) {
+      return { 'moved': [] };
+    }
+
+    // Verify both are children of the same relationship
+    var targetParentRel = this.getParentRelationship(targetSiblingId);
+    if (targetParentRel !== parentRel) {
+      return { 'moved': [] };
+    }
+
+    // Save state for detecting moved nodes
+    var positionsBefore  = this.DG.positions.slice(0);
+    var ranksBefore      = this.DG.ranks.slice(0);
+    var vertLevelsBefore = this.DG.vertLevel.copy();
+    var rankYBefore      = this.DG.rankY.slice(0);
+    var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+
+    // Collect the twin groups (or individual nodes) that need to be swapped
+    var dragGroup = [personId];
+    var twinGroupId = this.DG.GG.getTwinGroupId(personId);
+    if (twinGroupId !== null) {
+      dragGroup = this.getAllTwinsSortedByOrder(personId);
+    }
+
+    var targetGroup = [targetSiblingId];
+    var targetTwinGroupId = this.DG.GG.getTwinGroupId(targetSiblingId);
+    if (targetTwinGroupId !== null) {
+      targetGroup = this.getAllTwinsSortedByOrder(targetSiblingId);
+    }
+
+    // Determine the ranks (should be the same for siblings)
+    var rank = this.DG.ranks[personId];
+
+    // Get the order indices for both groups
+    var dragOrders = dragGroup.map(function(id) { return this.DG.order.vOrder[id]; }.bind(this));
+    var targetOrders = targetGroup.map(function(id) { return this.DG.order.vOrder[id]; }.bind(this));
+
+    var dragMinOrder = Math.min.apply(null, dragOrders);
+    var dragMaxOrder = Math.max.apply(null, dragOrders);
+    var targetMinOrder = Math.min.apply(null, targetOrders);
+    var targetMaxOrder = Math.max.apply(null, targetOrders);
+
+    // Determine direction: are we moving left or right?
+    var movingRight = dragMinOrder < targetMinOrder;
+
+    if (movingRight) {
+      // Move drag group right: shift each node in drag group to after the target group
+      // We do this by repeatedly moving the leftmost node of the drag group to after the target group's rightmost
+      for (var i = 0; i < dragGroup.length; i++) {
+        var currentOrder = this.DG.order.vOrder[dragGroup[i]];
+        // Move node past all intervening nodes
+        var targetPos = targetMaxOrder; // after moving, target positions shift
+        this.DG.order.move(rank, currentOrder, targetPos - currentOrder);
+      }
+    } else {
+      // Move drag group left: shift each node in drag group to before the target group
+      // We do this by moving from rightmost to leftmost to maintain relative order
+      for (var i = dragGroup.length - 1; i >= 0; i--) {
+        var currentOrder = this.DG.order.vOrder[dragGroup[i]];
+        var targetPos = targetMinOrder;
+        this.DG.order.move(rank, currentOrder, targetPos - currentOrder);
+      }
+    }
+
+    // Recalculate x-coordinates based on new ordering
+    this.DG.positions = this.DG.position();
+
+    // Fix common layout mistakes and update vertical positioning
+    this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+
+    // Make sure the parent relationship is included in moved nodes for line redrawing
+    if (!arrayContains(movedNodes, parentRel)) {
+      movedNodes.push(parentRel);
+    }
+
+    return { 'moved': movedNodes };
+  },
+
   clearAll: function() {
     var removedNodes = this._getAllNodes(1);  // all nodes from 1 and up
 

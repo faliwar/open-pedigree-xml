@@ -113,27 +113,109 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
   },
 
-  /**
-     * Creates a node-shaped show-menu button
-     *
-     * @method generateMenuBtn
-     * @return {Raphael.st} The generated button
-     */
   generateMenuBtn: function() {
     var me = this;
-    var action = function() {
-      me.toggleMenu(!me.isMenuToggled());
-    };
     var genderShapedButton = this.getNode().getGraphics().getGenderShape().clone();
+    
     genderShapedButton.attr(PedigreeEditorParameters.attributes.nodeShapeMenuOff);
-    genderShapedButton.click(action);
     genderShapedButton.hover(function() {
       genderShapedButton.attr(PedigreeEditorParameters.attributes.nodeShapeMenuOn);
     },
     function() {
       genderShapedButton.attr(PedigreeEditorParameters.attributes.nodeShapeMenuOff);
     });
-    genderShapedButton.attr('cursor', 'pointer');
+
+    var siblings = editor.getGraph().getSiblingsOf(this.getNode().getID());
+    var canDrag = siblings && siblings.length > 1;
+
+    if (canDrag) {
+      genderShapedButton.attr('cursor', 'grab');
+      genderShapedButton.node.setAttribute('class', 'sibling-draggable');
+    } else {
+      genderShapedButton.attr('cursor', 'pointer');
+    }
+
+    var isDragged = false;
+    var startX, startY;
+    var ghost = null;
+    var targetSiblingId = null;
+
+    var start = function(x, y, e) {
+      if (e.button != 0) return; // Only left click
+      isDragged = false;
+      startX = x;
+      startY = y;
+      
+      if (canDrag) {
+        genderShapedButton.attr('cursor', 'grabbing');
+      }
+    };
+
+    var move = function(dx, dy, x, y, e) {
+      if (!canDrag) return;
+      
+      var zoom = editor.getWorkspace().zoomCoefficient;
+      
+      if (!isDragged && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        isDragged = true;
+        // create ghost
+        ghost = me.getNode().getGraphics().getGenderShape().clone();
+        ghost.attr({ opacity: 0.5 });
+        ghost.insertBefore(genderShapedButton);
+        me.animateHideHoverZone(); // Hide hover handles during drag
+      }
+
+      if (isDragged) {
+        // move ghost horizontally
+        var nodeX = me.getNodeX();
+        ghost.transform('T' + (dx / zoom) + ',0');
+        
+        // Find closest sibling to ghost center
+        var ghostX = nodeX + (dx / zoom);
+        var closestDist = Infinity;
+        targetSiblingId = null;
+
+        for (var i = 0; i < siblings.length; i++) {
+          var sibNode = editor.getNode(siblings[i]);
+          if (sibNode) {
+            var sibX = sibNode.getGraphics().getX();
+            var dist = Math.abs(sibX - ghostX);
+            if (dist < closestDist) {
+              closestDist = dist;
+              targetSiblingId = siblings[i];
+            }
+          }
+        }
+      }
+    };
+
+    var end = function(e) {
+      if (canDrag) {
+        genderShapedButton.attr('cursor', 'grab');
+      }
+      
+      if (ghost) {
+        ghost.remove();
+        ghost = null;
+      }
+      
+      if (isDragged) {
+        isDragged = false;
+        if (targetSiblingId !== null && targetSiblingId !== me.getNode().getID()) {
+          // Fire reorder event
+          document.fire('pedigree:sibling:reorder', {
+            personID: me.getNode().getID(),
+            siblingID: targetSiblingId
+          });
+        }
+      } else {
+        // Treat as click
+        me.toggleMenu(!me.isMenuToggled());
+      }
+    };
+
+    genderShapedButton.drag(move, start, end);
+
     this._currentButtons.push(genderShapedButton);
     this.disable();
     this.getFrontElements().push(genderShapedButton);

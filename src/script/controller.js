@@ -24,6 +24,7 @@ var Controller = Class.create({
     document.observe('pedigree:person:newpartnerandchild', this.handlePersonNewPartnerAndChild);
     document.observe('pedigree:person:newchildonly',        this.handlePersonNewChildOnly);
     document.observe('pedigree:partnership:newchild',      this.handleRelationshipNewChild);
+    document.observe('pedigree:sibling:reorder',           this.handleSiblingReorder);
   },
 
   handleUndo: function(event) {
@@ -542,6 +543,25 @@ var Controller = Class.create({
 
     if (!event.memo.noUndoRedo) {
       editor.getActionStack().addState( event );
+    }
+  },
+
+  handleSiblingReorder: function(event) {
+    var personID  = event.memo.personID;
+    var siblingID = event.memo.siblingID;
+
+    if (!editor.getGraph().isPerson(personID) || !editor.getGraph().isPerson(siblingID)) {
+      return;
+    }
+
+    try {
+      var changeSet = editor.getGraph().reorderSiblings(personID, siblingID);
+      editor.getView().applyChanges(changeSet, true);
+
+      if (!event.memo.noUndoRedo) {
+        editor.getActionStack().addState( event );
+      }
+    } catch(err) {
     }
   }
 });
