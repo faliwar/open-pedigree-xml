@@ -165,6 +165,9 @@ var PedigreeEditor = Class.create({
       document.observe('pedigree:sibling:reorder',           autosave);
     }
 
+    // --- Drag-and-drop file import ---
+    this._initDragAndDropImport();
+
   },
 
   autosave: function(patientDataUrl) {
@@ -172,6 +175,211 @@ var PedigreeEditor = Class.create({
       editor.getSaveLoadEngine().save(patientDataUrl);
     };
   },
+
+  /**
+   * Initializes drag-and-drop file import on the work area.
+   * Accepts .xml, .json, .ped, .gedcom, .ged, .boadicea, and .txt files.
+   * Automatically detects the import format based on file extension and content.
+   *
+   * @method _initDragAndDropImport
+   * @private
+   */
+  _initDragAndDropImport: function() {
+    if (this.isReadOnlyMode() || !window.FileReader || !window.FileList) {
+      return;
+    }
+
+    var _this = this;
+    var workArea = $('work-area');
+    if (!workArea) {
+      return;
+    }
+
+    // Create the visual drop zone overlay
+    var dropOverlay = new Element('div', {'id': 'drop-overlay'});
+    dropOverlay.setStyle({
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+      border: '3px dashed rgba(59, 130, 246, 0.6)',
+      zIndex: '99999',
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'none',
+      backdropFilter: 'blur(2px)'
+    });
+    var dropLabel = new Element('div');
+    dropLabel.setStyle({
+      padding: '24px 48px',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderRadius: '12px',
+      boxShadow: '0 4px 24px rgba(0, 0, 0, 0.15)',
+      fontSize: '18px',
+      fontWeight: '600',
+      color: '#1e40af',
+      textAlign: 'center',
+      lineHeight: '1.5'
+    });
+    dropLabel.update('📂 Drop pedigree file here to import<br><span style="font-size: 13px; font-weight: 400; color: #6b7280;">.xml · .json · .ped · .gedcom · .boadicea · .txt</span>');
+    dropOverlay.insert(dropLabel);
+    document.body.appendChild(dropOverlay);
+
+    var dragCounter = 0;
+
+    // Show overlay when dragging files over the window
+    workArea.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter++;
+      if (dragCounter === 1) {
+        dropOverlay.setStyle({ display: 'flex' });
+      }
+    });
+
+    workArea.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    workArea.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropOverlay.setStyle({ display: 'none' });
+      }
+    });
+
+    workArea.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = 0;
+      dropOverlay.setStyle({ display: 'none' });
+
+      var files = e.dataTransfer.files;
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      var file = files[0]; // Only process the first file
+      var fileName = file.name.toLowerCase();
+      var ext = fileName.substring(fileName.lastIndexOf('.'));
+
+      // Check for compatible file extensions
+      var compatibleExtensions = ['.xml', '.json', '.ped', '.gedcom', '.ged', '.boadicea', '.txt'];
+      if (compatibleExtensions.indexOf(ext) === -1) {
+        alert('Unsupported file type: ' + ext + '\n\nCompatible formats: ' + compatibleExtensions.join(', '));
+        return;
+      }
+
+      // Confirm before replacing current pedigree
+      if (!confirm('Import pedigree from "' + file.name + '"?\n\nThis will replace the current pedigree.')) {
+        return;
+      }
+
+      var fr = new FileReader();
+      fr.onload = function(event) {
+        var content = event.target.result;
+        if (!content || !content.trim()) {
+          alert('The file is empty.');
+          return;
+        }
+
+        try {
+          // First, try to detect if this is a native JSON format (saved pedigree)
+          if (ext === '.json') {
+            try {
+              var parsed = JSON.parse(content);
+              // Native format has specific structure — try loading directly
+              if (parsed && (parsed.GG || (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id !== undefined))) {
+                editor.getSaveLoadEngine().createGraphFromSerializedData(content, false, true);
+                console.log('[DRAG-DROP] Imported as native JSON format');
+                return;
+              }
+            } catch (jsonErr) {
+              // Not valid JSON or not native format, fall through to import
+            }
+          }
+
+          // Detect import type from extension and content
+          var importType = _this._detectImportType(ext, content);
+          var importOptions = {
+            'markEvaluated': false,
+            'externalIdMark': true,
+            'acceptUnknownPhenotypes': true
+          };
+
+          console.log('[DRAG-DROP] Importing file "' + file.name + '" as type: ' + importType);
+          editor.getSaveLoadEngine().createGraphFromImportData(
+            content, importType, importOptions,
+            false /* add to undo stack */, true /* center around 0 */
+          );
+        } catch (err) {
+          console.error('[DRAG-DROP] Error importing file:', err);
+          alert('Error importing file "' + file.name + '":\n\n' + err);
+        }
+      };
+
+      fr.onerror = function() {
+        alert('Error reading file "' + file.name + '".');
+      };
+
+      fr.readAsText(file, 'UTF-8');
+    });
+  },
+
+  /**
+   * Detects the pedigree import type based on file extension and content.
+   *
+   * @method _detectImportType
+   * @param {String} ext  File extension (lowercase, with dot)
+   * @param {String} content  File content string
+   * @return {String} Import type identifier: 'invitae', 'GA4GH', 'ped', 'gedcom', or 'BOADICEA'
+   * @private
+   */
+  _detectImportType: function(ext, content) {
+    // Extension-based detection
+    if (ext === '.xml') {
+      return 'invitae';
+    }
+    if (ext === '.json') {
+      return 'GA4GH';
+    }
+    if (ext === '.ped') {
+      return 'ped';
+    }
+    if (ext === '.gedcom' || ext === '.ged') {
+      return 'gedcom';
+    }
+    if (ext === '.boadicea') {
+      return 'BOADICEA';
+    }
+
+    // For .txt or unknown, try to sniff the content
+    var trimmed = content.trim();
+    if (trimmed.charAt(0) === '<' || trimmed.indexOf('<tree') !== -1 || trimmed.indexOf('<?xml') !== -1) {
+      return 'invitae';
+    }
+    if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
+      return 'GA4GH';
+    }
+    if (trimmed.indexOf('0 HEAD') !== -1 || trimmed.indexOf('0 @') !== -1) {
+      return 'gedcom';
+    }
+    if (trimmed.indexOf('BOADICEA') !== -1) {
+      return 'BOADICEA';
+    }
+
+    // Default to PED for plain text
+    return 'ped';
+  },
+
 
   /**
      * Returns the graph node with the corresponding nodeID
