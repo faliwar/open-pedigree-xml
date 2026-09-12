@@ -173,7 +173,7 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
 
 
 
-PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight'){
+PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false){
   var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
 
   let legend = [];
@@ -236,15 +236,13 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   let stream = doc.pipe(blobStream());
   stream.on('finish', function () {
     let blob = stream.toBlob('application/pdf');
-    //   // new FileSaver(blob, 'open-pedigree.pdf');
-    //   navigator.msSaveOrOpenBlob(blob, 'open-pedigree.pdf');
-    saveAs(blob, 'open-pedigree.pdf');
-    //   // if (navigator.msSaveOrOpenBlob) {
-    //   //   navigator.msSaveOrOpenBlob(blob, 'open-pedigree.pdf');
-    //   // } else {
-    //   //   alert("Don't know how to save to pdf in ie9")
-    //   //   console.log("Don't know how to save in ie9");
-    //   // }
+    if (embedXML) {
+      let xml = PedigreeExport.exportAsInvitae(pedigree, privacySetting);
+      let finalBlob = new Blob([blob, "\n% PedigreeXML: ", btoa(unescape(encodeURIComponent(xml)))], {type: 'application/pdf'});
+      saveAs(finalBlob, 'open-pedigree.pdf');
+    } else {
+      saveAs(blob, 'open-pedigree.pdf');
+    }
   });
   let headingCount = legend.length;
 
@@ -313,6 +311,14 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
       yOffset += lineOffset;
     }
     yOffset += catOffset;
+    doc.restore();
+  }
+
+  if (embedXML) {
+    doc.save();
+    doc.fontSize(6);
+    doc.fillColor('#888888');
+    doc.text('To edit: upload PDF to Open Pedigree XML.', 10, 10, {lineBreak: false});
     doc.restore();
   }
 

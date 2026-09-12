@@ -224,7 +224,7 @@ var PedigreeEditor = Class.create({
       textAlign: 'center',
       lineHeight: '1.5'
     });
-    dropLabel.update('📂 Drop pedigree file here to import<br><span style="font-size: 13px; font-weight: 400; color: #6b7280;">.xml · .json · .ped · .gedcom · .boadicea · .txt</span>');
+    dropLabel.update('📂 Drop pedigree file here to import<br><span style="font-size: 13px; font-weight: 400; color: #6b7280;">.xml · .json · .ped · .gedcom · .boadicea · .txt · .pdf</span>');
     dropOverlay.insert(dropLabel);
     document.body.appendChild(dropOverlay);
 
@@ -272,7 +272,7 @@ var PedigreeEditor = Class.create({
       var ext = fileName.substring(fileName.lastIndexOf('.'));
 
       // Check for compatible file extensions
-      var compatibleExtensions = ['.xml', '.json', '.ped', '.gedcom', '.ged', '.boadicea', '.txt'];
+      var compatibleExtensions = ['.xml', '.json', '.ped', '.gedcom', '.ged', '.boadicea', '.txt', '.pdf'];
       if (compatibleExtensions.indexOf(ext) === -1) {
         alert('Unsupported file type: ' + ext + '\n\nCompatible formats: ' + compatibleExtensions.join(', '));
         return;
@@ -289,6 +289,17 @@ var PedigreeEditor = Class.create({
         if (!content || !content.trim()) {
           alert('The file is empty.');
           return;
+        }
+
+        if (ext === '.pdf' || content.startsWith('%PDF')) {
+          var xmlMatch = content.match(/%\s*PedigreeXML:\s*(.*)$/);
+          if (xmlMatch) {
+            content = decodeURIComponent(escape(atob(xmlMatch[1])));
+            ext = '.xml';
+          } else {
+            alert("This PDF does not contain embedded Pedigree data.");
+            return;
+          }
         }
 
         try {

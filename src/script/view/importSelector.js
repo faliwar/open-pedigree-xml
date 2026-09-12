@@ -107,6 +107,18 @@ var ImportSelector = Class.create( {
     });
 
     var closeShortcut = ['Esc'];
+
+    mainDiv.observe('dragover', function(event) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    mainDiv.observe('drop', function(event) {
+      event.preventDefault();
+      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        _this.handleFileUpload(event.dataTransfer.files);
+      }
+    });
+
     this.dialog = new PhenoTips.widgets.ModalPopup(mainDiv, {close: {method : this.hide.bind(this), keys : closeShortcut}}, {extraClassName: 'pedigree-import-chooser', title: 'Pedigree import', displayCloseButton: true});
   },
 
@@ -121,7 +133,24 @@ var ImportSelector = Class.create( {
       var _this = this;
       var fr = new FileReader();
       fr.onload = function(e) {
-        _this.importValue.value = e.target.result;  // e.target.result should contain the text
+        var content = e.target.result;
+        if (nextFile.name.toLowerCase().endsWith('.pdf') || content.startsWith('%PDF')) {
+          var xmlMatch = content.match(/%\s*PedigreeXML:\s*(.*)$/);
+          if (xmlMatch) {
+            var decoded = decodeURIComponent(escape(atob(xmlMatch[1])));
+            _this.importValue.value = decoded;
+            $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
+            _this.disableEnableOptions();
+          } else {
+            alert("This PDF does not contain embedded Pedigree data.");
+          }
+        } else {
+          _this.importValue.value = content;
+          if (nextFile.name.toLowerCase().endsWith('.xml')) {
+            $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
+            _this.disableEnableOptions();
+          }
+        }
       };
       fr.readAsText(nextFile, 'UTF-8');
     }

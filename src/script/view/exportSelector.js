@@ -125,6 +125,12 @@ var ExportSelector = Class.create({
         { label: 'Bottom Right', options: { value: 'BottomRight' } }
       ]));
 
+    var embedXmlRow = new Element('tr');
+    var embedXmlInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'pdf-embed-xml', 'checked': 'checked' });
+    var embedXmlLabel = new Element('label', { 'class': 'export-subconfig-label' }).insert(embedXmlInput).insert('Embed XML data in PDF (allows updating)');
+    embedXmlRow.insert(embedXmlLabel.wrap('td'));
+    configListElementPDF.insert(embedXmlRow);
+
     var promptConfig = new Element('div', { 'class': 'import-section' }).update('Options:');
     var dataSection3 = new Element('div', { 'class': 'import-block' });
     dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementPDF);
@@ -239,7 +245,8 @@ var ExportSelector = Class.create({
         var pageSize = $$('select[name="pdf-page-size"]')[0].value;
         var layout = $$('select[name="pdf-page-orientation"]')[0].value;
         var legendPos = $$('select[name="pdf-legend-pos"]')[0].value;
-        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos);
+        var embedXML = $$('input[type=checkbox][name="pdf-embed-xml"]')[0].checked;
+        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML);
       }
     }
   },
