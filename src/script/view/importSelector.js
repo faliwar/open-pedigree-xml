@@ -211,6 +211,7 @@ var ImportSelector = Class.create( {
 
     var importOptions = { 'markEvaluated': importMark, 'externalIdMark': externalIdMark, 'acceptUnknownPhenotypes': acceptUnknownPhenotypes };
 
+    editor.getDriveFileSelector().clearCurrentFile();
     editor.getSaveLoadEngine().createGraphFromImportData(importValue, importType, importOptions,
       false /* add to undo stack */, true /*center around 0*/);
   },

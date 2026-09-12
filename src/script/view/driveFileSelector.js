@@ -286,36 +286,65 @@ var DriveFileSelector = Class.create({
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
+   * Renames the currently loaded pedigree on Google Drive.
+   */
+  renameCurrentPedigree: function () {
+    if (!this._currentFileId) {
+      alert('No file currently loaded from Drive to rename.');
+      return;
+    }
+    var newName = prompt('Enter new file name:', this._currentFileName);
+    if (!newName || newName.trim() === '' || newName.trim() === this._currentFileName) {
+      return;
+    }
+    var _this = this;
+    DriveBackend.renameFile(
+      this._currentFileId,
+      newName.trim(),
+      function () {
+        _this.setCurrentFile(_this._currentFileId, newName.trim());
+        alert('File renamed successfully to "' + newName.trim() + '"!');
+      },
+      function (errMsg) {
+        alert('Error renaming file: ' + errMsg);
+      }
+    );
+  },
+
+  /**
    * Saves the current pedigree as Invitae XML, overwriting the file that
    * was loaded from Drive. If no file was loaded, prompts for a file name
    * and creates a new file.
    */
-  saveCurrentPedigree: function () {
+  saveCurrentPedigree: function (silent = false) {
     var _this = this;
     var xmlContent = PedigreeExport.exportAsInvitae(editor.getGraph().DG, 'all');
 
     if (!xmlContent || xmlContent.trim() === '') {
-      alert('No pedigree to save. Create or import a pedigree first.');
+      if (!silent) alert('No pedigree to save. Create or import a pedigree first.');
       return;
     }
 
     if (this._currentFileId) {
       // Overwrite existing file
       var confirmMsg = 'Overwrite file "' + this._currentFileName + '" on Google Drive?';
-      if (confirm(confirmMsg)) {
+      if (silent || confirm(confirmMsg)) {
         DriveBackend.saveFile(
           this._currentFileId,
           this._currentFileName,
           xmlContent,
           function () {
-            alert('File "' + _this._currentFileName + '" saved successfully!');
+            if (!silent) alert('File "' + _this._currentFileName + '" saved successfully!');
           },
           function (errMsg) {
-            alert('Error saving: ' + errMsg);
+            if (!silent) alert('Error saving: ' + errMsg);
           }
         );
       }
     } else {
+      if (silent) {
+        return; // Don't prompt for a new name during autosave if no file is loaded
+      }
       // No file loaded — prompt for a name and create new
       var fileName = prompt(
         'No file loaded from Drive.\nEnter a name for the new file:',

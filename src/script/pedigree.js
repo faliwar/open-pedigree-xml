@@ -96,6 +96,7 @@ var PedigreeEditor = Class.create({
 
     var clearButton = $('action-clear');
     clearButton && clearButton.on('click', function(event) {
+      if (editor.getDriveFileSelector) editor.getDriveFileSelector().clearCurrentFile();
       document.fire('pedigree:graph:clear');
     });
 
@@ -128,6 +129,10 @@ var PedigreeEditor = Class.create({
     saveDriveButton && saveDriveButton.on('click', function(event) {
       editor.getDriveFileSelector().saveCurrentPedigree();
     });
+    var renameDriveButton = $('action-rename-drive');
+    renameDriveButton && renameDriveButton.on('click', function(event) {
+      editor.getDriveFileSelector().renameCurrentPedigree();
+    });
 
     var closeButton = $('action-close');
     closeButton && closeButton.on('click', function(event) {
@@ -147,32 +152,35 @@ var PedigreeEditor = Class.create({
                   'Chrome, Safari v4+, Opera v10.5+ and most mobile browsers.');
     });
 
-    if (enableAutosave) {
-      const autosave = this.autosave(patientDataUrl);
-      document.observe('pedigree:graph:clear',               autosave);
-      document.observe('pedigree:undo',                      autosave);
-      document.observe('pedigree:redo',                      autosave);
-      document.observe('pedigree:node:remove',               autosave);
-      document.observe('pedigree:node:setproperty',          autosave);
-      document.observe('pedigree:node:modify',               autosave);
-      document.observe('pedigree:person:drag:newparent',     autosave);
-      document.observe('pedigree:person:drag:newpartner',    autosave);
-      document.observe('pedigree:person:drag:newsibling',    autosave);
-      document.observe('pedigree:person:newparent',          autosave);
-      document.observe('pedigree:person:newsibling',         autosave);
-      document.observe('pedigree:person:newpartnerandchild', autosave);
-      document.observe('pedigree:partnership:newchild',      autosave);
-      document.observe('pedigree:sibling:reorder',           autosave);
-    }
+    const autosave = this.autosave(patientDataUrl, enableAutosave);
+    document.observe('pedigree:graph:clear',               autosave);
+    document.observe('pedigree:undo',                      autosave);
+    document.observe('pedigree:redo',                      autosave);
+    document.observe('pedigree:node:remove',               autosave);
+    document.observe('pedigree:node:setproperty',          autosave);
+    document.observe('pedigree:node:modify',               autosave);
+    document.observe('pedigree:person:drag:newparent',     autosave);
+    document.observe('pedigree:person:drag:newpartner',    autosave);
+    document.observe('pedigree:person:drag:newsibling',    autosave);
+    document.observe('pedigree:person:newparent',          autosave);
+    document.observe('pedigree:person:newsibling',         autosave);
+    document.observe('pedigree:person:newpartnerandchild', autosave);
+    document.observe('pedigree:partnership:newchild',      autosave);
+    document.observe('pedigree:sibling:reorder',           autosave);
 
     // --- Drag-and-drop file import ---
     this._initDragAndDropImport();
 
   },
 
-  autosave: function(patientDataUrl) {
+  autosave: function(patientDataUrl, isLocalAutosaveEnabled) {
     return () => {
-      editor.getSaveLoadEngine().save(patientDataUrl);
+      if (isLocalAutosaveEnabled && patientDataUrl) {
+        editor.getSaveLoadEngine().save(patientDataUrl);
+      }
+      if (editor.getDriveFileSelector().getCurrentFileId()) {
+        editor.getDriveFileSelector().saveCurrentPedigree(true);
+      }
     };
   },
 
@@ -309,6 +317,7 @@ var PedigreeEditor = Class.create({
               var parsed = JSON.parse(content);
               // Native format has specific structure — try loading directly
               if (parsed && (parsed.GG || (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id !== undefined))) {
+                editor.getDriveFileSelector().clearCurrentFile();
                 editor.getSaveLoadEngine().createGraphFromSerializedData(content, false, true);
                 console.log('[DRAG-DROP] Imported as native JSON format');
                 return;
@@ -327,6 +336,7 @@ var PedigreeEditor = Class.create({
           };
 
           console.log('[DRAG-DROP] Importing file "' + file.name + '" as type: ' + importType);
+          editor.getDriveFileSelector().clearCurrentFile();
           editor.getSaveLoadEngine().createGraphFromImportData(
             content, importType, importOptions,
             false /* add to undo stack */, true /* center around 0 */

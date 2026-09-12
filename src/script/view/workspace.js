@@ -174,7 +174,8 @@ var Workspace = Class.create({
           name : 'drive',
           items: [
             { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
-            { key : 'save-drive', label : 'Save XML', icon : 'save'}
+            { key : 'save-drive', label : 'Save XML', icon : 'save'},
+            { key : 'rename-drive', label : 'Rename XML', icon : 'edit'}
           ]
         });
       }

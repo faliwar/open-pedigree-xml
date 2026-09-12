@@ -217,4 +217,36 @@ DriveBackend.createFile = function (fileName, xmlContent, onSuccess, onFailure) 
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  RENAME FILE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Renames an XML file in the configured Drive folder.
+ *
+ * In Apps Script: calls the server-side `renameXmlFile(fileId, newName)` function.
+ * Locally: does not support renaming, returns failure.
+ *
+ * @param {String}   fileId      The Google Drive file ID
+ * @param {String}   newName     The new name for the file
+ * @param {Function} onSuccess   callback() on success
+ * @param {Function} onFailure   callback(errorMessage)
+ */
+DriveBackend.renameFile = function (fileId, newName, onSuccess, onFailure) {
+  if (DriveBackend.isAppScriptEnvironment()) {
+    google.script.run
+      .withSuccessHandler(function () {
+        onSuccess();
+      })
+      .withFailureHandler(function (err) {
+        console.error('[DriveBackend] renameFile error:', err);
+        onFailure(err.message || String(err));
+      })
+      .renameXmlFile(fileId, newName);
+  } else {
+    console.warn('[DriveBackend] Not in Apps Script. Cannot rename Drive files.');
+    onFailure('Not in Apps Script environment. Cannot rename Drive files.');
+  }
+};
+
 export default DriveBackend;

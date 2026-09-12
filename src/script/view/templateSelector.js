@@ -61,6 +61,7 @@ var TemplateSelector = Class.create( {
   _onTemplateSelected: function(event, pictureBox) {
     //console.log("observe onTemplateSelected");
     this.dialog.close();
+    editor.getDriveFileSelector().clearCurrentFile();
     editor.getSaveLoadEngine().createGraphFromSerializedData(pictureBox.pedigreeData, false /* add to undo stack */, true /*center around 0*/);
   },
 
