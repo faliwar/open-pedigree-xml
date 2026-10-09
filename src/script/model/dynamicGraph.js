@@ -1,4 +1,4 @@
-import { arrayContains, arrayIndexOf, clone2DArray, removeFirstOccurrenceByValue, toObjectWithTrue, Timer } from 'pedigree/model/helpers';
+import { arrayContains, arrayIndexOf, clone2DArray, cloneObject, removeFirstOccurrenceByValue, toObjectWithTrue, Timer } from 'pedigree/model/helpers';
 import BaseGraph from 'pedigree/model/baseGraph';
 import PositionedGraph from 'pedigree/model/positionedGraph';
 import PedigreeImport from 'pedigree/model/import';
@@ -56,7 +56,48 @@ DynamicPositionedGraph.prototype = {
     if (!this.isPerson(id)) {
       return false;
     }
-    // TODO
+    var props = this.getProperties(id);
+    return !!(props && (props.isPlaceholder || props.isVirtualDummyChild));
+  },
+
+  isVirtualParent: function( id ) {
+    if (!this.isPerson(id)) {
+      return false;
+    }
+    var props = this.getProperties(id);
+    return !!(props && props.isVirtualParent);
+  },
+
+  isVirtualDummyChild: function( id ) {
+    if (!this.isPerson(id)) {
+      return false;
+    }
+    var props = this.getProperties(id);
+    return !!(props && (props.isVirtualDummyChild || props.isPlaceholder));
+  },
+
+  isParentlessRelationship: function( v ) {
+    if (!this.isRelationship(v)) {
+      return false;
+    }
+    var parents = this.DG.GG.getParents(v);
+    if (parents.length === 0) return true;
+    for (var i = 0; i < parents.length; i++) {
+      if (!this.isVirtualParent(parents[i])) {
+        return false;
+      }
+    }
+    return true;
+  },
+
+  hasRealChildren: function( v ) {
+    if (!this.isRelationship(v)) return false;
+    var children = this.getRelationshipChildrenSortedByOrder(v);
+    for (var i = 0; i < children.length; i++) {
+      if (!this.isPlaceholder(children[i])) {
+        return true;
+      }
+    }
     return false;
   },
 
@@ -131,17 +172,29 @@ DynamicPositionedGraph.prototype = {
     this.DG.GG.properties[id] = newSetOfProperties;
   },
 
+  // returns the ID of the proband: the person flagged with 'probandFlag', or node 0 by default
+  getProbandId: function() {
+    var maxId = this.DG.GG.getMaxRealVertexId();
+    for (var i = 0; i <= maxId; i++) {
+      if (this.DG.GG.isPerson(i) && this.DG.GG.properties[i] && this.DG.GG.properties[i].probandFlag === true) {
+        return i;
+      }
+    }
+    return 0;
+  },
+
   // returns false if this gender is incompatible with this pedigree; true otherwise
   setProbandData: function( firstName, lastName, gender ) {
-    this.DG.GG.properties[0].fName = firstName;
-    this.DG.GG.properties[0].lName = lastName;
+    var probandId = this.getProbandId();
+    this.DG.GG.properties[probandId].fName = firstName;
+    this.DG.GG.properties[probandId].lName = lastName;
 
     var setGender = gender;
-    var possibleGenders = this.getPossibleGenders(0);
+    var possibleGenders = this.getPossibleGenders(probandId);
     if (!possibleGenders.hasOwnProperty(gender) || !possibleGenders[gender]) {
       setGender = 'U';
     }
-    this.DG.GG.properties[0].gender = setGender;
+    this.DG.GG.properties[probandId].gender = setGender;
 
     return (gender == setGender);
   },
@@ -151,7 +204,7 @@ DynamicPositionedGraph.prototype = {
       return false;
     }
     var parents = this.DG.GG.getParents(v);
-    return (parents.length === 1);
+    return (parents.length === 1 && !this.isVirtualParent(parents[0]));
   },
 
   getPosition: function( v ) {
@@ -283,18 +336,19 @@ DynamicPositionedGraph.prototype = {
 
   isChildOfProband: function( v ) {
     var parents = this.DG.GG.getParents(v);
-    if (arrayContains(parents,0)) {
+    if (arrayContains(parents, this.getProbandId())) {
       return true;
     }
     return false;
   },
 
   isPartnershipRelatedToProband: function( v ) {
+    var probandId = this.getProbandId();
     var parents = this.DG.GG.getParents(v);
-    if (arrayContains(parents, 0)) {
+    if (arrayContains(parents, probandId)) {
       return true;
     }
-    if (v == this.DG.GG.getProducingRelationship(0)) {
+    if (v == this.DG.GG.getProducingRelationship(probandId)) {
       return true;
     }
     return false;
@@ -302,7 +356,7 @@ DynamicPositionedGraph.prototype = {
 
   // returns true iff node v is either a sibling, a child or a parent of proband node
   isRelatedToProband: function( v ) {
-    var probandRelatedRels = this.getAllRelatedRelationships(0);
+    var probandRelatedRels = this.getAllRelatedRelationships(this.getProbandId());
     for (var i = 0; i < probandRelatedRels.length; i++) {
       var rel = probandRelatedRels[i];
 
@@ -484,22 +538,56 @@ DynamicPositionedGraph.prototype = {
   },
 
   getDisconnectedSetIfNodeRemoved: function( v ) {
+    v = parseInt(v, 10);
     var removedList = {};
     removedList[v] = true;
 
     if (this.isPerson(v)) {
-      // special case: removing the only child also removes the relationship
+      // removing a child
       if (this.DG.GG.getInEdges(v).length != 0) {
         var chhub = this.DG.GG.getInEdges(v)[0];
-        if (this.DG.GG.getOutEdges(chhub).length == 1) {
-          removedList[ this.DG.GG.getInEdges(chhub)[0] ] = true;
+        var parentRel = this.DG.GG.getInEdges(chhub)[0];
+        var parents = this.DG.GG.getInEdges(parentRel);
+        var realParents = [];
+        for (var p = 0; p < parents.length; p++) {
+          if (!this.isVirtualParent(parents[p])) {
+            realParents.push(parents[p]);
+          }
+        }
+        // Only remove relationship if it's NOT a couple (realParents.length < 2) AND v is the only child
+        if (realParents.length < 2 && this.DG.GG.getOutEdges(chhub).length == 1) {
+          removedList[ parentRel ] = true;
         }
       }
 
-      // also remove all relationships by this person
+      // removing a parent: do not remove relationship if another parent exists with children,
+      // or if multiple children remain (converting to parentless sibling hub)
       var allRels = this.DG.GG.getAllRelationships(v);
       for (var i = 0; i < allRels.length; i++) {
-        removedList[allRels[i]] = true;
+        var rel = allRels[i];
+        var parents = this.DG.GG.getInEdges(rel);
+        var otherRealParents = [];
+        for (var p = 0; p < parents.length; p++) {
+          if (parents[p] != v && !removedList.hasOwnProperty(parents[p]) && !this.isVirtualParent(parents[p])) {
+            otherRealParents.push(parents[p]);
+          }
+        }
+        var chhub = this.DG.GG.getOutEdges(rel)[0];
+        var children = this.DG.GG.getOutEdges(chhub);
+        var remainingRealChildren = [];
+        for (var c = 0; c < children.length; c++) {
+          if (!removedList.hasOwnProperty(children[c]) && !this.isVirtualDummyChild(children[c])) {
+            remainingRealChildren.push(children[c]);
+          }
+        }
+
+        if (otherRealParents.length > 0 && remainingRealChildren.length > 0) {
+          // Keep rel (single-parent relationship)
+        } else if (otherRealParents.length == 0 && remainingRealChildren.length > 1) {
+          // Keep rel (parentless sibling hub)
+        } else {
+          removedList[rel] = true;
+        }
       }
     }
 
@@ -597,13 +685,32 @@ DynamicPositionedGraph.prototype = {
       numTwins = 1;
     }
 
-    var insertRank = this.DG.ranks[childhubId] + 1;
+    var currentChildren = this.DG.GG.getOutEdges(childhubId);
+    var dummyChildId = null;
+    for (var k = 0; k < currentChildren.length; k++) {
+      if (this.isVirtualDummyChild(currentChildren[k])) {
+        dummyChildId = currentChildren[k];
+        break;
+      }
+    }
 
-    // find the best order to use for this new vertex: scan all orders on the rank, check number of crossed edges
-    var insertOrder = this._findBestInsertPosition( insertRank, childhubId );
-
-    // insert the vertex into the base graph and update ranks, orders & positions
-    var newNodeId = this._insertVertex(BaseGraph.TYPE.PERSON, properties, 1.0, childhubId, null, insertRank, insertOrder);
+    var newNodeId;
+    if (dummyChildId !== null) {
+      newNodeId = dummyChildId;
+      var cleanProps = cloneObject(properties);
+      delete cleanProps.isVirtualDummyChild;
+      delete cleanProps.isPlaceholder;
+      this.DG.GG.properties[newNodeId] = cleanProps;
+      if (cleanProps.numPersons > 0) {
+        this.DG.GG.type[newNodeId] = BaseGraph.TYPE.PERSONGROUP;
+      } else {
+        this.DG.GG.type[newNodeId] = BaseGraph.TYPE.PERSON;
+      }
+    } else {
+      var insertRank = this.DG.ranks[childhubId] + 1;
+      var insertOrder = this._findBestInsertPosition( insertRank, childhubId );
+      newNodeId = this._insertVertex(BaseGraph.TYPE.PERSON, properties, 1.0, childhubId, null, insertRank, insertOrder);
+    }
 
     var newNodes = [newNodeId];
     for (var i = 0; i < numTwins - 1; i++ ) {
@@ -641,7 +748,11 @@ DynamicPositionedGraph.prototype = {
       throw 'Assertion failed: adding parents to a non-person node';
     }
 
-    if (this.DG.GG.getInEdges(personId).length > 0) {
+    var parentRel = this.getParentRelationship(personId);
+    var isParentlessHub = (parentRel !== null && this.isParentlessRelationship(parentRel));
+    var isSingleParent = (parentRel !== null && this.isSingleParentRelationship(parentRel));
+
+    if (this.DG.GG.getInEdges(personId).length > 0 && !isParentlessHub && !isSingleParent) {
       throw 'Assertion failed: adding parents to a person with parents';
     }
 
@@ -650,6 +761,66 @@ DynamicPositionedGraph.prototype = {
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+
+    if (isParentlessHub) {
+      var parents = this.DG.GG.getInEdges(parentRel);
+      var virtualParentId = null;
+      for (var p = 0; p < parents.length; p++) {
+        if (this.isVirtualParent(parents[p])) {
+          virtualParentId = parents[p];
+          break;
+        }
+      }
+
+      var insertParentsRank = this.DG.ranks[parentRel];
+
+      var newNodes;
+      if (virtualParentId !== null) {
+        var pOrder = this.DG.order.vOrder[virtualParentId];
+        var relOrder = this.DG.order.vOrder[parentRel];
+        var newMotherOrder = (pOrder < relOrder) ? (relOrder + 1) : relOrder;
+        this.DG.GG.properties[virtualParentId] = { 'gender': 'M' };
+        var newMotherId = this._insertVertex(BaseGraph.TYPE.PERSON, {'gender': 'F'}, 1.0, null, parentRel, insertParentsRank, newMotherOrder);
+        newNodes = [virtualParentId, newMotherId];
+      } else {
+        var relOrder = this.DG.order.vOrder[parentRel];
+        var newParent1Id = this._insertVertex(BaseGraph.TYPE.PERSON, {'gender': 'F'}, 1.0, null, parentRel, insertParentsRank, relOrder + 1);
+        var newParent2Id = this._insertVertex(BaseGraph.TYPE.PERSON, {'gender': 'M'}, 1.0, null, parentRel, insertParentsRank, relOrder);
+        newNodes = [newParent1Id, newParent2Id];
+      }
+
+      this.DG.GG.validate();
+      this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+      this.updateAncestors();
+
+      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+      if (!arrayContains(movedNodes, parentRel)) {
+        movedNodes.push(parentRel);
+      }
+      return {'new': newNodes, 'moved': movedNodes, 'highlight': newNodes};
+    }
+
+    if (isSingleParent) {
+      var parents = this.DG.GG.getParents(parentRel);
+      var existingParentId = parents[0];
+      var partnerGender = this.DG.GG.getOppositeGender(existingParentId);
+      var insertParentsRank = this.DG.ranks[parentRel];
+      var relOrder = this.DG.order.vOrder[parentRel];
+      var pOrder = this.DG.order.vOrder[existingParentId];
+      var newParentOrder = (pOrder < relOrder) ? (relOrder + 1) : relOrder;
+      var newParentId = this._insertVertex(BaseGraph.TYPE.PERSON, {'gender': partnerGender}, 1.0, null, parentRel, insertParentsRank, newParentOrder);
+      var newNodes = [newParentId];
+
+      this.DG.GG.validate();
+      this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+      this.updateAncestors();
+
+      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+      if (!arrayContains(movedNodes, parentRel)) {
+        movedNodes.push(parentRel);
+      }
+      return {'new': newNodes, 'moved': movedNodes, 'highlight': newNodes};
+    }
 
     // a few special cases which involve not only insertions but also existing node rearrangements:
     this._heuristics.swapBeforeParentsToBringToSideIfPossible( personId );
@@ -701,6 +872,91 @@ DynamicPositionedGraph.prototype = {
     return {'new': newNodes, 'moved': movedNodes, 'highlight': [personId], 'animate': animateNodes};
   },
 
+  addNewParentlessSibling: function( personId, childProperties, numTwins ) {
+    this._debugPrintAll('before');
+    var timer = new Timer();
+
+    if (!this.DG.GG.isPerson(personId)) {
+      throw 'Assertion failed: adding sibling to a non-person node';
+    }
+
+    var positionsBefore  = this.DG.positions.slice(0);
+    var ranksBefore      = this.DG.ranks.slice(0);
+    var vertLevelsBefore = this.DG.vertLevel.copy();
+    var rankYBefore      = this.DG.rankY.slice(0);
+    var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+
+    if (!childProperties) {
+      childProperties = {};
+    }
+    if (!numTwins) {
+      numTwins = 1;
+    }
+
+    this._heuristics.swapBeforeParentsToBringToSideIfPossible( personId );
+
+    var insertChildhubRank = this.DG.ranks[personId] - 1;
+    var insertChildhubOrder = this._findBestInsertPosition( insertChildhubRank, personId );
+    var newChildhubId = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, null, personId, insertChildhubRank, insertChildhubOrder);
+
+    var insertParentsRank = this.DG.ranks[newChildhubId] - 1;
+    var insertParentOrder = this._findBestInsertPosition( insertParentsRank, newChildhubId );
+    var newRelationshipId = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, null, newChildhubId, insertParentsRank, insertParentOrder);
+
+    insertParentsRank = this.DG.ranks[newRelationshipId];
+    var virtualParentProps = { 'gender': 'U', 'comments': '', 'isVirtualParent': true };
+    var virtualParentId = this._insertVertex(BaseGraph.TYPE.PERSON, virtualParentProps, 1.0, null, newRelationshipId, insertParentsRank, insertParentOrder);
+
+    var insertSiblingRank = this.DG.ranks[personId];
+    var insertSiblingOrder = this._findBestInsertPosition( insertSiblingRank, newChildhubId );
+    var newSiblingId = this._insertVertex(BaseGraph.TYPE.PERSON, childProperties, 1.0, newChildhubId, null, insertSiblingRank, insertSiblingOrder);
+
+    var newNodes = [newRelationshipId, virtualParentId, newSiblingId];
+    for (var i = 0; i < numTwins - 1; i++ ) {
+      var changeSet = this.addTwin( newSiblingId, childProperties );
+      newNodes.push(changeSet['new'][0]);
+    }
+
+    this.DG.GG.validate();
+    this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+    this.updateAncestors();
+
+    timer.printSinceLast('=== NewParentlessSibling runtime: ');
+    this._debugPrintAll('after');
+
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    return {'new': newNodes, 'moved': movedNodes, 'highlight': [newSiblingId]};
+  },
+
+  assignParentlessSiblings: function( sibling1, sibling2 ) {
+    var positionsBefore  = this.DG.positions.slice(0);
+    var ranksBefore      = this.DG.ranks.slice(0);
+    var vertLevelsBefore = this.DG.vertLevel.copy();
+    var rankYBefore      = this.DG.rankY.slice(0);
+    var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+
+    var insertChildhubRank = this.DG.ranks[sibling1] - 1;
+    var insertChildhubOrder = this._findBestInsertPosition( insertChildhubRank, sibling1 );
+    var newChildhubId = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, null, sibling1, insertChildhubRank, insertChildhubOrder);
+
+    this.DG.GG.addEdge(newChildhubId, sibling2, 1.0);
+
+    var insertParentsRank = this.DG.ranks[newChildhubId] - 1;
+    var insertParentOrder = this._findBestInsertPosition( insertParentsRank, newChildhubId );
+    var newRelationshipId = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, null, newChildhubId, insertParentsRank, insertParentOrder);
+
+    insertParentsRank = this.DG.ranks[newRelationshipId];
+    var virtualParentProps = { 'gender': 'U', 'comments': '', 'isVirtualParent': true };
+    var virtualParentId = this._insertVertex(BaseGraph.TYPE.PERSON, virtualParentProps, 1.0, null, newRelationshipId, insertParentsRank, insertParentOrder);
+
+    this.DG.GG.validate();
+    this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+    this.updateAncestors();
+
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    return {'new': [newRelationshipId, virtualParentId], 'moved': movedNodes, 'highlight': [sibling1, sibling2]};
+  },
+
   addNewRelationship: function( personId, childProperties, preferLeft, numTwins ) {
     this._debugPrintAll('before');
     var timer = new Timer();
@@ -750,19 +1006,13 @@ DynamicPositionedGraph.prototype = {
 
     var insertChildRank  = insertChildhubRank + 1;
     var insertChildOrder = this._findBestInsertPosition( insertChildRank, newChildhubId );
-    var newChildId       = this._insertVertex(BaseGraph.TYPE.PERSON, childProperties, 1.0, newChildhubId, null, insertChildRank, insertChildOrder);
+    var dummyChildProperties = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
+    var newChildId       = this._insertVertex(BaseGraph.TYPE.PERSON, dummyChildProperties, 1.0, newChildhubId, null, insertChildRank, insertChildOrder);
 
     var newNodes = [newRelationshipId, newPersonId, newChildId];
-    for (var i = 0; i < numTwins - 1; i++ ) {
-      var changeSet = this.addTwin( newChildId, childProperties );
-      newNodes.push(changeSet['new'][0]);
-    }
-
 
     // validate: by now the graph should satisfy all assumptions
     this.DG.GG.validate();
-
-    //this._debugPrintAll("middle");
 
     // fix common layout mistakes (e.g. relationship not right above the only child)
     // and update vertical positioning of all edges
@@ -775,7 +1025,7 @@ DynamicPositionedGraph.prototype = {
     this._debugPrintAll('after');
 
     var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
-    return {'new': newNodes, 'moved': movedNodes, 'highlight': [personId]};
+    return {'new': newNodes, 'moved': movedNodes, 'highlight': [newPersonId]};
   },
 
   addNewChildWithoutPartner: function( personId, childProperties, numTwins ) {
@@ -1020,7 +1270,8 @@ DynamicPositionedGraph.prototype = {
 
     var insertChildRank  = insertChildhubRank + 1;
     var insertChildOrder = this._findBestInsertPosition( insertChildRank, newChildhubId );
-    var newChildId       = this._insertVertex(BaseGraph.TYPE.PERSON, childProperties, 1.0, newChildhubId, null, insertChildRank, insertChildOrder);
+    var dummyChildProperties = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
+    var newChildId       = this._insertVertex(BaseGraph.TYPE.PERSON, dummyChildProperties, 1.0, newChildhubId, null, insertChildRank, insertChildOrder);
 
     if (rankP1 == rankP2) {
       this.DG.GG.addEdge(person2, newRelationshipId, weight);
@@ -1042,7 +1293,7 @@ DynamicPositionedGraph.prototype = {
 
     var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
     var newNodes   = [newRelationshipId, newChildId];
-    return {'new': newNodes, 'moved': movedNodes, 'highlight': [person1, person2, newChildId]};
+    return {'new': newNodes, 'moved': movedNodes, 'highlight': [person1, person2]};
   },
 
   addTwin: function( personId, properties ) {
@@ -1089,16 +1340,14 @@ DynamicPositionedGraph.prototype = {
   removeNodes: function( nodeList ) {
     this._debugPrintAll('before');
 
-    //var positionsBefore  = this.DG.positions.slice(0);
-    //var ranksBefore      = this.DG.ranks.slice(0);
-    //var vertLevelsBefore = this.DG.vertLevel.copy();
-    //var rankYBefore      = this.DG.rankY.slice(0);
-    //var consangrBefore   = this.DG.consangr;
-    //var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+    nodeList = nodeList.map(function(id) {
+      return parseInt(id, 10);
+    });
 
     var removed = nodeList.slice(0);
     removed.sort();
     var moved = [];
+    var newNodes = [];
 
     for (var i = 0; i < nodeList.length; i++) {
       if (this.isRelationship(nodeList[i])) {
@@ -1118,32 +1367,90 @@ DynamicPositionedGraph.prototype = {
       }
     }
 
+    // Check 1: Any childhub whose relationship is NOT being removed, but ALL of its children ARE in nodeList?
+    // Insert a virtual dummy child so the couple stays childless and valid.
+    var checkedChHubs = {};
+    for (var i = 0; i < nodeList.length; i++) {
+      var item = nodeList[i];
+      if (this.isPerson(item) && this.DG.GG.getInEdges(item).length > 0) {
+        var chHub = this.DG.GG.getInEdges(item)[0];
+        if (!checkedChHubs[chHub]) {
+          checkedChHubs[chHub] = true;
+          var rel = this.DG.GG.getInEdges(chHub)[0];
+          if (!arrayContains(nodeList, rel)) {
+            var chChildren = this.DG.GG.getOutEdges(chHub);
+            var allChildrenBeingRemoved = true;
+            for (var c = 0; c < chChildren.length; c++) {
+              if (!arrayContains(nodeList, chChildren[c])) {
+                allChildrenBeingRemoved = false;
+                break;
+              }
+            }
+            if (allChildrenBeingRemoved) {
+              var dummyProps = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
+              var insertRank = this.DG.ranks[chHub] + 1;
+              var insertOrder = this._findBestInsertPosition(insertRank, chHub);
+              var dummyChildId = this._insertVertex(BaseGraph.TYPE.PERSON, dummyProps, 1.0, chHub, null, insertRank, insertOrder);
+              newNodes.push(dummyChildId);
+            }
+          }
+        }
+      }
+    }
+
+    // Check 2: Any relationship NOT in nodeList that will have 0 parents remaining?
+    // Insert a virtual parent so it becomes a valid parentless sibling hub.
+    var checkedRels = {};
+    for (var i = 0; i < nodeList.length; i++) {
+      var item = nodeList[i];
+      if (this.isPerson(item)) {
+        var allRels = this.DG.GG.getAllRelationships(item);
+        for (var r = 0; r < allRels.length; r++) {
+          var rel = allRels[r];
+          if (!checkedRels[rel] && !arrayContains(nodeList, rel)) {
+            checkedRels[rel] = true;
+            var parents = this.DG.GG.getInEdges(rel);
+            var allParentsBeingRemoved = true;
+            var hasVirtualParent = false;
+            for (var p = 0; p < parents.length; p++) {
+              if (this.isVirtualParent(parents[p])) {
+                if (!arrayContains(nodeList, parents[p])) {
+                  hasVirtualParent = true;
+                }
+              } else if (!arrayContains(nodeList, parents[p])) {
+                allParentsBeingRemoved = false;
+              }
+            }
+            if (allParentsBeingRemoved && !hasVirtualParent) {
+              var vParentProps = { 'gender': 'U', 'comments': '', 'isVirtualParent': true };
+              var insertRank = this.DG.ranks[rel];
+              var insertOrder = this.DG.order.vOrder[rel];
+              var vParentId = this._insertVertex(BaseGraph.TYPE.PERSON, vParentProps, 1.0, null, rel, insertRank, insertOrder);
+              newNodes.push(vParentId);
+            }
+          }
+        }
+      }
+    }
+
     nodeList.sort(function(a,b){
       return a-b;
     });
 
-
     for (var i = nodeList.length-1; i >= 0; i--) {
       var v = nodeList[i];
-
-      //// add person't relationship to the list of moved nodes
-      //if (this.isPerson(v)) {
-      //    var rel = this.DG.GG.getProducingRelationship(v);
-      //    // rel may have been already removed
-      //    if (rel !== null && !arrayContains(nodeList, rel))
-      //        moved.push(rel);
-      //}
 
       this.DG.GG.remove(v);
       this.DG.order.remove(v, this.DG.ranks[v]);
       this.DG.ranks.splice(v,1);
       this.DG.positions.splice(v, 1);
 
-      //// update moved IDs accordingly
-      //for (var m = 0; m < moved.length; m++ ) {
-      //    if (moved[m] > v)
-      //        moved[m]--;
-      //}
+      // Adjust any IDs in newNodes that were above v
+      for (var n = 0; n < newNodes.length; n++) {
+        if (newNodes[n] > v) {
+          newNodes[n]--;
+        }
+      }
     }
 
     this.DG.maxRank = Math.max.apply(null, this.DG.ranks);
@@ -1161,14 +1468,11 @@ DynamicPositionedGraph.prototype = {
       }
     }
 
-    // note: _findMovedNodes() does not work when IDs have changed. TODO
-    //var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
-    //for (var i = 0; i < moved.length; i++)
-    //    if (!arrayContains(movedNodes, moved[i]))
-    //        movedNodes.push(moved[i]);
-
-    // note: moved now has the correct IDs valid in the graph with all affected nodes removed
-    return {'removed': removed, 'removedInternally': nodeList, 'moved': moved };
+    var result = {'removed': removed, 'removedInternally': nodeList, 'moved': moved};
+    if (newNodes.length > 0) {
+      result['new'] = newNodes;
+    }
+    return result;
   },
 
   improvePosition: function () {
@@ -1301,7 +1605,8 @@ DynamicPositionedGraph.prototype = {
 
     var emptyGraph = (this.DG.GG.getNumVertices() == 0);
 
-    var node0properties = emptyGraph ? {} : this.getProperties(0);
+    var node0properties = emptyGraph ? {} : cloneObject(this.getProperties(0));
+    delete node0properties.probandFlag;  // clearing resets the proband back to node 0
 
     // it is easier to create abrand new graph transferirng node 0 propertie sthna to remove on-by-one
     // each time updating ranks, orders, etc
@@ -1747,8 +2052,12 @@ DynamicPositionedGraph.prototype = {
     var edgeToRank      = this.DG.ranks[ edgeToV ];
     var edgeToOrder     = this.DG.order.vOrder[edgeToV];
 
-    if (edgeToRank == rank && this.isPerson(edgeToV)) {
-      return this._findBestRelationshipPosition( edgeToV, preferLeft );
+    if (edgeToRank == rank) {
+      if (this.isPerson(edgeToV)) {
+        return this._findBestRelationshipPosition( edgeToV, preferLeft );
+      } else if (this.isRelationship(edgeToV)) {
+        return edgeToOrder;
+      }
     }
 
     var bestInsertOrder  = 0;
@@ -1875,7 +2184,7 @@ DynamicPositionedGraph.prototype = {
     var crossings = 0;
 
     if (rankFrom == rankTo) {
-      throw 'TODO: probably not needed';
+      return 0;
     }
 
     // For multi-rank edges, crossing occurs if either

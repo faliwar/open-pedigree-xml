@@ -64,6 +64,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   },
 
   generateHoverbox: function(x, y) {
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      var hb = new ReadOnlyHoverbox(this.getNode(), x, y, editor.getPaper().set());
+      hb.disable();
+      hb.getFrontElements().hide();
+      hb.getBackElements().hide();
+      return hb;
+    }
     if (editor.isReadOnlyMode()) {
       return new ReadOnlyHoverbox(this.getNode(), x, y, this.getGenderGraphics());
     } else {
@@ -79,6 +86,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   setGenderGraphics: function($super) {
     //console.log("set gender graphics");
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      this._genderGraphics && this._genderGraphics.remove();
+      this._genderShape = editor.getPaper().path('').hide();
+      this._genderGraphics = editor.getPaper().set(this._genderShape);
+      this._genderGraphics.hide();
+      return;
+    }
     if(this.getNode().getLifeStatus() == 'aborted' || this.getNode().getLifeStatus() == 'miscarriage') {
       this._genderGraphics && this._genderGraphics.remove();
 
@@ -712,6 +726,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      * @method drawLabels
      */
   drawLabels: function() {
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      return;
+    }
     var labels = this.getLabels();
     var selectionOffset = this._labelSelectionOffset();
     var childlessOffset = this.getChildlessStatusLabel() ? PedigreeEditorParameters.attributes.label['font-size'] : 0;
@@ -804,6 +821,15 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var g = $super().push(this.getHoverBox().getBackElements(), this.getLabels(), this.getCarrierGraphics(), this.getEvaluationGraphics(), this.getHoverBox().getFrontElements());
     if (this._labelsBox) g.push(this._labelsBox);
     return g;
+  },
+
+  hideAll: function() {
+    this.getAllGraphics().hide();
+    if (this.getHoverBox()) {
+      this.getHoverBox().disable();
+      this.getHoverBox().getFrontElements().hide();
+      this.getHoverBox().getBackElements().hide();
+    }
   },
 
   /**

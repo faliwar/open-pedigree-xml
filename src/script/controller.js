@@ -133,6 +133,12 @@ var Controller = Class.create({
 
         undoEvent.memo.properties[propertySetFunction] = oldValue;
 
+        if (propertySetFunction == 'setProband') {
+          // undoing a proband change means making the previous proband the proband again
+          undoEvent.memo.nodeID = editor.getGraph().getProbandId();
+          undoEvent.memo.properties = {'setProband': true};
+        }
+
         if (propertySetFunction == 'setDeathDate' || propertySetFunction == 'setBirthDate') {
           // some browsers may not treat the date string as provided by the date widget the same way,
           // so convert to the least common denominator which seems to be the toDateString()
@@ -217,7 +223,7 @@ var Controller = Class.create({
           needUpdateRelationship = true;
         }
 
-        if (propertySetFunction == 'setLostContact') {
+        if (propertySetFunction == 'setLostContact' || propertySetFunction == 'setProband') {
           // it is hard to say which of the incoming/outgoing lines needs to be redraws/updated,
           // so it is easier to just redraw all
           needUpdateAllRelationships = true;
@@ -342,7 +348,7 @@ var Controller = Class.create({
 
   handlePersonNewParents: function(event) {
 
-    var personID = event.memo.personID;
+    var personID = (event.memo.personID !== undefined) ? event.memo.personID : event.memo.nodeID;
     if (!editor.getGraph().isPerson(personID)) {
       return;
     }
@@ -368,8 +374,16 @@ var Controller = Class.create({
     var parentRelationship = editor.getGraph().getParentRelationship(personID);
 
     if (parentRelationship === null) {
-      // need to add new parents
-      parentRelationship = editor.getController().handlePersonNewParents( { 'memo': { 'personID': personID, 'noUndoRedo': true } } );
+      if (numPersons > 0) {
+        childParams['numPersons'] = numPersons;
+      }
+      var changeSet = editor.getGraph().addNewParentlessSibling(personID, childParams, numTwins);
+      editor.getView().applyChanges(changeSet, true);
+
+      if (!event.memo.noUndoRedo) {
+        editor.getActionStack().addState( event );
+      }
+      return;
     }
 
     if (event.memo.twins) {
@@ -400,8 +414,13 @@ var Controller = Class.create({
     }
 
     if (parentRelationship === null) {
-      // need to add new parents
-      parentRelationship = editor.getController().handlePersonNewParents( { 'memo': { 'personID': sibling1, 'noUndoRedo': true } } );
+      var changeSet = editor.getGraph().assignParentlessSiblings(sibling1, sibling2);
+      editor.getView().applyChanges(changeSet, true);
+
+      if (!event.memo.noUndoRedo) {
+        editor.getActionStack().addState( event );
+      }
+      return;
     }
 
     if (editor.getGraph().getParentRelationship(sibling2) != parentRelationship) {

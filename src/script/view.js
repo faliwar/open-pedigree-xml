@@ -371,6 +371,10 @@ var View = Class.create({
       throw 'addNode(): Invalid id';
     }
 
+    if (this.getNodeMap()[id]) {
+      this.getNodeMap()[id].remove();
+    }
+
     var node;
     var properties = positionedGraph.getProperties(id);
 
@@ -405,9 +409,11 @@ var View = Class.create({
     // change all IDs at once so that have both new and old references at the same time
     for (var oldID in this._nodeMap) {
       var node  = this.getNode(oldID);
+      var numOldID = parseInt(oldID, 10);
 
-      var newID = changedIdsSet.hasOwnProperty(oldID) ? changedIdsSet[oldID] : oldID;
-      node.setID( newID );
+      var newID = changedIdsSet.hasOwnProperty(oldID) ? changedIdsSet[oldID] :
+                  (changedIdsSet.hasOwnProperty(numOldID) ? changedIdsSet[numOldID] : numOldID);
+      node.setID( parseInt(newID, 10) );
 
       newNodeMap[newID] = node;
     }
@@ -437,21 +443,34 @@ var View = Class.create({
       me._currentGrownNodes.push(nodeID);
 
       var node = me.getNode(nodeID);
-      node.getGraphics().grow();
+      if (node && node.getGraphics()) {
+        node.getGraphics().grow();
 
-      var hoverModeZone = node.getGraphics().getHoverBox().getHoverZoneMask().clone().toFront();
-      //var hoverModeZone = node.getGraphics().getHoverBox().getHoverZoneMask().toFront();
-      hoverModeZone.hover(
-        function() {
-          me._currentHoveredNode = nodeID;
-          node.getGraphics().getHoverBox().setHighlighted(true);
-        },
-        function() {
-          me._currentHoveredNode = null;
-          node.getGraphics().getHoverBox().setHighlighted(false);
-        });
-
-      me.hoverModeZones.push(hoverModeZone);
+        var hoverBox = node.getGraphics().getHoverBox();
+        var hoverMask = hoverBox && typeof hoverBox.getHoverZoneMask === 'function' && hoverBox.getHoverZoneMask();
+        if (hoverMask && typeof hoverMask.clone === 'function') {
+          var clonedMask = hoverMask.clone();
+          if (clonedMask && typeof clonedMask.toFront === 'function') {
+            var hoverModeZone = clonedMask.toFront();
+            if (typeof hoverModeZone.hover === 'function') {
+              hoverModeZone.hover(
+                function() {
+                  me._currentHoveredNode = nodeID;
+                  if (node.getGraphics() && node.getGraphics().getHoverBox()) {
+                    node.getGraphics().getHoverBox().setHighlighted(true);
+                  }
+                },
+                function() {
+                  me._currentHoveredNode = null;
+                  if (node.getGraphics() && node.getGraphics().getHoverBox()) {
+                    node.getGraphics().getHoverBox().setHighlighted(false);
+                  }
+                });
+            }
+            me.hoverModeZones.push(hoverModeZone);
+          }
+        }
+      }
     });
 
     //timer.printSinceLast("=== Enter hover mode - highlight: ");
@@ -470,8 +489,12 @@ var View = Class.create({
     var me = this;
     this._currentGrownNodes.each(function(nodeID) {
       var node = me.getNode(nodeID);
-      node.getGraphics().shrink();
-      node.getGraphics().getHoverBox().setHighlighted(false);
+      if (node && node.getGraphics()) {
+        node.getGraphics().shrink();
+        if (node.getGraphics().getHoverBox()) {
+          node.getGraphics().getHoverBox().setHighlighted(false);
+        }
+      }
     });
 
     this._currentGrownNodes = [];
@@ -659,8 +682,10 @@ var View = Class.create({
       for (var i = 0; i < newPersons.length; i++) {
         var newPerson = this.addNode(newPersons[i]);
         if (markNew) {
-          newPerson.getGraphics().markPermanently();
-          this._currentMarkedNew.push(newPersons[i]);
+          if (!newPerson.isVirtual || !newPerson.isVirtual()) {
+            newPerson.getGraphics().markPermanently();
+            this._currentMarkedNew.push(newPersons[i]);
+          }
         }
       }
 
@@ -681,8 +706,11 @@ var View = Class.create({
       if (changeSet.hasOwnProperty('highlight')) {
         for (var i = 0; i < changeSet.highlight.length; i++) {
           var nextHighlight = changeSet.highlight[i];
-          this.getNode(nextHighlight).getGraphics().markPermanently();
-          this._currentMarkedNew.push(nextHighlight);
+          var nodeToHighlight = this.getNode(nextHighlight);
+          if (nodeToHighlight && (!nodeToHighlight.isVirtual || !nodeToHighlight.isVirtual())) {
+            nodeToHighlight.getGraphics().markPermanently();
+            this._currentMarkedNew.push(nextHighlight);
+          }
         }
       }
 

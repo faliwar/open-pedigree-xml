@@ -24,12 +24,20 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     this._childlessStatusLabel = null;
     this._junctionShape = editor.getPaper().circle(x,y, PedigreeEditorParameters.attributes.partnershipRadius).attr(PedigreeEditorParameters.attributes.partnershipNode);
 
-    // Hide the junction circle for single-parent relationships
-    if (editor.getGraph().isSingleParentRelationship(partnership.getID())) {
+    var isSingleParent = editor.getGraph().isSingleParentRelationship(partnership.getID());
+    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID());
+
+    // Hide the junction circle for single-parent relationships or parentless relationships
+    if (isSingleParent || isParentless) {
       this._junctionShape.hide();
     }
 
-    if (editor.isReadOnlyMode()) {
+    if (isParentless) {
+      this._hoverBox = new ReadOnlyHoverbox(partnership, x, y, editor.getPaper().set());
+      this._hoverBox.disable();
+      this._hoverBox.getFrontElements().hide();
+      this._hoverBox.getBackElements().hide();
+    } else if (editor.isReadOnlyMode()) {
       this._hoverBox = new ReadOnlyHoverbox(partnership, x, y, this.getShapes());
     } else {
       this._hoverBox = new PartnershipHoverbox(partnership, x, y, this.getShapes());
@@ -44,6 +52,12 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
   },
 
   updateIDLabel: function() {
+    var positionedGraph = editor.getGraph();
+    if (positionedGraph && positionedGraph.isParentlessRelationship(this.getNode().getID())) {
+      this._idLabel && this._idLabel.remove();
+      this._idLabel = null;
+      return;
+    }
     var x = this.getX();
     var y = this.getY();
     this._idLabel && this._idLabel.remove();
@@ -69,10 +83,27 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     if (this.area) {
       return;
     }
-    this.area = this.getJunctionShape().clone().flatten().insertBefore(this.getJunctionShape().flatten());
-    this.area.attr({'fill': 'green', stroke: 'none'});
-    this.area.ot = this.area.transform();
-    this.area.animate(Raphael.animation({transform : '...S2'}, 400, 'bounce'));
+    var junctionShape = this.getJunctionShape();
+    if (!junctionShape || junctionShape.removed || (junctionShape.node && junctionShape.node.style.display === 'none')) {
+      return;
+    }
+    var cloned = junctionShape.clone();
+    if (!cloned) {
+      return;
+    }
+    if (typeof cloned.insertBefore === 'function') {
+      cloned.insertBefore(junctionShape);
+    }
+    this.area = cloned;
+    if (typeof this.area.attr === 'function') {
+      this.area.attr({'fill': 'green', stroke: 'none'});
+    }
+    if (typeof this.area.transform === 'function') {
+      this.area.ot = this.area.transform();
+    }
+    if (typeof this.area.animate === 'function') {
+      this.area.animate(Raphael.animation({transform : '...S2'}, 400, 'bounce'));
+    }
   },
 
   /**
@@ -95,7 +126,14 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     if (this.mark) {
       return;
     }
-    this.mark = this.getJunctionShape().glow({width: 10, fill: true, opacity: 0.3, color: 'blue'}).insertBefore(this.getJunctionShape().flatten());
+    var junctionShape = this.getJunctionShape();
+    if (!junctionShape || junctionShape.removed || (junctionShape.node && junctionShape.node.style.display === 'none')) {
+      return;
+    }
+    var glow = junctionShape.glow({width: 10, fill: true, opacity: 0.3, color: 'blue'});
+    if (glow) {
+      this.mark = glow;
+    }
   },
 
   /**
@@ -112,7 +150,14 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     if (this.mark2) {
       return;
     }
-    this.mark2 = this.getJunctionShape().glow({width: 18, fill: true, opacity: 0.4, color: '#ee8d00'}).insertBefore(this.getJunctionShape().flatten());
+    var junctionShape = this.getJunctionShape();
+    if (!junctionShape || junctionShape.removed || (junctionShape.node && junctionShape.node.style.display === 'none')) {
+      return;
+    }
+    var glow = junctionShape.glow({width: 18, fill: true, opacity: 0.4, color: '#ee8d00'});
+    if (glow) {
+      this.mark2 = glow;
+    }
   },
   unmark: function() {
     this.mark2 && this.mark2.remove();
@@ -153,18 +198,41 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
     var id = this.getNode().getID();
 
+    var isSingleParent = positionedGraph.isSingleParentRelationship(id);
+    var isParentless = positionedGraph.isParentlessRelationship(id);
+
+    if (this._junctionShape) {
+      if (isSingleParent || isParentless) {
+        this._junctionShape.hide();
+      } else {
+        this._junctionShape.show();
+      }
+    }
+
+    // Parentless relationship: no lines to parents
+    if (isParentless) {
+      this._partnerConnections = editor.getPaper().setFinish().toBack();
+      return;
+    }
+
+    if (!isParentless && !editor.isReadOnlyMode() && (this._hoverBox instanceof ReadOnlyHoverbox)) {
+      this._hoverBox = new PartnershipHoverbox(this.getNode(), this.getX(), this.getY(), this.getShapes());
+    }
+
     // Single-parent relationship: draw a straight vertical line from parent to this point
     if (positionedGraph.isSingleParentRelationship(id)) {
       var partnerPaths = positionedGraph.getPathToParents(id);
       if (partnerPaths.length > 0) {
         var path = partnerPaths[0];
         var person = path[path.length - 1];
-        var nodePos = positionedGraph.getPosition(person);
-        var personPos = editor.convertGraphCoordToCanvasCoord(nodePos.x, nodePos.y);
-        var lineAttr = PedigreeEditorParameters.attributes.partnershipLines;
+        if (!positionedGraph.isVirtualParent(person)) {
+          var nodePos = positionedGraph.getPosition(person);
+          var personPos = editor.convertGraphCoordToCanvasCoord(nodePos.x, nodePos.y);
+          var lineAttr = PedigreeEditorParameters.attributes.partnershipLines;
 
-        // Draw a straight vertical line from parent bottom to this relationship point
-        editor.getPaper().path('M ' + personPos.x + ' ' + personPos.y + ' L ' + this.getX() + ' ' + this.getY()).attr(lineAttr).toBack();
+          // Draw a straight vertical line from parent bottom to this relationship point
+          editor.getPaper().path('M ' + personPos.x + ' ' + personPos.y + ' L ' + this.getX() + ' ' + this.getY()).attr(lineAttr).toBack();
+        }
       }
       this._partnerConnections = editor.getPaper().setFinish().toBack();
       if (this.getNode().getGraphics()) {
@@ -359,10 +427,29 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var childlineY   = editor.convertGraphCoordToCanvasCoord( childlinePos.x, childlinePos.y ).y;
 
     // draw child edges from childhub
-    var children = positionedGraph.getRelationshipChildrenSortedByOrder(id);
+    var allChildren = positionedGraph.getRelationshipChildrenSortedByOrder(id);
+    var children = [];
+    for (var k = 0; k < allChildren.length; k++) {
+      if (!positionedGraph.isVirtualDummyChild(allChildren[k])) {
+        children.push(allChildren[k]);
+      }
+    }
+
+    if (children.length === 0) {
+      this._childhubConnection = editor.getPaper().setFinish();
+      return;
+    }
+
+    var isParentless = positionedGraph.isParentlessRelationship(id);
 
     var leftmostX  = this.getX();
     var rightmostX = this.getX();
+
+    if (isParentless && children.length > 0) {
+      var firstChildX = editor.getView().getNode(children[0]).getX();
+      leftmostX = firstChildX;
+      rightmostX = firstChildX;
+    }
 
     var currentTwinGroup        = null;
     var currentTwinGroupCenterX = null;
@@ -437,10 +524,12 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     }
 
     editor.getView().drawLineWithCrossings( id, leftmostX, childlineY, rightmostX, childlineY, PedigreeEditorParameters.attributes.partnershipLines);
-    editor.getView().drawLineWithCrossings( id, this.getX(), this.getY(), this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipLines);
+    if (!isParentless) {
+      editor.getView().drawLineWithCrossings( id, this.getX(), this.getY(), this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipLines);
+    }
 
     //draw small non-functional childhub junction orb
-    if (numPregnancies > 1) {
+    if (numPregnancies > 1 && !isParentless) {
       editor.getPaper().circle(this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipRadius/2).attr({fill: '#666666', stroke: '#888888', 'stroke-width':1, 'opacity': 1});
     }
 

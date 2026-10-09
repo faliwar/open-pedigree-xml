@@ -41,6 +41,9 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
     if (!editor.DEBUG_MODE) {
       return;
     }
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      return;
+    }
 
     var x = this.getX();
     var y = this.getY();
@@ -283,6 +286,13 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
     this.unmark();
     this._genderGraphics && this._genderGraphics.remove();
 
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      this._genderShape = editor.getPaper().path('').hide();
+      this._genderGraphics = editor.getPaper().set(this._genderShape);
+      this._genderGraphics.hide();
+      return;
+    }
+
     this._shapeRadius = (this.getNode().getGender() == 'U') ? PedigreeEditorParameters.attributes.radius * 1.1 / Math.sqrt(2) : PedigreeEditorParameters.attributes.radius;
     if (this.getNode().isPersonGroup()) {
       this._shapeRadius *= PedigreeEditorParameters.attributes.groupNodesScale;
@@ -321,6 +331,11 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
      */
   setHighlightBox: function() {
     this._highlightBox && this._highlightBox.remove();
+
+    if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      this._highlightBox = null;
+      return;
+    }
 
     var radius = PedigreeEditorParameters.attributes.personHoverBoxRadius;
     this._highlightBox = editor.getPaper().rect(this.getX()-radius, this.getY()-radius,

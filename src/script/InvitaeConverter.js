@@ -180,7 +180,7 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     // Create a single virtual unknown parent.
     if (fatherId === null && motherId === null) {
       var unknownParentId = newG._addVertex(null, BaseGraph.TYPE.PERSON,
-        { 'gender': 'U', 'comments': 'unknown', 'isVirtualParent': true }, newG.defaultPersonNodeWidth);
+        { 'gender': 'U', 'comments': '', 'isVirtualParent': true }, newG.defaultPersonNodeWidth);
       isSingleParent = true;
       singleParentId = unknownParentId;
     }
@@ -224,7 +224,7 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       
       if (!hasRealChildren) {
         // PositionedGraph requires all relationships to have a childhub with at least one child. Add a dummy child.
-        var dummyChildId = newG._addVertex( null, BaseGraph.TYPE.PERSON, {'gender': 'U', 'isVirtualDummyChild': true, 'isPlaceholder': true}, newG.defaultPersonNodeWidth );
+        var dummyChildId = newG._addVertex( null, BaseGraph.TYPE.PERSON, {'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true}, newG.defaultPersonNodeWidth );
         newG.addEdge( chhubId, dummyChildId, defaultEdgeWeight );
       }
     }
@@ -668,6 +668,20 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     var consanguinity = (consangr === 'Y' || consangr === 'A') ? '1' : '0';
     var broken = relProps['broken'] ? '1' : '0';
 
+    var hasParents = (maleId !== null && idToInvitaeId[maleId] !== undefined) ||
+                     (femaleId !== null && idToInvitaeId[femaleId] !== undefined);
+
+    var validChildren = [];
+    for (var c = 0; c < children.length; c++) {
+      if (idToInvitaeId[children[c]] !== undefined) {
+        validChildren.push(children[c]);
+      }
+    }
+
+    if (!hasParents && validChildren.length === 0) {
+      continue;
+    }
+
     // link=1 seems to indicate a secondary link/cross-branch marriage, not twins. Default to 0.
     xml += '<fam id="f' + famIndex + '" ex="' + (relProps.broken ? '1' : '0') + '" consanguinity="' + (relProps.consangr ? '1' : '0') + '" link="0">';
 
@@ -676,13 +690,6 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     }
     if (femaleId !== null && idToInvitaeId[femaleId] !== undefined) {
       xml += '<female id="' + idToInvitaeId[femaleId] + '"/>';
-    }
-
-    var validChildren = [];
-    for (var c = 0; c < children.length; c++) {
-      if (idToInvitaeId[children[c]] !== undefined) {
-        validChildren.push(children[c]);
-      }
     }
 
     if (validChildren.length > 0) {
@@ -709,7 +716,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   var invitaeId = idToInvitaeId[nodeId];
   var mrn = (privacySetting === 'all' && props.externalID) ? props.externalID : '';
 
-  var xml = '<indi id="' + invitaeId + '" pat="' + (nodeId === 0 ? '1' : '0') + '" MRN="' + InvitaeConverter._escapeXml(mrn) + '">';
+  var xml = '<indi id="' + invitaeId + '" pat="' + ((props.probandFlag === true || (nodeId === 0 && props.probandFlag !== false)) ? '1' : '0') + '" MRN="' + InvitaeConverter._escapeXml(mrn) + '">';
 
   // marked_by: 1 = positive, 2 = negative, 3 = documented, 0 = none
   var markedBy = '0';
@@ -920,6 +927,9 @@ InvitaeConverter._findSiblings = function (nodeId, pedigree) {
   if (children) {
     for (var i = 0; i < children.length; i++) {
       if (children[i] !== nodeId && pedigree.GG.isPerson(children[i])) {
+        if (pedigree.GG.properties[children[i]] && (pedigree.GG.properties[children[i]].isVirtualDummyChild || pedigree.GG.properties[children[i]].isPlaceholder)) {
+          continue;
+        }
         siblings.push(children[i]);
       }
     }

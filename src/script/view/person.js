@@ -26,16 +26,33 @@ var Person = Class.create(AbstractPerson, {
   initialize: function($super, x, y, id, properties) {
     //var timer = new Timer();
     this._isProband = (id == 0);
+    this._isVirtualParent = !!(properties && properties.isVirtualParent);
+    this._isVirtualDummyChild = !!(properties && (properties.isVirtualDummyChild || properties.isPlaceholder));
     !this._type && (this._type = 'Person');
     this._setDefault();
-    var gender = properties.hasOwnProperty('gender') ? properties['gender'] : 'U';
+    var gender = (properties && properties.hasOwnProperty('gender')) ? properties['gender'] : 'U';
     $super(x, y, gender, id);
 
     // need to assign after super() and explicitly pass gender to super()
     // because changing properties requires a redraw, which relies on gender
     // shapes being there already
     this.assignProperties(properties);
+    if (this.isVirtual()) {
+      this.getGraphics().hideAll();
+    }
     //timer.printSinceLast("=== new person runtime: ");
+  },
+
+  isVirtual: function() {
+    return !!(this._isVirtualParent || this._isVirtualDummyChild);
+  },
+
+  isVirtualParent: function() {
+    return !!this._isVirtualParent;
+  },
+
+  isVirtualDummyChild: function() {
+    return !!this._isVirtualDummyChild;
   },
 
   _setDefault: function() {
@@ -83,6 +100,43 @@ var Person = Class.create(AbstractPerson, {
      */
   isProband: function() {
     return this._isProband;
+  },
+
+  /**
+     * Same as isProband(); used as the getter paired with setProband() by the controller
+     *
+     * @method getProband
+     * @return {Boolean}
+     */
+  getProband: function() {
+    return this._isProband;
+  },
+
+  /**
+     * Makes this node the proband, demoting the previous proband.
+     * A node can't be "un-probanded" directly: another node has to become the proband instead.
+     *
+     * @method setProband
+     * @param {Boolean} isProband
+     */
+  setProband: function(isProband) {
+    if (!isProband || this._isProband) {
+      return;
+    }
+    var oldProbandId = editor.getGraph().getProbandId();
+    this._isProband = true;
+
+    if (oldProbandId !== this.getID()) {
+      var oldProband = editor.getView().getNode(oldProbandId);
+      if (oldProband && oldProband.isProband && oldProband.isProband()) {
+        oldProband._isProband = false;
+        editor.getGraph().setProperties(oldProbandId, oldProband.getProperties());
+        oldProband.getGraphics().setGenderGraphics();
+        oldProband.getGraphics().getHoverBox().regenerateButtons();
+      }
+    }
+    this.getGraphics().setGenderGraphics();
+    this.getGraphics().getHoverBox().regenerateButtons();
   },
 
   /**
@@ -945,7 +999,8 @@ var Person = Class.create(AbstractPerson, {
       monozygotic:   {value : this.getMonozygotic(), inactive: inactiveMonozygothic, disabled: disableMonozygothic },
       evaluated:     {value : this.getEvaluated() },
       hpo_positive:  {value : hpoTerms},
-      nocontact:     {value : this.getLostContact(), inactive: inactiveLostContact}
+      nocontact:     {value : this.getLostContact(), inactive: inactiveLostContact},
+      proband:       {value : this.isProband(), inactive: this.isProband() || this.isVirtual()}
     };
   },
 
@@ -1013,6 +1068,12 @@ var Person = Class.create(AbstractPerson, {
     }
     if (this.getLostContact()) {
       info['lostContact'] = this.getLostContact();
+    }
+    // node 0 is the proband by default, so only record deviations from that default
+    if (this._isProband && this.getID() != 0) {
+      info['probandFlag'] = true;
+    } else if (!this._isProband && this.getID() == 0) {
+      info['probandFlag'] = false;
     }
     if (this.getDobApprox()) {
       info['dobApprox'] = true;
@@ -1085,11 +1146,26 @@ var Person = Class.create(AbstractPerson, {
       if (info.hasOwnProperty('lostContact') && this.getLostContact() != info.lostContact) {
         this.setLostContact(info.lostContact);
       }
+      if (info.hasOwnProperty('probandFlag')) {
+        this._isProband = !!info.probandFlag;
+      }
       if (info.hasOwnProperty('dobApprox')) {
         this.setDobApprox(info.dobApprox);
       }
       if (info.hasOwnProperty('ageInput') && info.ageInput !== '') {
         this._ageInput = info.ageInput;
+      }
+      if (info.hasOwnProperty('isVirtualParent')) {
+        this._isVirtualParent = !!info.isVirtualParent;
+      }
+      if (info.hasOwnProperty('isVirtualDummyChild')) {
+        this._isVirtualDummyChild = !!info.isVirtualDummyChild;
+      }
+      if (info.hasOwnProperty('isPlaceholder')) {
+        this._isVirtualDummyChild = this._isVirtualDummyChild || !!info.isPlaceholder;
+      }
+      if (this.isVirtual()) {
+        this.getGraphics().hideAll();
       }
       return true;
     }

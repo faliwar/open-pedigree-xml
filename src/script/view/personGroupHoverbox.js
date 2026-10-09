@@ -89,7 +89,10 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
     if(!this.isMenuToggled()){
       var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
       if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        editor.getNode(parentPartnershipNode).getGraphics().unmarkPregnancy();
+        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+        if (graphics && typeof graphics.unmarkPregnancy === 'function') {
+          graphics.unmarkPregnancy();
+        }
       }
       $super();
     }
@@ -105,7 +108,10 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
     if(!this.isMenuToggled()){
       var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
       if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        editor.getNode(parentPartnershipNode).getGraphics().markPregnancy();
+        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+        if (graphics && typeof graphics.markPregnancy === 'function') {
+          graphics.markPregnancy();
+        }
       }
       $super();
     }

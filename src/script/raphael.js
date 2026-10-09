@@ -66,4 +66,20 @@ Raphael.st.copy = function() {
     return newSet;
 };
 
+/**
+ * Inserts all elements of this set before the given target element or set
+ * @param {Raphael.el|Raphael.st} target
+ * @return {Raphael.st}
+ */
+Raphael.st.insertBefore = function(target) {
+    if (!target) return this;
+    var ref = (target.constructor === Raphael.st.constructor || target.type === 'set') ? target[0] : target;
+    for (var i = 0, ii = this.items.length; i < ii; i++) {
+        if (this.items[i] && typeof this.items[i].insertBefore === 'function') {
+            this.items[i].insertBefore(ref);
+        }
+    }
+    return this;
+};
+
 export default Raphael;

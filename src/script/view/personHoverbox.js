@@ -63,7 +63,8 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     this.generateHandle('sibling', x-PedigreeEditorParameters.attributes.personSiblingHandleLengthX+strokeWidth/3, splitLocationY, x-PedigreeEditorParameters.attributes.personSiblingHandleLengthX+strokeWidth/2, splitLocationY+PedigreeEditorParameters.attributes.personSiblingHandleLengthY,
       'Click to create a sibling or drag to an existing parentless person (valid choices will be highlighted in green)');
 
-    if (editor.getGraph().getParentRelationship(node.getID()) === null) {
+    var parentRel = editor.getGraph().getParentRelationship(node.getID());
+    if (parentRel === null || editor.getGraph().isParentlessRelationship(parentRel) || editor.getGraph().isSingleParentRelationship(parentRel)) {
       // parent handle
       this.generateHandle('parent', x, splitLocationY, x, y - PedigreeEditorParameters.attributes.personHandleLength,
         'Click to create new nodes for the parents or drag to an existing person or partnership (valid choices will be highlighted in green). Dragging to a person will create a new relationship.');
@@ -107,8 +108,8 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
 
     this.generateMenuBtn();
 
-    // proband can't be removed
-    if (!this.getNode().isProband()) {
+    // proband (and the root node 0) can't be removed
+    if (!this.getNode().isProband() && this.getNode().getID() != 0) {
       this.generateDeleteBtn();
     }
   },
@@ -262,7 +263,10 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     if(!this.isMenuToggled()){
       var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
       if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        editor.getNode(parentPartnershipNode).getGraphics().unmarkPregnancy();
+        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+        if (graphics && typeof graphics.unmarkPregnancy === 'function') {
+          graphics.unmarkPregnancy();
+        }
       }
       $super();
     }
@@ -278,7 +282,10 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     if(!this.isMenuToggled()){
       var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
       if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        editor.getNode(parentPartnershipNode).getGraphics().markPregnancy();
+        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+        if (graphics && typeof graphics.markPregnancy === 'function') {
+          graphics.markPregnancy();
+        }
       }
       $super();
     }

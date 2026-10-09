@@ -786,6 +786,13 @@ var PedigreeEditor = Class.create({
         'function' : 'setLostContact'
       },
       {
+        'name' : 'proband',
+        'label' : 'Proband',
+        'type' : 'checkbox',
+        'tab': 'Personal',
+        'function' : 'setProband'
+      },
+      {
         'name' : 'placeholder',
         'label' : 'Placeholder node',
         'type' : 'checkbox',

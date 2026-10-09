@@ -69,9 +69,9 @@ docker build . -t open-pedigree-xml
 docker run -p 3000:3000 -d open-pedigree-xml
 ```
 
-### Google Apps Script / Google Sheets
+### Google Apps Script
 
-This version of Open Pedigree is optimized to run as a web app or sidebar within Google Apps Script / Google Sheets and can save/load XML files directly from a designated Google Drive folder.
+This version of Open Pedigree is optimized to run as a web app or sidebar within Google Apps Script and can save/load XML files directly from a designated Google Drive folder.
 
 The best way to deploy it is by separating the HTML and JS files in your Apps Script project.
 
@@ -83,7 +83,7 @@ The best way to deploy it is by separating the HTML and JS files in your Apps Sc
   <head>
     <meta charset="UTF-8">
     <base target="_top">
-    <title>Open Pedigree by PhenoTips&reg;</title>
+    <title>Open Pedigree XML</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.3/prototype.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/effects.js"></script>
@@ -121,7 +121,8 @@ The best way to deploy it is by separating the HTML and JS files in your Apps Sc
 const FOLDER_ID = 'YOUR_FOLDER_ID_HERE';
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
+  return HtmlService.createTemplateFromFile('index')
+      .evaluate()
       .setTitle('Open Pedigree XML')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -131,31 +132,29 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-// Or to open it in a Google Sheets dialog/sidebar:
-function showPedigree() {
-  var html = HtmlService.createHtmlOutputFromFile('index')
-      .setWidth(1000)
-      .setHeight(600);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Pedigree Editor');
-}
-
 // --- DriveBackend.js Server-Side Requirements ---
-
 function listXmlFiles() {
   var folder = DriveApp.getFolderById(FOLDER_ID);
-  var files = folder.getFilesByType(MimeType.XML);
+  var files = folder.getFiles();
   var result = [];
+
   while (files.hasNext()) {
     var f = files.next();
-    result.push({
-      id: f.getId(),
-      name: f.getName(),
-      lastUpdated: f.getLastUpdated().toISOString()
-    });
+    var name = f.getName();
+
+    if (name.toLowerCase().endsWith('.xml')) {
+      result.push({
+        id: f.getId(),
+        name: name,
+        lastUpdated: f.getLastUpdated().toISOString()
+      });
+    }
   }
+
   result.sort(function(a, b) {
     return new Date(b.lastUpdated) - new Date(a.lastUpdated);
   });
+
   return result;
 }
 
@@ -169,11 +168,11 @@ function saveXmlFile(fileId, content) {
 
 function createXmlFile(fileName, content) {
   var folder = DriveApp.getFolderById(FOLDER_ID);
-  var file = folder.createFile(fileName, content, MimeType.XML);
+  var file = folder.createFile(fileName, content, 'application/xml');
   return { id: file.getId(), name: file.getName() };
 }
 ```
-6. Deploy your script as a Web App to test the application!
+5. Deploy your script as a Web App to test the application!
 
 ## Contributing
 

@@ -416,11 +416,15 @@ var AbstractHoverbox = Class.create({
      */
   setHighlighted: function(isHighlighted) {
     // autoimaticaly highlight and unhighlight the node being dragged over
+    var box = this.getBoxOnHover();
+    if (!box || typeof box.attr !== 'function') {
+      return;
+    }
     if(isHighlighted) {
-      this.getBoxOnHover().attr(PedigreeEditorParameters.attributes.boxOnHover);
-      this.getBoxOnHover().attr('fill', 'green');
+      box.attr(PedigreeEditorParameters.attributes.boxOnHover);
+      box.attr('fill', 'green');
     } else {
-      this.getBoxOnHover().attr(PedigreeEditorParameters.attributes.boxOnHover).attr('opacity', 0);
+      box.attr(PedigreeEditorParameters.attributes.boxOnHover).attr('opacity', 0);
     }
   },
 
@@ -655,7 +659,10 @@ var AbstractHoverbox = Class.create({
     } // do not redraw when dragging
 
     this.getNode().getGraphics().setSelected(true);
-    this.getBoxOnHover().stop().animate({opacity:0.7}, 200);
+    var drawBox = this.getBoxOnHover();
+    if (drawBox && typeof drawBox.stop === 'function') {
+      drawBox.stop().animate({opacity:0.7}, 200);
+    }
 
     this.generateButtons();
     this.showButtons();
@@ -684,7 +691,10 @@ var AbstractHoverbox = Class.create({
     } // do not hide when dragging
 
     this.getNode().getGraphics().setSelected(false);
-    this.getBoxOnHover().stop().animate({opacity:0}, 200);
+    var hideBox = this.getBoxOnHover();
+    if (hideBox && typeof hideBox.stop === 'function') {
+      hideBox.stop().animate({opacity:0}, 200);
+    }
 
     this.hideButtons();
     this.hideHandles();
