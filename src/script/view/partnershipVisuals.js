@@ -192,14 +192,23 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
   updatePartnerConnections: function() {
     this._partnerConnections && this._partnerConnections.remove();
 
-    editor.getPaper().setStart();
-
     var positionedGraph = editor.getGraph();
 
     var id = this.getNode().getID();
 
     var isSingleParent = positionedGraph.isSingleParentRelationship(id);
     var isParentless = positionedGraph.isParentlessRelationship(id);
+
+    // A relationship which used to be parentless (read-only hoverbox) and has just got parents needs a regular hoverbox.
+    // This must be created BEFORE paper.setStart(): Raphael adds every element/set created between setStart() and
+    // setFinish() into the captured set (_partnerConnections). The hoverbox shapes set contains the junction circle,
+    // so creating it inside the capture window would make the next updatePartnerConnections() destroy the junction.
+    if (!isParentless && !editor.isReadOnlyMode() && (this._hoverBox instanceof ReadOnlyHoverbox)) {
+      this._hoverBox.remove();
+      this._hoverBox = new PartnershipHoverbox(this.getNode(), this.getX(), this.getY(), this.getShapes());
+    }
+
+    editor.getPaper().setStart();
 
     if (this._junctionShape) {
       if (isSingleParent || isParentless) {
@@ -213,10 +222,6 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     if (isParentless) {
       this._partnerConnections = editor.getPaper().setFinish().toBack();
       return;
-    }
-
-    if (!isParentless && !editor.isReadOnlyMode() && (this._hoverBox instanceof ReadOnlyHoverbox)) {
-      this._hoverBox = new PartnershipHoverbox(this.getNode(), this.getX(), this.getY(), this.getShapes());
     }
 
     // Single-parent relationship: draw a straight vertical line from parent to this point

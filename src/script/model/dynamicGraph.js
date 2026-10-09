@@ -1863,7 +1863,11 @@ DynamicPositionedGraph.prototype = {
     this.DG.positions.splice( newNodeId, 0, -Infinity );  // temporary position: will move to the correct location and shift other nodes below
 
     var nodeToKeepEdgeStraightTo = (inedge != null) ? inedge : outedge;
-    this._heuristics.moveToCorrectPositionAndMoveOtherNodesAsNecessary( newNodeId, nodeToKeepEdgeStraightTo );
+    if (properties && (properties.isVirtualParent || properties.isVirtualDummyChild)) {
+      this.DG.positions[newNodeId] = this.DG.positions[nodeToKeepEdgeStraightTo];
+    } else {
+      this._heuristics.moveToCorrectPositionAndMoveOtherNodesAsNecessary( newNodeId, nodeToKeepEdgeStraightTo );
+    }
 
     return newNodeId;
   },
@@ -1902,7 +1906,7 @@ DynamicPositionedGraph.prototype = {
     var newMin = Math.min.apply( Math, this.DG.positions );
     if (newMin > oldMin) {
       var oldMinNodeID = arrayIndexOf(positionsBefore, oldMin);
-      var newMinValue  = this.DG.positions[oldMinNodeID];
+      var newMinValue  = (oldMinNodeID >= 0 && oldMinNodeID < this.DG.positions.length) ? this.DG.positions[oldMinNodeID] : newMin;
       var shiftAmount  = newMinValue - oldMin;
 
       for (var i = 0; i < this.DG.positions.length; i++) {
