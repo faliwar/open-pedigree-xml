@@ -1,18 +1,17 @@
-# Open Pedigree - XML 
+# Open Pedigree XML 
 
 <p align="center">
   <img src="https://repository-images.githubusercontent.com/212736090/2759df80-fe9e-11e9-8fa0-8237e35cbaf7" width="400px" alt="Open Pedigree logo"/>
 </p>
 
 <p align="center">
-  <a href="https://fabianoposwar.com/heredograma/" target="_blank">
-    <img src="https://img.shields.io/badge/Live%20Demo-fabianoposwar.com-0052cc?logo=googlechrome&logoColor=white" alt="Live Demo on fabianoposwar.com">
+  <a href="https://fabianoposwar.com/pedigree/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Live%20Demo-fabianoposwar.com-0052cc?logo=googlechrome&logoColor=white" alt="Live Demo">
   </a>
-  <a href="https://opensource.org/licenses/LGPL-2.1" target="_blank">
-    <img src="https://img.shields.io/badge/license-LGPL--2.1-blue.svg" alt="LGPL-2.1">
+  <a href="https://opensource.org/licenses/LGPL-2.1" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/License-LGPL_v2.1-blue.svg" alt="License: LGPL-2.1">
   </a>
 </p>
-
 
 ## A free and open-source pedigree tool powered by PhenoTips®
 
@@ -34,16 +33,16 @@ This repository forks phenotips/open-pedigree and adapts it for compatibility wi
 
 ✔ Import from PED, LINKAGE, GEDCOM (Cyrillic), BOADICEA, or GA4GH Pedigree (FHIR)
 
-## Changes in this Fork (open-pedigree-xml)
+## Changes in this Fork (Open Pedigree XML)
 
 This repository is a modified fork of the original Open Pedigree project. Key changes and improvements include:
 
 *   **Platform Integrations:** Configured for deployment into Google Apps Script and uses Google Drive for data storage.
 *   **XML Support:** Implementation of XML import and export functionality.
 *   **Export to Clipboard:** Added feature to quickly export pedigree data to the clipboard.
-*   **Visual & Styling Improvements:** Several styling corrections, including a white background for better visibility and exporting.
+*   **Editable PDF Exports** Embeds XML metadata directly into exported PDFs, allowing them to be re-imported and updated later.
+*   **Visual & Styling Improvements:** Several styling enhancements, including a clean white background for better visibility/exporting, as well as layout support for single parents and parentless siblings.
 *   **Demographics Handling:** Improved handling of date of birth and calculation of current age.
-*   **Optimized Docker Build:** The Dockerfile has been updated to run a lightweight, optimized production build using `serve`.
 
 ## Getting started
 
@@ -57,17 +56,6 @@ npm install
 npm start
 ```
 Open a browser to http://localhost:9000/
-
-### Docker
-
-You can also use the supplied Docker image to run the applicarion.  To get started:
-
-```
-git clone https://github.com/faliwar/open-pedigree-xml.git
-cd open-pedigree-xml
-docker build . -t open-pedigree-xml
-docker run -p 3000:3000 -d open-pedigree-xml
-```
 
 ### Google Apps Script
 
