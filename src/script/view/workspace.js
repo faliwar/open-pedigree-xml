@@ -41,8 +41,8 @@ var Workspace = Class.create({
       if (editor.isAnyMenuVisible()) {
         return;
       }
-      me.background.ox = me.background.attr('x');
-      me.background.oy = me.background.attr('y');
+      me.background.ox = me.viewBoxX;
+      me.background.oy = me.viewBoxY;
       //me.background.attr({cursor: 'url(https://mail.google.com/mail/images/2/closedhand.cur)'});
       me.background.attr({cursor: 'move'});
     };
@@ -189,8 +189,9 @@ var Workspace = Class.create({
       }, {
         name : 'edit',
         items: [
-          { key : 'undo',   label : 'Undo', icon : 'undo'},
-          { key : 'redo',   label : 'Redo', icon : 'redo'}
+          { key : 'undo',     label : 'Undo', icon : 'undo'},
+          { key : 'redo',     label : 'Redo', icon : 'redo'},
+          { key : 'relayout', label : 'Re-layout', icon : 'sitemap'}
         ]
       }, {
         name : 'reset',
@@ -481,9 +482,16 @@ var Workspace = Class.create({
     var screenDimensions = document.viewport.getDimensions();
     this.width = screenDimensions.width;
     this.height = screenDimensions.height - this.canvas.cumulativeOffset().top - 4;
+    var newWidth = this.width / this.zoomCoefficient;
+    var newHeight = this.height / this.zoomCoefficient;
     this.getPaper().setSize(this.width, this.height);
-    this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, this.width/this.zoomCoefficient, this.height/this.zoomCoefficient);
-    this.background && this.background.attr({'width': this.width, 'height': this.height});
+    this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
+    this.background && this.background.attr({
+      'x': this.viewBoxX,
+      'y': this.viewBoxY,
+      'width': newWidth,
+      'height': newHeight
+    });
     if (editor.getNodeMenu()) {
       editor.getNodeMenu().reposition();
     }

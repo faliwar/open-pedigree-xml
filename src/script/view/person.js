@@ -56,6 +56,7 @@ var Person = Class.create(AbstractPerson, {
   },
 
   _setDefault: function() {
+    this._name = '';
     this._firstName = '';
     this._lastName = '';
     this._lastNameAtBirth = '';
@@ -140,13 +141,42 @@ var Person = Class.create(AbstractPerson, {
   },
 
   /**
-     * Returns the first name of this Person
+     * Returns the full name of this Person
+     *
+     * @method getName
+     * @return {String}
+     */
+  getName: function() {
+    if (this._name) {
+      return this._name;
+    }
+    var full = ((this._firstName || '') + ' ' + (this._lastName || '')).trim();
+    return full;
+  },
+
+  /**
+     * Replaces the name of this Person with name, and displays the label
+     *
+     * @method setName
+     * @param {String} name
+     */
+  setName: function(name) {
+    name && (name = name.charAt(0).toUpperCase() + name.slice(1));
+    this._name = name || '';
+    this._firstName = this._name;
+    this._lastName = '';
+    this.getGraphics().updateNameLabel();
+    return this._name;
+  },
+
+  /**
+     * Returns the first name of this Person (compatibility bridge)
      *
      * @method getFirstName
      * @return {String}
      */
   getFirstName: function() {
-    return this._firstName;
+    return this.getName();
   },
 
   /**
@@ -157,12 +187,14 @@ var Person = Class.create(AbstractPerson, {
      */
   setFirstName: function(firstName) {
     firstName && (firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1));
-    this._firstName = firstName;
+    this._firstName = firstName || '';
+    this._name = ((this._firstName || '') + ' ' + (this._lastName || '')).trim();
     this.getGraphics().updateNameLabel();
+    return firstName;
   },
 
   /**
-     * Returns the last name of this Person
+     * Returns the last name of this Person (compatibility bridge)
      *
      * @method getLastName
      * @return {String}
@@ -179,7 +211,8 @@ var Person = Class.create(AbstractPerson, {
      */
   setLastName: function(lastName) {
     lastName && (lastName = lastName.charAt(0).toUpperCase() + lastName.slice(1));
-    this._lastName = lastName;
+    this._lastName = lastName || '';
+    this._name = ((this._firstName || '') + ' ' + (this._lastName || '')).trim();
     this.getGraphics().updateNameLabel();
     return lastName;
   },
@@ -980,6 +1013,7 @@ var Person = Class.create(AbstractPerson, {
 
     return {
       identifier:    {value : this.getID()},
+      name:          {value : this.getName()},
       first_name:    {value : this.getFirstName()},
       last_name:     {value : this.getLastName()},
       external_id:   {value : this.getExternalID()},
@@ -1018,8 +1052,9 @@ var Person = Class.create(AbstractPerson, {
   getProperties: function($super) {
     // note: properties equivalent to default are not set
     var info = $super();
-    if (this.getFirstName() != '') {
-      info['fName'] = this.getFirstName();
+    if (this.getName() != '') {
+      info['name'] = this.getName();
+      info['fName'] = this.getName();
     }
     if (this.getLastName() != '') {
       info['lName'] = this.getLastName();
@@ -1095,11 +1130,11 @@ var Person = Class.create(AbstractPerson, {
     this._setDefault();
 
     if($super(info)) {
-      if(info.fName && this.getFirstName() != info.fName) {
-        this.setFirstName(info.fName);
-      }
-      if(info.lName && this.getLastName() != info.lName) {
-        this.setLastName(info.lName);
+      if(info.name && this.getName() != info.name) {
+        this.setName(info.name);
+      } else if((info.fName || info.lName) && (this.getName() != info.fName || (info.lName && this.getLastName() != info.lName))) {
+        var combined = ((info.fName || '') + ' ' + (info.lName || '')).trim();
+        this.setName(combined);
       }
       if (info.externalID && this.getExternalID() != info.externalID) {
         this.setExternalID(info.externalID);

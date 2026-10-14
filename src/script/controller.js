@@ -25,6 +25,11 @@ var Controller = Class.create({
     document.observe('pedigree:person:newchildonly',        this.handlePersonNewChildOnly);
     document.observe('pedigree:partnership:newchild',      this.handleRelationshipNewChild);
     document.observe('pedigree:sibling:reorder',           this.handleSiblingReorder);
+    document.observe('pedigree:graph:relayout',            this.handleRelayout);
+  },
+
+  handleRelayout: function(event) {
+    editor.relayout();
   },
 
   handleUndo: function(event) {
@@ -445,6 +450,30 @@ var Controller = Class.create({
       if (!editor.getGraph().isPerson(personID)) {
         return;
       }
+
+      var singleChildren = editor.getGraph().getSingleParentChildren(personID);
+      if (!event.memo.noUndoRedo && event.memo.sharedChildren === undefined) {
+        if (singleChildren.length > 1) {
+          editor.getSharedChildrenDialog().show({
+            parentID: personID,
+            childrenIDs: singleChildren,
+            onConfirm: function(selectedChildren) {
+              var newMemo = cloneObject(event.memo);
+              newMemo.sharedChildren = selectedChildren;
+              editor.getController().handlePersonNewPartnerAndChild({ memo: newMemo });
+            },
+            onCancel: function() {
+              // User canceled
+            }
+          });
+          return;
+        } else if (singleChildren.length === 1) {
+          event.memo.sharedChildren = singleChildren.slice(0);
+        } else {
+          event.memo.sharedChildren = [];
+        }
+      }
+
       var preferLeft  = event.memo.preferLeft;
       var childParams = event.memo.childParams ? cloneObject(event.memo.childParams) : {};
       var numTwins    = event.memo.twins ? event.memo.twins : 1;
@@ -458,7 +487,8 @@ var Controller = Class.create({
         childParams['numPersons'] = numPersons;
       }
 
-      var changeSet = editor.getGraph().addNewRelationship(personID, childParams, preferLeft, numTwins);
+      var sharedChildren = event.memo.sharedChildren || [];
+      var changeSet = editor.getGraph().addNewRelationship(personID, childParams, preferLeft, numTwins, sharedChildren);
       editor.getView().applyChanges(changeSet, true);
 
       if (!event.memo.noUndoRedo) {
@@ -508,6 +538,47 @@ var Controller = Class.create({
       return;
     }
 
+    var p1Children = editor.getGraph().getSingleParentChildren(personID);
+    var p2Children = editor.getGraph().getSingleParentChildren(partnerID);
+
+    if (!event.memo.noUndoRedo && event.memo.sharedChildren === undefined) {
+      if (p1Children.length > 1) {
+        editor.getSharedChildrenDialog().show({
+          parentID: personID,
+          childrenIDs: p1Children,
+          onConfirm: function(selectedChildren) {
+            var newMemo = cloneObject(event.memo);
+            newMemo.sharedChildren = selectedChildren;
+            editor.getController().handlePersonDragToNewPartner({ memo: newMemo });
+          },
+          onCancel: function() {
+            // User canceled
+          }
+        });
+        return;
+      } else if (p2Children.length > 1) {
+        editor.getSharedChildrenDialog().show({
+          parentID: partnerID,
+          childrenIDs: p2Children,
+          onConfirm: function(selectedChildren) {
+            var newMemo = cloneObject(event.memo);
+            newMemo.sharedChildren = selectedChildren;
+            editor.getController().handlePersonDragToNewPartner({ memo: newMemo });
+          },
+          onCancel: function() {
+            // User canceled
+          }
+        });
+        return;
+      } else if (p1Children.length === 1) {
+        event.memo.sharedChildren = p1Children.slice(0);
+      } else if (p2Children.length === 1) {
+        event.memo.sharedChildren = p2Children.slice(0);
+      } else {
+        event.memo.sharedChildren = [];
+      }
+    }
+
     var childProperties = {};
     if (editor.getGraph().isChildless(personID) || editor.getGraph().isChildless(partnerID)) {
       childProperties = { 'isAdopted': true };
@@ -530,7 +601,8 @@ var Controller = Class.create({
 
     // TODO: propagate change of gender down the partnership chain
 
-    var changeSet = editor.getGraph().assignPartner(personID, partnerID, childProperties);
+    var sharedChildren = event.memo.sharedChildren || [];
+    var changeSet = editor.getGraph().assignPartner(personID, partnerID, childProperties, sharedChildren);
     editor.getView().applyChanges(changeSet, true);
 
     if (!event.memo.noUndoRedo) {

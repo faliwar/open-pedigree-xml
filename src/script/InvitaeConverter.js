@@ -307,12 +307,21 @@ InvitaeConverter._parseIndividual = function (indiEl) {
 
   // Names
   var fName = InvitaeConverter._getChildAttr(indiEl, 'first_name', 'value');
-  if (fName && fName !== '' && fName !== 'undefined') {
-    properties.fName = fName;
-  }
   var lName = InvitaeConverter._getChildAttr(indiEl, 'last_name', 'value');
+  var fullName = '';
+  if (fName && fName !== '' && fName !== 'undefined') {
+    fullName += fName;
+  }
   if (lName && lName !== '' && lName !== 'undefined') {
-    properties.lName = lName;
+    if (fullName !== '') {
+      fullName += ' ';
+    }
+    fullName += lName;
+  }
+  fullName = fullName.trim();
+  if (fullName !== '') {
+    properties.name = fullName;
+    properties.fName = fullName;
   }
 
   // External ID (MRN)
@@ -731,8 +740,12 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Names
   if (privacySetting === 'all') {
-    xml += '<first_name value="' + InvitaeConverter._escapeXml(props.fName || '') + '"/>';
-    xml += '<last_name value="' + InvitaeConverter._escapeXml(props.lName || '') + '"/>';
+    var pName = props.name || props.fName || '';
+    if (!pName && props.lName) {
+      pName = props.lName;
+    }
+    xml += '<first_name value="' + InvitaeConverter._escapeXml(pName) + '"/>';
+    xml += '<last_name value=""/>';
   } else {
     xml += '<first_name value=""/>';
     xml += '<last_name value=""/>';

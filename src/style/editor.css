@@ -489,13 +489,10 @@
   display: table-cell;
 }
 
-.menu-box .field-first_name {
-  width: 48%;
-  float: left;
-}
-.menu-box .field-last_name {
-  width: 48%;
-  float: right;
+.menu-box .field-box.field-name {
+  width: 100%;
+  clear: both;
+  font-weight: normal;
 }
 .menu-box .field-date_of_birth {
   width: 48%;
@@ -883,3 +880,185 @@
   cursor: -moz-grabbing !important;
   cursor: -webkit-grabbing !important;
 }
+
+/* =========================================
+ * SHARED CHILDREN DIALOG
+ */
+.shared-children-modal-box {
+  width: 480px !important;
+  max-width: 90vw;
+}
+
+.shared-children-dialog-content {
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: #333;
+}
+
+.shared-children-intro {
+  margin: 0 0 10px 0;
+  line-height: 1.45;
+  color: #444;
+}
+
+.shared-children-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #EBEBEB;
+  font-size: 12px;
+}
+
+.shared-children-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #0066CC;
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.shared-children-link-btn:hover {
+  color: #004499;
+}
+
+.shared-children-sep {
+  color: #CCC;
+}
+
+.shared-children-count {
+  margin-left: auto;
+  color: #777;
+  font-size: 11px;
+}
+
+.shared-children-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #E2E2E2;
+  border-radius: 4px;
+  background: #FAFAFA;
+  margin-bottom: 12px;
+}
+
+.shared-child-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ECECEC;
+  background: #FFF;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  user-select: none;
+}
+
+.shared-child-row:last-child {
+  border-bottom: none;
+}
+
+.shared-child-row:hover {
+  background-color: #F0F6FF;
+}
+
+.shared-child-row.selected {
+  background-color: #EAF2FD;
+}
+
+.shared-child-checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.shared-child-icon {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.shared-child-icon.gender-m {
+  color: #0066CC;
+}
+
+.shared-child-icon.gender-f {
+  color: #CC0066;
+}
+
+.shared-child-icon.gender-u {
+  color: #777777;
+}
+
+.shared-child-icon .gender-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: normal;
+}
+
+.shared-child-info {
+  cursor: pointer;
+  flex: 1;
+  margin: 0;
+  font-weight: normal;
+}
+
+.shared-child-name {
+  font-weight: 600;
+  color: #222;
+}
+
+.shared-child-meta {
+  color: #888;
+  font-size: 11px;
+}
+
+.shared-children-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 4px;
+}
+
+.shared-children-confirm-btn {
+  background-color: #0066CC !important;
+  color: #FFF !important;
+  border-color: #0055AA !important;
+  font-weight: bold;
+}
+
+.shared-children-confirm-btn:hover {
+  background-color: #0055AA !important;
+}
+
+/* =========================================
+ * SUGGEST DROPDOWNS & INPUT FIXES
+ * ========================================= */
+input[type="text"].suggest,
+input[type="text"].suggest.loading,
+input[type="text"].suggest-omim,
+input[type="text"].suggest-omim.loading,
+input[type="text"].suggest-genes,
+input[type="text"].suggest-genes.loading,
+input[type="text"].suggest-hpo,
+input[type="text"].suggest-hpo.loading,
+.node-menu-box input[type="text"].loading,
+#field-disorders input[type="text"].loading,
+#field-genes input[type="text"].loading,
+#field-hpo input[type="text"].loading {
+  padding-left: 5px !important;
+  background-image: none !important;
+}
+
+div.suggestItems .hide-button-wrapper {
+  display: none !important;
+}
+
+

@@ -186,7 +186,9 @@ DynamicPositionedGraph.prototype = {
   // returns false if this gender is incompatible with this pedigree; true otherwise
   setProbandData: function( firstName, lastName, gender ) {
     var probandId = this.getProbandId();
-    this.DG.GG.properties[probandId].fName = firstName;
+    var fullName = ((firstName || '') + ' ' + (lastName || '')).trim();
+    this.DG.GG.properties[probandId].name = fullName;
+    this.DG.GG.properties[probandId].fName = fullName || firstName;
     this.DG.GG.properties[probandId].lName = lastName;
 
     var setGender = gender;
@@ -205,6 +207,42 @@ DynamicPositionedGraph.prototype = {
     }
     var parents = this.DG.GG.getParents(v);
     return (parents.length === 1 && !this.isVirtualParent(parents[0]));
+  },
+
+  getSingleParentRelationships: function( personId ) {
+    if (!this.isPerson(personId)) {
+      return [];
+    }
+    var allRels = this.DG.GG.getAllRelationships(personId);
+    var singleRels = [];
+    for (var i = 0; i < allRels.length; i++) {
+      var rel = allRels[i];
+      if (this.isSingleParentRelationship(rel)) {
+        singleRels.push(rel);
+      }
+    }
+    return singleRels;
+  },
+
+  getSingleParentChildren: function( personId ) {
+    var singleRels = this.getSingleParentRelationships(personId);
+    var childrenList = [];
+    for (var i = 0; i < singleRels.length; i++) {
+      var rel = singleRels[i];
+      var chhub = this.DG.GG.getRelationshipChildhub(rel);
+      if (chhub !== undefined) {
+        var children = this.DG.GG.getOutEdges(chhub);
+        for (var c = 0; c < children.length; c++) {
+          var childId = children[c];
+          if (!this.isVirtualDummyChild(childId) && !this.isPlaceholder(childId)) {
+            if (childrenList.indexOf(childId) === -1) {
+              childrenList.push(childId);
+            }
+          }
+        }
+      }
+    }
+    return childrenList;
   },
 
   getPosition: function( v ) {
@@ -957,7 +995,7 @@ DynamicPositionedGraph.prototype = {
     return {'new': [newRelationshipId, virtualParentId], 'moved': movedNodes, 'highlight': [sibling1, sibling2]};
   },
 
-  addNewRelationship: function( personId, childProperties, preferLeft, numTwins ) {
+  addNewRelationship: function( personId, childProperties, preferLeft, numTwins, sharedChildren ) {
     this._debugPrintAll('before');
     var timer = new Timer();
 
@@ -978,6 +1016,87 @@ DynamicPositionedGraph.prototype = {
 
     if (!numTwins) {
       numTwins = 1;
+    }
+
+    var sharedChildrenIds = (sharedChildren || []).map(function(id) {
+      return parseInt(id, 10);
+    });
+
+    var singleRels = this.getSingleParentRelationships(personId);
+    if (singleRels.length > 0 && sharedChildrenIds.length > 0) {
+      var allSingleChildren = this.getSingleParentChildren(personId).map(function(id) {
+        return parseInt(id, 10);
+      });
+      var unsharedChildren = [];
+      for (var i = 0; i < allSingleChildren.length; i++) {
+        if (sharedChildrenIds.indexOf(allSingleChildren[i]) === -1) {
+          unsharedChildren.push(allSingleChildren[i]);
+        }
+      }
+
+      var newNodes = [];
+      var insertRank = this.DG.ranks[personId];
+
+      if (unsharedChildren.length > 0) {
+        var insertSingleRelOrder = this._findBestInsertPosition( insertRank, personId, preferLeft );
+        var newSingleRel = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, personId, null, insertRank, insertSingleRelOrder);
+        var insertSingleChhubRank = insertRank + 1;
+        var insertSingleChhubOrder = this._findBestInsertPosition( insertSingleChhubRank, newSingleRel );
+        var newSingleChhub = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, newSingleRel, null, insertSingleChhubRank, insertSingleChhubOrder);
+        newNodes.push(newSingleRel);
+
+        for (var u = 0; u < unsharedChildren.length; u++) {
+          var uId = unsharedChildren[u];
+          var curChhub = this.DG.GG.getInEdges(uId)[0];
+          if (curChhub !== undefined && curChhub !== newSingleChhub) {
+            this.DG.GG.removeEdge(curChhub, uId);
+            this.DG.GG.addEdge(newSingleChhub, uId, 1.0);
+          }
+        }
+      }
+
+      var singleRel = singleRels[0];
+      var oldChhub = this.DG.GG.getRelationshipChildhub(singleRel);
+      var partnerProperties = { 'gender': this.DG.GG.getOppositeGender(personId) };
+      var relRank = this.DG.ranks[singleRel];
+      var relOrder = this.DG.order.vOrder[singleRel];
+      var pOrder = this.DG.order.vOrder[personId];
+      var newParentOrder = (pOrder < relOrder) ? (relOrder + 1) : relOrder;
+      var newPartnerId = this._insertVertex(BaseGraph.TYPE.PERSON, partnerProperties, 1.0, null, singleRel, relRank, newParentOrder);
+      newNodes.push(newPartnerId);
+
+      for (var i = 0; i < sharedChildrenIds.length; i++) {
+        var cId = sharedChildrenIds[i];
+        var parentChhub = this.DG.GG.getInEdges(cId)[0];
+        if (parentChhub !== undefined && parentChhub !== oldChhub) {
+          this.DG.GG.removeEdge(parentChhub, cId);
+          this.DG.GG.addEdge(oldChhub, cId, 1.0);
+        }
+      }
+
+      for (var r = 1; r < singleRels.length; r++) {
+        var extraRel = singleRels[r];
+        var extraChhub = this.DG.GG.getRelationshipChildhub(extraRel);
+        if (extraChhub !== undefined && this.DG.GG.getOutEdges(extraChhub).length === 0) {
+          var insertChildRank = this.DG.ranks[extraChhub] + 1;
+          var insertChildOrder = this._findBestInsertPosition( insertChildRank, extraChhub );
+          var dummyProps = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
+          this._insertVertex(BaseGraph.TYPE.PERSON, dummyProps, 1.0, extraChhub, null, insertChildRank, insertChildOrder);
+        }
+      }
+
+      this.DG.GG.validate();
+      this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+      this.updateAncestors();
+
+      timer.printSinceLast('=== NewRelationship (single-parent shared) runtime: ');
+      this._debugPrintAll('after');
+
+      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
+      if (!arrayContains(movedNodes, singleRel)) {
+        movedNodes.push(singleRel);
+      }
+      return {'new': newNodes, 'moved': movedNodes, 'highlight': [newPartnerId]};
     }
 
     var partnerProperties = { 'gender': this.DG.GG.getOppositeGender(personId) };
@@ -1232,13 +1351,114 @@ DynamicPositionedGraph.prototype = {
 
   },
 
-  assignPartner: function( person1, person2, childProperties ) {
+  assignPartner: function( person1, person2, childProperties, sharedChildren ) {
     var positionsBefore  = this.DG.positions.slice(0);
     var ranksBefore      = this.DG.ranks.slice(0);
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
     var consangrBefore   = this.DG.consangr;
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
+
+    var sharedChildrenIds = (sharedChildren || []).map(function(id) {
+      return parseInt(id, 10);
+    });
+
+    var singleParent = null;
+    var partner = null;
+    if (sharedChildrenIds.length > 0) {
+      var p1SingleChildren = this.getSingleParentChildren(person1).map(function(id) { return parseInt(id, 10); });
+      var p2SingleChildren = this.getSingleParentChildren(person2).map(function(id) { return parseInt(id, 10); });
+      var hasMatch = function(list, targets) {
+        for (var idx = 0; idx < targets.length; idx++) {
+          if (list.indexOf(targets[idx]) !== -1) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      if (p1SingleChildren.length > 0 && hasMatch(p1SingleChildren, sharedChildrenIds)) {
+        singleParent = person1;
+        partner = person2;
+      } else if (p2SingleChildren.length > 0 && hasMatch(p2SingleChildren, sharedChildrenIds)) {
+        singleParent = person2;
+        partner = person1;
+      }
+    }
+
+    if (singleParent !== null) {
+      var singleRels = this.getSingleParentRelationships(singleParent);
+      if (singleRels.length > 0) {
+        var allSingleChildren = this.getSingleParentChildren(singleParent).map(function(id) { return parseInt(id, 10); });
+        var unsharedChildren = [];
+        for (var i = 0; i < allSingleChildren.length; i++) {
+          if (sharedChildrenIds.indexOf(allSingleChildren[i]) === -1) {
+            unsharedChildren.push(allSingleChildren[i]);
+          }
+        }
+
+        var newNodes = [];
+        if (unsharedChildren.length > 0) {
+          var insertRank = this.DG.ranks[singleParent];
+          var preferLeft = (this.DG.positions[partner] < this.DG.positions[singleParent]);
+          var insertSingleRelOrder = this._findBestInsertPosition( insertRank, singleParent, preferLeft );
+          var newSingleRel = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, singleParent, null, insertRank, insertSingleRelOrder);
+          var insertSingleChhubRank = insertRank + 1;
+          var insertSingleChhubOrder = this._findBestInsertPosition( insertSingleChhubRank, newSingleRel );
+          var newSingleChhub = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, newSingleRel, null, insertSingleChhubRank, insertSingleChhubOrder);
+          newNodes.push(newSingleRel);
+
+          for (var u = 0; u < unsharedChildren.length; u++) {
+            var uId = unsharedChildren[u];
+            var curChhub = this.DG.GG.getInEdges(uId)[0];
+            if (curChhub !== undefined && curChhub !== newSingleChhub) {
+              this.DG.GG.removeEdge(curChhub, uId);
+              this.DG.GG.addEdge(newSingleChhub, uId, 1.0);
+            }
+          }
+        }
+
+        var singleRel = singleRels[0];
+        var oldChhub = this.DG.GG.getRelationshipChildhub(singleRel);
+        var weight = 1;
+
+        if (this.DG.ranks[partner] == this.DG.ranks[singleRel]) {
+          this.DG.GG.addEdge(partner, singleRel, weight);
+        } else {
+          this._addMultiRankEdge(partner, singleRel);
+        }
+
+        for (var i = 0; i < sharedChildrenIds.length; i++) {
+          var cId = sharedChildrenIds[i];
+          var parentChhub = this.DG.GG.getInEdges(cId)[0];
+          if (parentChhub !== undefined && parentChhub !== oldChhub) {
+            this.DG.GG.removeEdge(parentChhub, cId);
+            this.DG.GG.addEdge(oldChhub, cId, 1.0);
+          }
+        }
+
+        for (var r = 1; r < singleRels.length; r++) {
+          var extraRel = singleRels[r];
+          var extraChhub = this.DG.GG.getRelationshipChildhub(extraRel);
+          if (extraChhub !== undefined && this.DG.GG.getOutEdges(extraChhub).length === 0) {
+            var insertChildRank = this.DG.ranks[extraChhub] + 1;
+            var insertChildOrder = this._findBestInsertPosition( insertChildRank, extraChhub );
+            var dummyProps = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
+            this._insertVertex(BaseGraph.TYPE.PERSON, dummyProps, 1.0, extraChhub, null, insertChildRank, insertChildOrder);
+          }
+        }
+
+        this.DG.GG.validate();
+        this._heuristics.improvePositioning(ranksBefore, rankYBefore);
+        this.updateAncestors();
+
+        var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
+        if (!arrayContains(movedNodes, singleRel)) {
+          movedNodes.push(singleRel);
+        }
+        return {'new': newNodes, 'moved': movedNodes, 'highlight': [person1, person2]};
+      }
+    }
 
     var rankP1 = this.DG.ranks[person1];
     var rankP2 = this.DG.ranks[person2];
@@ -1496,7 +1716,8 @@ DynamicPositionedGraph.prototype = {
   },
 
   // Returns the list of siblings of the given person, sorted by left-to-right order.
-  // Siblings are children of the same parent relationship. Returns empty array if the person has no parents.
+  // Includes full siblings and half-siblings (children sharing at least one parent).
+  // Returns empty array if the person has no parents.
   getSiblingsOf: function( personId ) {
     if (!this.isPerson(personId)) {
       throw 'Assertion failed: getSiblingsOf() is applied to a non-person';
@@ -1507,7 +1728,39 @@ DynamicPositionedGraph.prototype = {
       return [];
     }
 
-    return this.getRelationshipChildrenSortedByOrder(parentRel);
+    var parents = this.DG.GG.getParents(personId);
+    if (!parents || parents.length === 0) {
+      return this.getRelationshipChildrenSortedByOrder(parentRel);
+    }
+
+    var siblingSet = {};
+    for (var p = 0; p < parents.length; p++) {
+      var parentId = parents[p];
+      var rels = this.DG.GG.getAllRelationships(parentId);
+      for (var r = 0; r < rels.length; r++) {
+        var relChildren = this.getRelationshipChildrenSortedByOrder(rels[r]);
+        for (var c = 0; c < relChildren.length; c++) {
+          var cId = relChildren[c];
+          if (!this.isVirtualDummyChild(cId) && !this.isPlaceholder(cId)) {
+            siblingSet[cId] = true;
+          }
+        }
+      }
+    }
+
+    var siblings = [];
+    for (var sibId in siblingSet) {
+      if (siblingSet.hasOwnProperty(sibId)) {
+        siblings.push(parseInt(sibId, 10));
+      }
+    }
+
+    var _this = this;
+    siblings.sort(function(a, b) {
+      return _this.DG.order.vOrder[a] - _this.DG.order.vOrder[b];
+    });
+
+    return siblings;
   },
 
   // Swaps two siblings (or twin groups) in the graph ordering.
@@ -1524,9 +1777,13 @@ DynamicPositionedGraph.prototype = {
       return { 'moved': [] };
     }
 
-    // Verify both are children of the same relationship
     var targetParentRel = this.getParentRelationship(targetSiblingId);
-    if (targetParentRel !== parentRel) {
+    if (targetParentRel === null) {
+      return { 'moved': [] };
+    }
+
+    // Both should be on the same rank (generation)
+    if (this.DG.ranks[personId] !== this.DG.ranks[targetSiblingId]) {
       return { 'moved': [] };
     }
 
@@ -1592,11 +1849,24 @@ DynamicPositionedGraph.prototype = {
 
     var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
 
-    // Make sure the parent relationship is included in moved nodes for line redrawing
+    // Make sure the parent relationships are included in moved nodes for line redrawing
     if (!arrayContains(movedNodes, parentRel)) {
       movedNodes.push(parentRel);
     }
+    if (!arrayContains(movedNodes, targetParentRel)) {
+      movedNodes.push(targetParentRel);
+    }
 
+    return { 'moved': movedNodes };
+  },
+
+  // Re-computes the entire graph layout from scratch using the global Sugiyama algorithm.
+  relayout: function() {
+    var baseGraph = this.DG.GG.makeGWithCollapsedMultiRankEdges();
+    if (!this._recreateUsingBaseGraph(baseGraph)) {
+      return {};
+    }
+    var movedNodes = this._getAllNodes();
     return { 'moved': movedNodes };
   },
 
@@ -1685,6 +1955,7 @@ DynamicPositionedGraph.prototype = {
   stripUnusedProperties: function() {
     for (var i = 0; i <= this.DG.GG.getMaxRealVertexId(); i++) {
       if (this.isPerson(i)) {
+        this.deleteEmptyProperty(i, 'name');
         this.deleteEmptyProperty(i, 'fName');
         this.deleteEmptyProperty(i, 'lName');
         this.deleteEmptyProperty(i, 'gestationAge');

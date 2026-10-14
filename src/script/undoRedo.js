@@ -137,6 +137,10 @@ var ActionStack = Class.create({
     if (!event1.memo.hasOwnProperty('nodeID') || !event2.memo.hasOwnProperty('nodeID') || event1.memo.nodeID != event2.memo.nodeID) {
       return false;
     }
+    if (event1.memo.properties.hasOwnProperty('setName') &&
+            event2.memo.properties.hasOwnProperty('setName') ) {
+      return true;
+    }
     if (event1.memo.properties.hasOwnProperty('setFirstName') &&
             event2.memo.properties.hasOwnProperty('setFirstName') ) {
       return true;

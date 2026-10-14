@@ -498,6 +498,9 @@ BaseGraph.prototype = {
   },
 
   getVertexNameById: function(v) {
+    if (this.properties[v].hasOwnProperty('name') && this.properties[v]['name']) {
+      return this.properties[v]['name'];
+    }
     var firstname = this.properties[v].hasOwnProperty('fName') ? this.properties[v]['fName'] : '';
     var lastname  = this.properties[v].hasOwnProperty('lName')  ? this.properties[v]['lName'] : '';
 

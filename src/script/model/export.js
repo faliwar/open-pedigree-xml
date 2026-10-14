@@ -344,6 +344,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
 // TODO: convert internal properties to match public names and rename this to "supportedProperties"
 PedigreeExport.internalToJSONPropertyMapping = {
   'proband':       'proband',
+  'name':          'name',
   'fName':         'firstName',
   'lName':         'lastName',
   'comments':      'comments',
@@ -408,9 +409,10 @@ PedigreeExport.createNewIDs = function(pedigree, idGenerationPreference, maxLeng
     if (idGenerationPreference == 'external' && pedigree.GG.properties[i].hasOwnProperty('externalID')) {
       nextUnusedID--;
       id = pedigree.GG.properties[i]['externalID'].replace(/\s/g, '_');
-    } else if (idGenerationPreference == 'name' && pedigree.GG.properties[i].hasOwnProperty('fName')) {
+    } else if (idGenerationPreference == 'name' && (pedigree.GG.properties[i].hasOwnProperty('name') || pedigree.GG.properties[i].hasOwnProperty('fName'))) {
       nextUnusedID--;
-      id = pedigree.GG.properties[i]['fName'].replace(/\s/g, '_');
+      var nameVal = pedigree.GG.properties[i]['name'] || pedigree.GG.properties[i]['fName'];
+      id = nameVal.replace(/\s/g, '_');
     }
     if (maxLength && id.length > maxLength) {
       id = id.substring(0, maxLength);

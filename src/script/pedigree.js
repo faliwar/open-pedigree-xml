@@ -13,6 +13,7 @@ import NodeMenu from 'pedigree/view/nodeMenu';
 import NodetypeSelectionBubble from 'pedigree/view/nodetypeSelectionBubble';
 import TemplateSelector from 'pedigree/view/templateSelector';
 import DriveFileSelector from 'pedigree/view/driveFileSelector';
+import SharedChildrenDialog from 'pedigree/view/sharedChildrenDialog';
 import ActionStack from 'pedigree/undoRedo';
 import VersionUpdater from 'pedigree/versionUpdater';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
@@ -75,6 +76,7 @@ var PedigreeEditor = Class.create({
     this._importSelector = new ImportSelector();
     this._exportSelector = new ExportSelector();
     this._driveFileSelector = new DriveFileSelector();
+    this._sharedChildrenDialog = new SharedChildrenDialog();
     this._versionUpdater = new VersionUpdater();
     this._saveLoadEngine = new SaveLoadEngine(backend);
 
@@ -92,6 +94,10 @@ var PedigreeEditor = Class.create({
     var redoButton = $('action-redo');
     redoButton && redoButton.on('click', function(event) {
       document.fire('pedigree:redo');
+    });
+    var relayoutButton = $('action-relayout');
+    relayoutButton && relayoutButton.on('click', function(event) {
+      document.fire('pedigree:graph:relayout');
     });
 
     var clearButton = $('action-clear');
@@ -167,6 +173,7 @@ var PedigreeEditor = Class.create({
     document.observe('pedigree:person:newpartnerandchild', autosave);
     document.observe('pedigree:partnership:newchild',      autosave);
     document.observe('pedigree:sibling:reorder',           autosave);
+    document.observe('pedigree:graph:relayout',            autosave);
 
     // --- Drag-and-drop file import ---
     this._initDragAndDropImport();
@@ -403,13 +410,23 @@ var PedigreeEditor = Class.create({
 
 
   /**
+     * Returns whether a graph node with the corresponding nodeID exists in the view
+     * @method hasNode
+     * @param {Number} nodeID The id of the desired node
+     * @return {Boolean}
+     */
+  hasNode: function(nodeID) {
+    return this.getView() ? this.getView().hasNode(nodeID) : false;
+  },
+
+  /**
      * Returns the graph node with the corresponding nodeID
      * @method getNode
      * @param {Number} nodeID The id of the desired node
-     * @return {AbstractNode} the node whose id is nodeID
+     * @return {AbstractNode|null} the node whose id is nodeID, or null if not found
      */
   getNode: function(nodeID) {
-    return this.getView().getNode(nodeID);
+    return this.getView() ? this.getView().getNode(nodeID) : null;
   },
 
   /**
@@ -594,6 +611,28 @@ var PedigreeEditor = Class.create({
   },
 
   /**
+   * @method getSharedChildrenDialog
+   * @return {SharedChildrenDialog}
+   */
+  getSharedChildrenDialog: function() {
+    return this._sharedChildrenDialog;
+  },
+
+  /**
+   * Re-computes the entire graph layout and updates the view.
+   *
+   * @method relayout
+   */
+  relayout: function() {
+    var changeSet = this.getGraph().relayout();
+    if (changeSet && changeSet.moved) {
+      this.getView().applyChanges(changeSet, false);
+      this.getWorkspace().adjustSizeToScreen();
+      this.getActionStack().addState(null, null, this.getSaveLoadEngine().serialize());
+    }
+  },
+
+  /**
      * Returns true if any of the node menus are visible
      * (since some UI interactions should be disabled while menu is active - e.g. mouse wheel zoom)
      *
@@ -638,18 +677,11 @@ var PedigreeEditor = Class.create({
         'function' : 'setGender'
       },
       {
-        'name' : 'first_name',
-        'label': 'First name',
+        'name' : 'name',
+        'label': 'Name',
         'type' : 'text',
         'tab': 'Personal',
-        'function' : 'setFirstName'
-      },
-      {
-        'name' : 'last_name',
-        'label': 'Last name',
-        'type' : 'text',
-        'tab': 'Personal',
-        'function' : 'setLastName'
+        'function' : 'setName'
       },
       {
         'name' : 'external_id',

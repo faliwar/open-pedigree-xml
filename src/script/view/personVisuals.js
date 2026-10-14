@@ -210,10 +210,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   updateNameLabel: function() {
     this._nameLabel && this._nameLabel.remove();
     var text =  '';
-    this.getNode().getFirstName() && (text = this.getNode().getFirstName());
-
-    if (this.getNode().getLastName()) {
-      text += ' ' + this.getNode().getLastName();
+    if (this.getNode().getName) {
+      text = this.getNode().getName() || '';
+    } else {
+      this.getNode().getFirstName() && (text = this.getNode().getFirstName());
+      if (this.getNode().getLastName()) {
+        text += ' ' + this.getNode().getLastName();
+      }
     }
 
     text = this._wrapText(text.trim(), 15);

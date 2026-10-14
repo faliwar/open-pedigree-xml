@@ -21,26 +21,26 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 
 var AbstractHoverbox = Class.create({
 
-  initialize: function(node, shiftX, shiftY, width, height, nodeX, nodeY, nodeShapes) {
+  initialize: function (node, shiftX, shiftY, width, height, nodeX, nodeY, nodeShapes) {
     //var timer = new Timer();
     var me = this;
     this._node = node;
     this._relativeX = shiftX;
     this._relativeY = shiftY;
-    this._nodeX     = nodeX;
-    this._nodeY     = nodeY;
-    this._hidden    = true;
-    this._enabled   = false;
-    this._width     = width;
-    this._height    = height;
+    this._nodeX = nodeX;
+    this._nodeY = nodeY;
+    this._hidden = true;
+    this._enabled = false;
+    this._width = width;
+    this._height = height;
     this._isHovered = false;
     this._currentHandles = null;
-    this._currentOrbs    = null;
+    this._currentOrbs = null;
     this._currentButtons = null;
-    this._handlesZoomSz  = null;
-    this._boxOnHover    = editor.getPaper().rect(this.getX(), this.getY(), this._width, this._height, 5).attr(PedigreeEditorParameters.attributes.boxOnHover);
-    this._backElements  = editor.getPaper().set(this._boxOnHover);
-    this._mask          = this._boxOnHover.clone().attr({fill: 'green', opacity: 0});
+    this._handlesZoomSz = null;
+    this._boxOnHover = editor.getPaper().rect(this.getX(), this.getY(), this._width, this._height, 5).attr(PedigreeEditorParameters.attributes.boxOnHover);
+    this._backElements = editor.getPaper().set(this._boxOnHover);
+    this._mask = this._boxOnHover.clone().attr({ fill: 'green', opacity: 0 });
     this._frontElements = editor.getPaper().set().push(this._mask);
 
     var nodeShapeSet = nodeShapes.flatten();
@@ -50,10 +50,10 @@ var AbstractHoverbox = Class.create({
     this.animateDrawHoverZone = this.animateDrawHoverZone.bind(this);
     this.animateHideHoverZone = this.animateHideHoverZone.bind(this);
     // hide initially
-    this.getBoxOnHover().attr({opacity:0});
+    this.getBoxOnHover().attr({ opacity: 0 });
     this.enable();
     //timer.printSinceLast("=== abstract howerbox runtime: ");
-    this._isMenuToggled  = false;
+    this._isMenuToggled = false;
     this._justClosedMenu = false;
   },
 
@@ -63,7 +63,7 @@ var AbstractHoverbox = Class.create({
      * @method getX
      * @return {Number} The x coordinate in pixels
      */
-  getX: function() {
+  getX: function () {
     return this.getNodeX() + this._relativeX;
   },
 
@@ -73,7 +73,7 @@ var AbstractHoverbox = Class.create({
      * @method getY
      * @return {Number} The y coordinate in pixels
      */
-  getY: function() {
+  getY: function () {
     return this.getNodeY() + this._relativeY;
   },
 
@@ -83,7 +83,7 @@ var AbstractHoverbox = Class.create({
      * @method getNodeX
      * @return {Number} The x coordinate in pixels
      */
-  getNodeX: function() {
+  getNodeX: function () {
     // note: during construction getGraphics() isnot yet available, so need to store nodeX.
     //       however node may have been moved later, in which case we need to use current graphics X
     var nodeGraphics = this.getNode().getGraphics();
@@ -99,7 +99,7 @@ var AbstractHoverbox = Class.create({
      * @method getNodeY
      * @return {Number} The y coordinate in pixels
      */
-  getNodeY: function() {
+  getNodeY: function () {
     var nodeGraphics = this.getNode().getGraphics();
     if (nodeGraphics) {
       this._nodeY = nodeGraphics.getY();
@@ -113,7 +113,7 @@ var AbstractHoverbox = Class.create({
      * @method getWidth
      * @return {Number} The width in pixels
      */
-  getWidth: function() {
+  getWidth: function () {
     return this._width;
   },
 
@@ -123,7 +123,7 @@ var AbstractHoverbox = Class.create({
      * @method getHeight
      * @return {Number} The height in pixels
      */
-  getHeight: function() {
+  getHeight: function () {
     return this._height;
   },
 
@@ -133,7 +133,7 @@ var AbstractHoverbox = Class.create({
      * @method getNode
      * @return {AbstractNode} Can be either a Partnership or a Person
      */
-  getNode: function() {
+  getNode: function () {
     return this._node;
   },
 
@@ -143,14 +143,14 @@ var AbstractHoverbox = Class.create({
      * @method generateButtons
      * @return {Raphael.st} A set of buttons
      */
-  generateButtons: function() {
+  generateButtons: function () {
     if (this._currentButtons !== null) {
       return;
     }
     this._currentButtons = [];
   },
 
-  regenerateButtons: function() {
+  regenerateButtons: function () {
     this.removeButtons();
     this.generateButtons();
   },
@@ -171,7 +171,7 @@ var AbstractHoverbox = Class.create({
     enableState && this.enable();
   },
 
-  hideButtons: function() {
+  hideButtons: function () {
     if (!this._currentButtons) {
       return;
     }
@@ -183,7 +183,7 @@ var AbstractHoverbox = Class.create({
     }
   },
 
-  showButtons: function() {
+  showButtons: function () {
     if (!this._currentButtons) {
       return;
     }
@@ -198,7 +198,7 @@ var AbstractHoverbox = Class.create({
      * @method getCurrentButtons
      * @return {Raphael.st} A set of buttons
      */
-  getCurrentButtons: function() {
+  getCurrentButtons: function () {
     return this._currentButtons;
   },
 
@@ -226,7 +226,7 @@ var AbstractHoverbox = Class.create({
     this._currentHandles = null;
   },
 
-  hideHandles: function() {
+  hideHandles: function () {
     if (!this._currentHandles) {
       return;
     }
@@ -235,7 +235,7 @@ var AbstractHoverbox = Class.create({
     }
   },
 
-  showHandles: function() {
+  showHandles: function () {
     if (!this._currentHandles) {
       return;
     }
@@ -249,13 +249,13 @@ var AbstractHoverbox = Class.create({
      *
      * @method generateHandles
      */
-  generateHandles: function() {
+  generateHandles: function () {
     if (this._currentHandles !== null) {
       return;
     }
     this._currentHandles = [];
-    this._currentOrbs    = [];
-    this._handlesZoomSz  = editor.getWorkspace().getCurrentZoomLevel();
+    this._currentOrbs = [];
+    this._handlesZoomSz = editor.getWorkspace().getCurrentZoomLevel();
   },
 
   /**
@@ -263,7 +263,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method regenerateHandles
      */
-  regenerateHandles: function() {
+  regenerateHandles: function () {
     if (this._currentHandles) {
       this.removeHandles();
     }
@@ -286,28 +286,28 @@ var AbstractHoverbox = Class.create({
      *
      * @return {Raphael.st} The generated button
      */
-  createButton: function(x, y, svgPath, svgPathBBox, attributes, onClick, className, title) {
+  createButton: function (x, y, svgPath, svgPathBBox, attributes, onClick, className, title) {
     var icon = editor.getPaper().path(svgPath).attr(attributes);
-    icon.transform(['t' , x , y]);
+    icon.transform(['t', x, y]);
 
     // manually compute the size of the mask because Raphael.transform() is exptremely slow
-    var xShift    = svgPathBBox.width/4;
-    var yShift    = svgPathBBox.height/4;
-    var newWidth  = svgPathBBox.width  * 1.5;
+    var xShift = svgPathBBox.width / 4;
+    var yShift = svgPathBBox.height / 4;
+    var newWidth = svgPathBBox.width * 1.5;
     var newHeight = svgPathBBox.height * 1.5;
     var mask = editor.getPaper().rect(x + svgPathBBox.x - xShift, y + svgPathBBox.y - yShift, newWidth, newHeight, 1);
-    mask.attr({fill: 'gray', opacity: 0, 'stroke-width' : 0});
+    mask.attr({ fill: 'gray', opacity: 0, 'stroke-width': 0 });
 
     var button = editor.getPaper().set(mask, icon).toFront();
 
     var me = this;
-    var clickFunct = function() {
+    var clickFunct = function () {
       if (me._hidden) {
         button.isClicked = false;
         return;
       }
       button.isClicked = !button.isClicked;
-      if(button.isClicked) {
+      if (button.isClicked) {
         mask.attr(PedigreeEditorParameters.attributes.btnMaskClick);
       } else {
         mask.attr(PedigreeEditorParameters.attributes.btnMaskHoverOn);
@@ -315,19 +315,19 @@ var AbstractHoverbox = Class.create({
       onClick && onClick();
     };
     button.click(clickFunct);
-    button.mousedown(function(){
+    button.mousedown(function () {
       mask.attr(PedigreeEditorParameters.attributes.btnMaskClick);
     });
-    button.hover(function() {
+    button.hover(function () {
       mask.attr(PedigreeEditorParameters.attributes.btnMaskHoverOn);
       if (title) {
-        mask.attr({'title': title});
+        mask.attr({ 'title': title });
       }
     },
-    function() {
-      mask.attr(PedigreeEditorParameters.attributes.btnMaskHoverOff);
-    });
-    className && button.forEach(function(element) {
+      function () {
+        mask.attr(PedigreeEditorParameters.attributes.btnMaskHoverOff);
+      });
+    className && button.forEach(function (element) {
       element.node.setAttribute('class', className);
     });
     button.icon = icon;
@@ -348,14 +348,14 @@ var AbstractHoverbox = Class.create({
      * @method generateMenuBtn
      * @return {Raphael.st} The generated button
      */
-  generateMenuBtn: function() {
+  generateMenuBtn: function () {
     var me = this;
-    var action = function() {
+    var action = function () {
       me.toggleMenu(!me.isMenuToggled());
     };
     var attributes = PedigreeEditorParameters.attributes.menuBtnIcon;
-    var x = this.getX() + this.getWidth() - 20 - this.getWidth()/40;
-    var y = this.getY() + this.getHeight()/40;
+    var x = this.getX() + this.getWidth() - 20 - this.getWidth() / 40;
+    var y = this.getY() + this.getHeight() / 40;
     this.createButton(x, y, editor.getView().__menuButton_svgPath, editor.getView().__menuButton_BBox,
       attributes, action, 'menu-trigger', 'node properties');
 
@@ -366,16 +366,16 @@ var AbstractHoverbox = Class.create({
      * @method generateDeleteBtn
      * @return {Raphael.st} the generated button
      */
-  generateDeleteBtn: function() {
+  generateDeleteBtn: function () {
     var me = this;
-    var action = function() {
+    var action = function () {
       me.animateHideHoverZone();
       var event = { 'nodeID': me.getNode().getID() };
       document.fire('pedigree:node:remove', event);
     };
     var attributes = PedigreeEditorParameters.attributes.deleteBtnIcon;
-    var x = this.getX() + this.getWidth() - 20 - this.getWidth()/40;
-    var y = this.getY() + this.getHeight()/40;
+    var x = this.getX() + this.getWidth() - 20 - this.getWidth() / 40;
+    var y = this.getY() + this.getHeight() / 40;
     this.createButton(x, y, editor.getView().__deleteButton_svgPath, editor.getView().__deleteButton_BBox,
       attributes, action, 'delete', 'remove node');
   },
@@ -386,7 +386,7 @@ var AbstractHoverbox = Class.create({
      * @method getBoxOnHover
      * @return {Raphael.el} Raphael rectangle element
      */
-  getBoxOnHover: function() {
+  getBoxOnHover: function () {
     return this._boxOnHover;
   },
 
@@ -396,7 +396,7 @@ var AbstractHoverbox = Class.create({
      * @method isHovered
      * @return {Boolean} Raphael rectangle element
      */
-  isHovered: function() {
+  isHovered: function () {
     return this._isHovered;
   },
 
@@ -405,7 +405,7 @@ var AbstractHoverbox = Class.create({
      * @method setHovered
      * @param {Boolean} isHovered Set to true if the box is hovered
      */
-  setHovered: function(isHovered) {
+  setHovered: function (isHovered) {
     this._isHovered = isHovered;
   },
 
@@ -414,13 +414,13 @@ var AbstractHoverbox = Class.create({
      * @method setHighlighted
      * @param {Boolean} isHighlighted Set to true enables green highlight box, false disables it
      */
-  setHighlighted: function(isHighlighted) {
+  setHighlighted: function (isHighlighted) {
     // autoimaticaly highlight and unhighlight the node being dragged over
     var box = this.getBoxOnHover();
     if (!box || typeof box.attr !== 'function') {
       return;
     }
-    if(isHighlighted) {
+    if (isHighlighted) {
       box.attr(PedigreeEditorParameters.attributes.boxOnHover);
       box.attr('fill', 'green');
     } else {
@@ -434,7 +434,7 @@ var AbstractHoverbox = Class.create({
      * @method getHoverZoneMask
      * @return {Raphael.el} Raphael rectangle
      */
-  getHoverZoneMask: function() {
+  getHoverZoneMask: function () {
     return this._mask;
   },
 
@@ -445,7 +445,7 @@ var AbstractHoverbox = Class.create({
      * @method getFrontElements
      * @return {Raphael.st} set of Raphael elements
      */
-  getFrontElements: function() {
+  getFrontElements: function () {
     return this._frontElements;
   },
 
@@ -456,7 +456,7 @@ var AbstractHoverbox = Class.create({
      * @method getBackElements
      * @return {Raphael.st} set of Raphael elements
      */
-  getBackElements: function() {
+  getBackElements: function () {
     return this._backElements;
   },
 
@@ -469,26 +469,26 @@ var AbstractHoverbox = Class.create({
      * @param {Number} orbY The y coordinate of the orb
      * @return {Raphael.st} Raphael set of elements that make up the handle
      */
-  generateHandle: function(type, startX, startY, orbX, orbY, title, toHide) {
+  generateHandle: function (type, startX, startY, orbX, orbY, title, toHide) {
     var strokeWidth = editor.getWorkspace().getSizeNormalizedToDefaultZoom(PedigreeEditorParameters.attributes.handleStrokeWidth);
-    var path = [['M', startX, startY],['L', orbX, orbY]];
-    var connection   = editor.getPaper().path(path).attr({'stroke-width': strokeWidth, stroke: 'gray'}).toBack();
+    var path = [['M', startX, startY], ['L', orbX, orbY]];
+    var connection = editor.getPaper().path(path).attr({ 'stroke-width': strokeWidth, stroke: 'gray' }).toBack();
     connection.oPath = path;
 
-    var touchPresent  = 'createTouch' in document;
+    var touchPresent = 'createTouch' in document;
 
-    var orbRadius     = touchPresent ? PedigreeEditorParameters.attributes.touchOrbRadius : PedigreeEditorParameters.attributes.orbRadius;
-    var orbHue        = PedigreeEditorParameters.attributes.orbHue;
+    var orbRadius = touchPresent ? PedigreeEditorParameters.attributes.touchOrbRadius : PedigreeEditorParameters.attributes.orbRadius;
+    var orbHue = PedigreeEditorParameters.attributes.orbHue;
 
-    var normalOrbAttr   = {fill: 'r(.5,.9)hsb(' + orbHue + ', 1, .75)-hsb(' + orbHue + ', .5, .25)', stroke: 'none'};
-    var selectedOrbAttr = {fill: 'r(.5,.9)hsb(' + (orbHue + .36) + ', 1, .75)-hsb(' + (orbHue + .36) + ', .5, .25)'};
-    var orbAttrX        = 'cx';
-    var orbAttrY        = 'cy';
+    var normalOrbAttr = { fill: 'r(.5,.9)hsb(' + orbHue + ', 1, .75)-hsb(' + orbHue + ', .5, .25)', stroke: 'none' };
+    var selectedOrbAttr = { fill: 'r(.5,.9)hsb(' + (orbHue + .36) + ', 1, .75)-hsb(' + (orbHue + .36) + ', .5, .25)' };
+    var orbAttrX = 'cx';
+    var orbAttrY = 'cy';
 
-    var orb = generateOrb(editor.getPaper(), orbX, orbY, orbRadius*1.1).attr('cursor', 'pointer');
+    var orb = generateOrb(editor.getPaper(), orbX, orbY, orbRadius * 1.1).attr('cursor', 'pointer');
     orb[0].attr(normalOrbAttr);
 
-    var handle  = editor.getPaper().set().push(connection, orb);
+    var handle = editor.getPaper().set().push(connection, orb);
     handle.type = type;
     connection.insertBefore(this.getHoverZoneMask());
     orb.toFront();
@@ -497,7 +497,7 @@ var AbstractHoverbox = Class.create({
     var inHoverMode = false;
     var interactionStarted = false;
 
-    var onDragHandle = function() {
+    var onDragHandle = function () {
       if (!inHoverMode) {
         inHoverMode = true;
         if (editor.getView().getCurrentDraggable() !== null) {
@@ -509,7 +509,7 @@ var AbstractHoverbox = Class.create({
 
     // is true when any button other than the left mouse button is presses
     var wrongClick = false;
-    var start = function(x,y,e) {
+    var start = function (x, y, e) {
       if (interactionStarted) {
         return;
       }
@@ -524,6 +524,9 @@ var AbstractHoverbox = Class.create({
       connection.toFront();
       orb.stop();
       orb.toFront();
+      connection.node.style.pointerEvents = 'none';
+      orb[0].node.style.pointerEvents = 'none';
+      orb[1].node.style.pointerEvents = 'none';
       inHoverMode = false;
       me.disable();
       me.getFrontElements().toFront();
@@ -546,51 +549,96 @@ var AbstractHoverbox = Class.create({
       // and instantly un-highlighted if the person just clicks the orb without dragging)
       setTimeout(onDragHandle, 100);
     };
-    var move = function(dx, dy) {
-      if (wrongClick) {
-        return;
-      }
-      if (!interactionStarted) {
+    var move = function (dx, dy) {
+      if (wrongClick || !interactionStarted) {
         return;
       }
       onDragHandle();
-      dx = dx/editor.getWorkspace().zoomCoefficient;
-      dy = dy/editor.getWorkspace().zoomCoefficient;
+      dx = dx / editor.getWorkspace().zoomCoefficient;
+      dy = dy / editor.getWorkspace().zoomCoefficient;
       (orb.ot.length > 0) && orb.transform('');
-      orb.attr(orbAttrX, orb.ox + dx);
-      orb.attr(orbAttrY, orb.oy + dy);
+      var curX = orb.ox + dx;
+      var curY = orb.oy + dy;
+      orb.attr(orbAttrX, curX);
+      orb.attr(orbAttrY, curY);
       (orb.ot.length > 0) && orb.transform(orb.ot);
       connection.oPath[1][1] = connection.ox + dx;
       connection.oPath[1][2] = connection.oy + dy;
       connection.attr('path', connection.oPath);
-      if(dx > 1 || dx < -1 || dy > 1 || dy < -1 ) {
+      if (dx > 1 || dx < -1 || dy > 1 || dy < -1) {
         handle.isDragged = true;
       }
+
+      // Actively track which valid target node the orb is inside right now
+      var view = editor.getView();
+      var validIds = view._currentGrownNodes || [];
+      var hitNodeId = null;
+      for (var i = 0; i < validIds.length; i++) {
+        var candidate = view.getNode(validIds[i]);
+        if (candidate && candidate.getGraphics() && candidate.getGraphics().containsXY(curX, curY)) {
+          hitNodeId = validIds[i];
+          break;
+        }
+      }
+      if (view._currentHoveredNode !== hitNodeId) {
+        if (view._currentHoveredNode !== null) {
+          var prevNode = view.getNode(view._currentHoveredNode);
+          if (prevNode && prevNode.getGraphics() && prevNode.getGraphics().getHoverBox()) {
+            prevNode.getGraphics().getHoverBox().setHighlighted(false);
+          }
+        }
+        view._currentHoveredNode = hitNodeId;
+        if (hitNodeId !== null) {
+          var nextNode = view.getNode(hitNodeId);
+          if (nextNode && nextNode.getGraphics() && nextNode.getGraphics().getHoverBox()) {
+            nextNode.getGraphics().getHoverBox().setHighlighted(true);
+          }
+        }
+      }
     };
-    var end = function() {
-      inHoverMode        = false;
+    var end = function () {
+      inHoverMode = false;
       interactionStarted = false;
       if (wrongClick) {
         return;
       }
 
-      var curHoveredId = editor.getView().getCurrentHoveredNode();
+      connection.node.style.pointerEvents = 'auto';
+      orb[0].node.style.pointerEvents = 'auto';
+      orb[1].node.style.pointerEvents = 'auto';
 
-      editor.getView().setCurrentDraggable(null);
-      editor.getView().exitHoverMode();
+      var view = editor.getView();
+      var curHoveredId = view.getCurrentHoveredNode();
 
-      if(handle.isDragged) {
+      // Fallback: check orb drop coordinates BEFORE exitHoverMode() clears _currentGrownNodes
+      if ((curHoveredId === null || curHoveredId === undefined) && handle.isDragged) {
+        var dropX = orb[0].attr(orbAttrX);
+        var dropY = orb[0].attr(orbAttrY);
+        var validIds = view._currentGrownNodes || [];
+        for (var i = 0; i < validIds.length; i++) {
+          var candidate = view.getNode(validIds[i]);
+          if (candidate && candidate.getGraphics() && candidate.getGraphics().containsXY(dropX, dropY)) {
+            curHoveredId = validIds[i];
+            break;
+          }
+        }
+      }
+
+      view.setCurrentDraggable(null);
+      view.exitHoverMode();
+
+      if (handle.isDragged) {
         if (orb.ot.length == 0) {
           var finalPosition = {};
           finalPosition[orbAttrX] = orb.ox;
           finalPosition[orbAttrY] = orb.oy;
-          orb.animate(finalPosition, 1000, 'elastic', function() {});
+          orb.animate(finalPosition, 1000, 'elastic', function () { });
         } else {
           // animation for shapes with transformations (movement and animation via transform() could have been
           // used in all cases, but works noticeably slower than plain coordinate manipulation in some browsers)
           var dx = orb.ox - orb[0].attr(orbAttrX);
           var dy = orb.oy - orb[0].attr(orbAttrY);
-          orb.animate( {'transform': 'T' + dx + ',' + dy + 'R45'}, 1000, 'elastic', function() {
+          orb.animate({ 'transform': 'T' + dx + ',' + dy + 'R45' }, 1000, 'elastic', function () {
             orb.transform('');
             orb.attr(orbAttrX, orb.ox);
             orb.attr(orbAttrY, orb.oy);
@@ -601,28 +649,28 @@ var AbstractHoverbox = Class.create({
 
       connection.oPath[1][1] = connection.ox;
       connection.oPath[1][2] = connection.oy;
-      connection.animate({'path': connection.oPath}, 1000, 'elastic');
+      connection.animate({ 'path': connection.oPath }, 1000, 'elastic');
       orb[0].attr(normalOrbAttr);
       connection.insertBefore(me.getHoverZoneMask());
 
       me.enable();
 
-      if (!handle.isDragged || curHoveredId != null) {
+      if (!handle.isDragged || (curHoveredId !== null && curHoveredId !== undefined)) {
         me.handleAction(handle.type, handle.isDragged, curHoveredId);
       }
     };
 
     orb.drag(move, start, end);
-    orb.hover(function() {
+    orb.hover(function () {
       orb[0].attr(selectedOrbAttr);
       if (title) {
-        orb[0].attr({'title': title});
-        orb[1].attr({'title': title});
+        orb[0].attr({ 'title': title });
+        orb[1].attr({ 'title': title });
       }
     },
-    function () {
-      orb[0].attr(normalOrbAttr);
-    });
+      function () {
+        orb[0].attr(normalOrbAttr);
+      });
 
     this._currentOrbs.push(orb[0]);
     this._currentOrbs.push(orb[1]);
@@ -643,7 +691,7 @@ var AbstractHoverbox = Class.create({
      * @method isMenuToggled
      * @return {Boolean}
      */
-  isMenuToggled: function() {
+  isMenuToggled: function () {
     return false;
   },
 
@@ -652,7 +700,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method animateDrawHoverZone
      */
-  animateDrawHoverZone: function() {
+  animateDrawHoverZone: function () {
     this._hidden = false;
     if (editor.getView().getCurrentDraggable() !== null) {
       return;
@@ -661,18 +709,18 @@ var AbstractHoverbox = Class.create({
     this.getNode().getGraphics().setSelected(true);
     var drawBox = this.getBoxOnHover();
     if (drawBox && typeof drawBox.stop === 'function') {
-      drawBox.stop().animate({opacity:0.7}, 200);
+      drawBox.stop().animate({ opacity: 0.7 }, 200);
     }
 
     this.generateButtons();
     this.showButtons();
-    this.getCurrentButtons().forEach(function(button) {
+    this.getCurrentButtons().forEach(function (button) {
       if (button.hasOwnProperty('icon')) {
-        button.icon.stop().animate({opacity:1}, 200);
+        button.icon.stop().animate({ opacity: 1 }, 200);
       }
     });
 
-    if (this._handlesZoomSz  != editor.getWorkspace().getCurrentZoomLevel()) {
+    if (this._handlesZoomSz != editor.getWorkspace().getCurrentZoomLevel()) {
       this.removeHandles();
     }
     this.generateHandles();
@@ -684,7 +732,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method animateHideHoverZone
      */
-  animateHideHoverZone: function() {
+  animateHideHoverZone: function () {
     this._hidden = true;
     if (editor.getView().getCurrentDraggable() !== null) {
       return;
@@ -693,7 +741,7 @@ var AbstractHoverbox = Class.create({
     this.getNode().getGraphics().setSelected(false);
     var hideBox = this.getBoxOnHover();
     if (hideBox && typeof hideBox.stop === 'function') {
-      hideBox.stop().animate({opacity:0}, 200);
+      hideBox.stop().animate({ opacity: 0 }, 200);
     }
 
     this.hideButtons();
@@ -705,7 +753,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method disable
      */
-  disable: function() {
+  disable: function () {
     this._enabled = false;
     this.getFrontElements().unhover(this.animateDrawHoverZone, this.animateHideHoverZone);
   },
@@ -715,7 +763,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method enable
      */
-  enable: function() {
+  enable: function () {
     this._enabled = true;
     this.getFrontElements().hover(this.animateDrawHoverZone, this.animateHideHoverZone);
   },
@@ -725,7 +773,7 @@ var AbstractHoverbox = Class.create({
      *
      * @method remove
      */
-  remove: function() {
+  remove: function () {
     this.disable();
     this.removeButtons();
     this.removeHandles();
@@ -738,12 +786,12 @@ var AbstractHoverbox = Class.create({
      *
      * @method onWidgetHide
      */
-  onWidgetHide: function() {
-    this._isMenuToggled  = false;
+  onWidgetHide: function () {
+    this._isMenuToggled = false;
     // prevent menu from closing and opening right away upon a click on the menu button while menu is open
     this._justClosedMenu = true;
     var me = this;
-    setTimeout(function() {
+    setTimeout(function () {
       me._justClosedMenu = false;
     }, 100);
 
@@ -754,7 +802,7 @@ var AbstractHoverbox = Class.create({
     }
   },
 
-  onWidgetShow: function() {
+  onWidgetShow: function () {
     this._isMenuToggled = true;
   }
 });

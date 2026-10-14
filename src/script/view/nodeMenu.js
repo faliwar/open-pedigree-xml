@@ -110,168 +110,202 @@ var NodeMenu = Class.create({
         this._selector.updateSelectedDate({day: date.getDate(), month: date.getMonth(), year : date.getYear() + 1900}, false);
       }
     });
-    // disease
-    this.form.select('input.suggest-omim').each(function(item) {
-      if (!item.hasClassName('initialized')) {
-        // Create the Suggest.
-        item._suggest = new PhenoTips.widgets.Suggest(item, {
-          minchars: 0,
-          script: function(input, callback) {
-            var legend = editor.getDisorderLegend();
-            var knownCases = legend._affectedNodes || {};
-            var results = [];
-            for (var disorderId in knownCases) {
-               if (knownCases.hasOwnProperty(disorderId)) {
-                  var disorder = legend.getDisorder(disorderId);
-                  var name = disorder.getName();
-                  if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: disorderId, value: name, info: 'Local'});
-                  }
-               }
-            }
-            if (input === '') {
-              return callback(results);
-            }
-            new Ajax.Request('https://www.ebi.ac.uk/ols4/api/search?ontology=mondo&rows=10&q=' + encodeURIComponent(input), {
-              method: 'get',
-              onSuccess: function(response) {
-                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
-                if (data.response && data.response.docs) {
-                  data.response.docs.forEach(function(doc) {
-                    results.push({id: doc.obo_id || doc.short_form, value: doc.label, info: doc.ontology_prefix});
-                  });
-                }
-                var unique = [];
-                var ids = {};
-                results.forEach(function(r) {
-                  if (!ids[r.id]) {
-                    ids[r.id] = true;
-                    unique.push(r);
-                  }
-                });
-                callback(unique);
-              },
-              onFailure: function() {
-                callback(results);
-              }
-            });
-          },
-          varname: 'q',
-          noresults: 'No matching terms',
-          json: true,
-          resultsParameter : 'rows',
-          resultId : 'id',
-          resultValue : 'value',
-          resultInfo : {},
-          enableHierarchy: false,
-          fadeOnClear : false,
-          timeout : 30000,
-          parentContainer : $('body')
-        });
-        item._suggest.doAjaxRequests = function(h) {
-          if (h < this.latestRequest) return;
-          if (this.fld.value.length < this.options.minchars) return;
-          this.options.script(this.fld.value.strip(), function(results) {
-            this.aSuggestions = results;
-            this.createList(this.aSuggestions, this.sources[0]);
-          }.bind(this));
-        }.bind(item._suggest);
-        if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
-          item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
-            'showKey' : false,
-            'showTooltip' : false,
-            'showDeleteTool' : true,
-            'enableSort' : false,
-            'showClearTool' : true,
-            'inputType': 'hidden',
-            'listInsertionElt' : 'input',
-            'listInsertionPosition' : 'after',
-            'acceptFreeText' : true
-          });
-        }
-        item.addClassName('initialized');
-        var showAllSuggestions = function() {
-          if (!item._suggest.isActive) {
-            item._suggest.prepareContainer();
-            item._suggest.latestRequest++;
-            item._suggest.doAjaxRequests(item._suggest.latestRequest);
-          }
-        };
-        item.observe('focus', showAllSuggestions);
-        item.observe('click', showAllSuggestions);
-        document.observe('ms:suggest:containerCreated', function(event) {
-          if (event.memo && event.memo.suggest === item._suggest) {
-            item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});
-          }
-        });
+
+    // Pre-warm DNS/TCP/TLS connections to remote ontology APIs to eliminate cold-start latency
+    ['https://www.ebi.ac.uk', 'https://mygene.info'].forEach(function(origin) {
+      if (document.head && !document.head.querySelector('link[rel="preconnect"][href="' + origin + '"]')) {
+        var link = document.createElement('link');
+        link.rel = 'preconnect';
+        link.href = origin;
+        link.crossOrigin = 'anonymous';
+        document.head.appendChild(link);
       }
     });
-    // genes
-    this.form.select('input.suggest-genes').each(function(item) {
-      if (!item.hasClassName('initialized')) {
-        item._suggest = new PhenoTips.widgets.Suggest(item, {
+
+    // Shared O(1) LRU Cache with Instant Prefix Interpolation
+    var createLRUCache = function(limit) {
+      var map = new Map();
+      return {
+        get: function(key) {
+          if (!map.has(key)) return undefined;
+          var val = map.get(key);
+          map.delete(key);
+          map.set(key, val);
+          return val;
+        },
+        set: function(key, val) {
+          if (map.has(key)) map.delete(key);
+          else if (map.size >= limit) map.delete(map.keys().next().value);
+          map.set(key, val);
+        },
+        getPrefixMatches: function(query, filterFn) {
+          for (var len = query.length - 1; len >= 2; len--) {
+            var prefix = query.slice(0, len);
+            if (map.has(prefix)) {
+              return filterFn(map.get(prefix), query);
+            }
+          }
+          return null;
+        }
+      };
+    };
+
+    var deduplicateTopN = function(localArr, remoteArr, maxResults) {
+      var unique = [];
+      var seen = new Set();
+      var lists = [localArr, remoteArr];
+      for (var l = 0; l < 2; l++) {
+        var arr = lists[l];
+        if (!arr) continue;
+        for (var i = 0, len = arr.length; i < len; i++) {
+          var item = arr[i];
+          if (item && item.id && !seen.has(item.id)) {
+            seen.add(item.id);
+            unique.push(item);
+            if (unique.length >= maxResults) return unique;
+          }
+        }
+      }
+      return unique;
+    };
+
+    var sortGeneResults = function(results, inputStr) {
+      var inputUpper = (inputStr || '').toUpperCase().trim();
+      var rankResult = function(item) {
+        var sym = (item._upperId || (item._upperId = (item.id || item.value || '').toUpperCase()));
+        if (sym === inputUpper) return 0; // Exact symbol match guaranteed #1
+        if (sym.indexOf(inputUpper) === 0) return 10 + sym.length; // Prefix symbol match (shorter symbol first)
+        if (sym.indexOf(inputUpper) > 0) return 50; // Substring symbol match
+        var name = (item._upperInfo || (item._upperInfo = (item.info || '').toUpperCase()));
+        if (name.indexOf(inputUpper) >= 0) return 100; // Match in gene name
+        return 200;
+      };
+      return results.sort(function(a, b) {
+        var rankDiff = rankResult(a) - rankResult(b);
+        if (rankDiff !== 0) return rankDiff;
+        return (a.value || '').localeCompare(b.value || '');
+      });
+    };
+
+    // Unified Low-Latency Suggest Initializer for Diseases, Genes, and HPO Terms
+    var initFastSuggest = function(selector, config) {
+      var cache = createLRUCache(200);
+      var inFlightRequests = new Map();
+
+      this.form.select(selector).each(function(item) {
+        if (item.hasClassName('initialized')) return;
+
+        var abortController = null;
+        var debounceTimer = null;
+        var activeRequestId = 0;
+
+        var cancelPending = function() {
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+          if (abortController) {
+            try {
+              abortController.abort();
+            } catch (e) {}
+            abortController = null;
+          }
+        };
+
+        item._suggest = new PhenoTips.widgets.Suggest(item, Object.assign({
           minchars: 0,
+          delay: 0, // 0ms widget delay: local and cached results render synchronously
           script: function(input, callback) {
-            var legend = editor.getGeneLegend();
-            var knownCases = legend._affectedNodes || {};
-            var results = [];
-            for (var geneId in knownCases) {
-               if (knownCases.hasOwnProperty(geneId)) {
-                  if (input === '' || geneId.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: geneId, value: geneId, info: 'Local'});
-                  }
-               }
+            var rawInput = (input || '').strip();
+            var normQuery = rawInput.toLowerCase();
+            var localResults = config.getLocal(normQuery);
+
+            // 1. Empty or single character: show local suggestions immediately in 0ms
+            if (rawInput.length < 2) {
+              cancelPending();
+              return callback(config.finalize(localResults, [], rawInput));
             }
-            if (input === '') {
-              return callback(results);
+
+            // 2. Exact remote cache hit: return immediately in 0ms
+            var cachedRemote = cache.get(normQuery);
+            if (cachedRemote) {
+              cancelPending();
+              return callback(config.finalize(localResults, cachedRemote, rawInput));
             }
-            new Ajax.Request('https://mygene.info/v3/query?species=human&fields=symbol,name&size=10&q=' + encodeURIComponent(input + '*'), {
-              method: 'get',
-              onSuccess: function(response) {
-                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
-                if (data.hits) {
-                  data.hits.forEach(function(hit) {
-                    if (hit.symbol) {
-                      results.push({id: hit.symbol, value: hit.symbol, info: hit.name || ''});
-                    }
-                  });
-                }
-                var unique = [];
-                var ids = {};
-                results.forEach(function(r) {
-                  if (!ids[r.id]) {
-                    ids[r.id] = true;
-                    unique.push(r);
-                  }
-                });
-                callback(unique);
-              },
-              onFailure: function() {
-                callback(results);
+
+            // 3. Optimistic 0ms render using local matches + filtered prefix-cache matches
+            var prefixMatches = cache.getPrefixMatches(normQuery, config.filterCached);
+            if (localResults.length > 0 || (prefixMatches && prefixMatches.length > 0)) {
+              callback(config.finalize(localResults, prefixMatches || [], rawInput));
+            }
+
+            // 4. Micro-debounced remote fetch (65ms)
+            if (debounceTimer) clearTimeout(debounceTimer);
+            var requestId = ++activeRequestId;
+
+            debounceTimer = setTimeout(function() {
+              if (abortController) {
+                try {
+                  abortController.abort();
+                } catch (e) {}
               }
-            });
+              abortController = new AbortController();
+
+              var url = config.buildUrl(rawInput);
+              var fetchPromise = inFlightRequests.get(url);
+
+              if (!fetchPromise) {
+                fetchPromise = fetch(url, {
+                  method: 'GET',
+                  headers: { 'Accept': 'application/json' },
+                  signal: abortController.signal
+                }).then(function(res) {
+                  return res.ok ? res.json() : Promise.reject(res.status);
+                }).finally(function() {
+                  inFlightRequests.delete(url);
+                });
+                inFlightRequests.set(url, fetchPromise);
+              }
+
+              fetchPromise.then(function(data) {
+                if (requestId !== activeRequestId) return;
+                abortController = null;
+                var remoteDocs = config.parseResponse(data);
+                cache.set(normQuery, remoteDocs);
+                var currentLocal = config.getLocal(normQuery);
+                callback(config.finalize(currentLocal, remoteDocs, rawInput));
+              }).catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                if (requestId !== activeRequestId) return;
+                abortController = null;
+                var currentLocal = config.getLocal(normQuery);
+                callback(config.finalize(currentLocal, prefixMatches || [], rawInput));
+              });
+            }, 65);
           },
           varname: 'q',
           noresults: 'No matching terms',
-          resultsParameter : 'docs',
           json: true,
-          resultId : 'id',
-          resultValue : 'value',
-          resultInfo : {},
+          resultId: 'id',
+          resultValue: 'value',
+          resultInfo: {},
           enableHierarchy: false,
-          tooltip :false,
-          fadeOnClear : false,
-          timeout : 30000,
-          parentContainer : $('body')
-        });
+          enableHideButton: false,
+          fadeOnClear: false,
+          timeout: 30000,
+          parentContainer: $('body')
+        }, config.suggestOptions));
+
         item._suggest.doAjaxRequests = function(h) {
           if (h < this.latestRequest) return;
           if (this.fld.value.length < this.options.minchars) return;
           this.options.script(this.fld.value.strip(), function(results) {
+            if (h < this.latestRequest) return;
             this.aSuggestions = results;
             this.createList(this.aSuggestions, this.sources[0]);
           }.bind(this));
         }.bind(item._suggest);
+
         if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
           item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
             'showKey' : false,
@@ -285,7 +319,9 @@ var NodeMenu = Class.create({
             'acceptFreeText' : true
           });
         }
+
         item.addClassName('initialized');
+
         var showAllSuggestions = function() {
           if (!item._suggest.isActive) {
             item._suggest.prepareContainer();
@@ -295,109 +331,165 @@ var NodeMenu = Class.create({
         };
         item.observe('focus', showAllSuggestions);
         item.observe('click', showAllSuggestions);
+        item.observe('blur', function() {
+          cancelPending();
+          item.removeClassName('loading');
+        });
         document.observe('ms:suggest:containerCreated', function(event) {
           if (event.memo && event.memo.suggest === item._suggest) {
-            item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});
+            item._suggest.container.setStyle({
+              'overflow': 'auto',
+              'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'
+            });
           }
         });
+      });
+    }.bind(this);
+
+    // 1. Diseases (MONDO via OLS4 with projected fieldList for minimal payload)
+    initFastSuggest('input.suggest-omim', {
+      suggestOptions: {
+        resultsParameter: 'rows'
+      },
+      getLocal: function(q) {
+        var legend = editor.getDisorderLegend();
+        var knownCases = legend ? legend._affectedNodes || {} : {};
+        var local = [];
+        for (var disorderId in knownCases) {
+          if (knownCases.hasOwnProperty(disorderId)) {
+            var disorder = legend.getDisorder(disorderId);
+            var name = disorder ? disorder.getName() : '';
+            if (q === '' || name.toLowerCase().indexOf(q) >= 0) {
+              local.push({id: disorderId, value: name, info: 'Local'});
+            }
+          }
+        }
+        return local;
+      },
+      filterCached: function(cachedList, q) {
+        return cachedList.filter(function(doc) {
+          return doc.value && doc.value.toLowerCase().indexOf(q) >= 0;
+        });
+      },
+      buildUrl: function(rawInput) {
+        return 'https://www.ebi.ac.uk/ols4/api/search?ontology=mondo&rows=8&fieldList=obo_id,short_form,label,ontology_prefix&q=' + encodeURIComponent(rawInput);
+      },
+      parseResponse: function(data) {
+        var docs = (data && data.response && data.response.docs) || [];
+        var remoteDocs = [];
+        for (var i = 0; i < docs.length; i++) {
+          var doc = docs[i];
+          remoteDocs.push({
+            id: doc.obo_id || doc.short_form,
+            value: doc.label,
+            info: doc.ontology_prefix
+          });
+        }
+        return remoteDocs;
+      },
+      finalize: function(localResults, remoteResults) {
+        return deduplicateTopN(localResults, remoteResults, 5);
       }
     });
-    // HPO terms
-    this.form.select('input.suggest-hpo').each(function(item) {
-      if (!item.hasClassName('initialized')) {
-        item._suggest = new PhenoTips.widgets.Suggest(item, {
-          minchars: 0,
-          script: function(input, callback) {
-            var legend = editor.getHPOLegend();
-            var knownCases = legend._affectedNodes || {};
-            var results = [];
-            for (var hpoId in knownCases) {
-               if (knownCases.hasOwnProperty(hpoId)) {
-                  var term = legend.getTerm(hpoId);
-                  var name = term.getName();
-                  if (input === '' || name.toLowerCase().indexOf(input.toLowerCase()) >= 0) {
-                     results.push({id: hpoId, value: name, info: 'Local'});
-                  }
-               }
+
+    // 2. Genes (MyGene.info v3 with boosted exact/prefix symbol matching)
+    initFastSuggest('input.suggest-genes', {
+      suggestOptions: {
+        resultsParameter: 'docs',
+        tooltip: false
+      },
+      getLocal: function(q) {
+        var legend = editor.getGeneLegend();
+        var knownCases = legend ? legend._affectedNodes || {} : {};
+        var local = [];
+        for (var geneId in knownCases) {
+          if (knownCases.hasOwnProperty(geneId)) {
+            if (q === '' || geneId.toLowerCase().indexOf(q) >= 0) {
+              local.push({id: geneId, value: geneId, info: 'Local'});
             }
-            if (input === '') {
-              return callback(results);
-            }
-            new Ajax.Request('https://www.ebi.ac.uk/ols4/api/search?ontology=hp&rows=10&q=' + encodeURIComponent(input), {
-              method: 'get',
-              onSuccess: function(response) {
-                var data = response.responseJSON || JSON.parse(response.responseText || "{}");
-                if (data.response && data.response.docs) {
-                  data.response.docs.forEach(function(doc) {
-                    results.push({id: doc.obo_id || doc.short_form, value: doc.label, info: doc.ontology_prefix});
-                  });
-                }
-                var unique = [];
-                var ids = {};
-                results.forEach(function(r) {
-                  if (!ids[r.id]) {
-                    ids[r.id] = true;
-                    unique.push(r);
-                  }
-                });
-                callback(unique);
-              },
-              onFailure: function() {
-                callback(results);
-              }
-            });
-          },
-          varname: 'q',
-          noresults: 'No matching terms',
-          json: true,
-          resultsParameter : 'rows',
-          resultId : 'id',
-          resultValue : 'value',
-          resultAltName: 'synonym',
-          resultCategory : 'term_category',
-          resultInfo : {},
-          enableHierarchy: false,
-          resultParent : 'is_a',
-          fadeOnClear : false,
-          timeout : 30000,
-          parentContainer : $('body')
+          }
+        }
+        return local;
+      },
+      filterCached: function(cachedList, q) {
+        return cachedList.filter(function(hit) {
+          return (hit.id && hit.id.toLowerCase().indexOf(q) >= 0) ||
+                 (hit.info && hit.info.toLowerCase().indexOf(q) >= 0);
         });
-        item._suggest.doAjaxRequests = function(h) {
-          if (h < this.latestRequest) return;
-          if (this.fld.value.length < this.options.minchars) return;
-          this.options.script(this.fld.value.strip(), function(results) {
-            this.aSuggestions = results;
-            this.createList(this.aSuggestions, this.sources[0]);
-          }.bind(this));
-        }.bind(item._suggest);
-        if (item.hasClassName('multi') && typeof(PhenoTips.widgets.SuggestPicker) != 'undefined') {
-          item._suggestPicker = new PhenoTips.widgets.SuggestPicker(item, item._suggest, {
-            'showKey' : false,
-            'showTooltip' : false,
-            'showDeleteTool' : true,
-            'enableSort' : false,
-            'showClearTool' : true,
-            'inputType': 'hidden',
-            'listInsertionElt' : 'input',
-            'listInsertionPosition' : 'after',
-            'acceptFreeText' : true
+      },
+      buildUrl: function(rawInput) {
+        var safeToken = rawInput.replace(/[^a-zA-Z0-9_\-\.]/g, '').trim();
+        var queryStr;
+        if (safeToken.length > 0) {
+          queryStr = 'symbol:' + safeToken + '^100 OR symbol:' + safeToken + '*^20 OR name:' + safeToken + '*^5 OR alias:' + safeToken + '*';
+        } else {
+          queryStr = rawInput + '*';
+        }
+        return 'https://mygene.info/v3/query?species=human&fields=symbol,name&size=8&q=' + encodeURIComponent(queryStr);
+      },
+      parseResponse: function(data) {
+        var hits = (data && data.hits) || [];
+        var remoteHits = [];
+        for (var i = 0; i < hits.length; i++) {
+          var hit = hits[i];
+          if (hit.symbol) {
+            remoteHits.push({id: hit.symbol, value: hit.symbol, info: hit.name || ''});
+          }
+        }
+        return remoteHits;
+      },
+      finalize: function(localResults, remoteResults, rawInput) {
+        var combined = deduplicateTopN(localResults, remoteResults, 12);
+        return sortGeneResults(combined, rawInput).slice(0, 5);
+      }
+    });
+
+    // 3. HPO terms (HP via OLS4 with projected fieldList for minimal payload)
+    initFastSuggest('input.suggest-hpo', {
+      suggestOptions: {
+        resultsParameter: 'rows',
+        resultAltName: 'synonym',
+        resultCategory: 'term_category',
+        resultParent: 'is_a'
+      },
+      getLocal: function(q) {
+        var legend = editor.getHPOLegend();
+        var knownCases = legend ? legend._affectedNodes || {} : {};
+        var local = [];
+        for (var hpoId in knownCases) {
+          if (knownCases.hasOwnProperty(hpoId)) {
+            var term = legend.getTerm(hpoId);
+            var name = term ? term.getName() : '';
+            if (q === '' || name.toLowerCase().indexOf(q) >= 0) {
+              local.push({id: hpoId, value: name, info: 'Local'});
+            }
+          }
+        }
+        return local;
+      },
+      filterCached: function(cachedList, q) {
+        return cachedList.filter(function(doc) {
+          return doc.value && doc.value.toLowerCase().indexOf(q) >= 0;
+        });
+      },
+      buildUrl: function(rawInput) {
+        return 'https://www.ebi.ac.uk/ols4/api/search?ontology=hp&rows=8&fieldList=obo_id,short_form,label,ontology_prefix&q=' + encodeURIComponent(rawInput);
+      },
+      parseResponse: function(data) {
+        var docs = (data && data.response && data.response.docs) || [];
+        var remoteDocs = [];
+        for (var i = 0; i < docs.length; i++) {
+          var doc = docs[i];
+          remoteDocs.push({
+            id: doc.obo_id || doc.short_form,
+            value: doc.label,
+            info: doc.ontology_prefix
           });
         }
-        item.addClassName('initialized');
-        var showAllSuggestions = function() {
-          if (!item._suggest.isActive) {
-            item._suggest.prepareContainer();
-            item._suggest.latestRequest++;
-            item._suggest.doAjaxRequests(item._suggest.latestRequest);
-          }
-        };
-        item.observe('focus', showAllSuggestions);
-        item.observe('click', showAllSuggestions);
-        document.observe('ms:suggest:containerCreated', function(event) {
-          if (event.memo && event.memo.suggest === item._suggest) {
-            item._suggest.container.setStyle({'overflow': 'auto', 'maxHeight': document.viewport.getHeight() - item._suggest.container.cumulativeOffset().top + 'px'});
-          }
-        });
+        return remoteDocs;
+      },
+      finalize: function(localResults, remoteResults) {
+        return deduplicateTopN(localResults, remoteResults, 5);
       }
     });
 

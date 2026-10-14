@@ -87,9 +87,13 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
   animateHideHoverZone: function($super) {
     this._hidden = true;
     if(!this.isMenuToggled()){
-      var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
-      if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+      if (editor.getView() && editor.getView().getCurrentDraggable() !== null) {
+        return;
+      }
+      var parentPartnershipNode = editor.getGraph() && editor.getGraph().getParentRelationship(this.getNode().getID());
+      if (parentPartnershipNode) {
+        var parentNode = editor.getNode(parentPartnershipNode);
+        var graphics = parentNode && parentNode.getGraphics();
         if (graphics && typeof graphics.unmarkPregnancy === 'function') {
           graphics.unmarkPregnancy();
         }
@@ -106,9 +110,13 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
   animateDrawHoverZone: function($super) {
     this._hidden = false;
     if(!this.isMenuToggled()){
-      var parentPartnershipNode = editor.getGraph().getParentRelationship(this.getNode().getID());
-      if (parentPartnershipNode && editor.getNode(parentPartnershipNode)) {
-        var graphics = editor.getNode(parentPartnershipNode).getGraphics();
+      if (editor.getView() && editor.getView().getCurrentDraggable() !== null) {
+        return;
+      }
+      var parentPartnershipNode = editor.getGraph() && editor.getGraph().getParentRelationship(this.getNode().getID());
+      if (parentPartnershipNode) {
+        var parentNode = editor.getNode(parentPartnershipNode);
+        var graphics = parentNode && parentNode.getGraphics();
         if (graphics && typeof graphics.markPregnancy === 'function') {
           graphics.markPregnancy();
         }

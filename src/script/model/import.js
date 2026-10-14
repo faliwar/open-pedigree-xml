@@ -84,6 +84,7 @@ PedigreeImport.initFromPhenotipsInternal = function(inputG) {
         throw 'Invalid user input: multiple nodes with the same name';
       }
       if (type == BaseGraph.TYPE.PERSON) {
+        newG.properties[newID]['name'] = inputG[v].name;
         newG.properties[newID]['fName'] = inputG[v].name;
       }
       nameToId[inputG[v].name] = newID;
@@ -459,7 +460,7 @@ PedigreeImport.initFromBOADICEA = function(inputText, saveIDAsExternalID) {
     if (isInt(name)) {
       name = '';
     }
-    var properties = {'gender': gender, 'fName': name};
+    var properties = {'gender': gender, 'name': name, 'fName': name};
 
     if (saveIDAsExternalID) {
       properties['externalID'] = extID;
@@ -864,7 +865,9 @@ PedigreeImport.initFromGEDCOM = function(inputText, markEvaluated, saveIDAsExter
           var nameParts = getFirstValue(nextPerson[property]).split('/');
           var firstName = nameParts[0].replace(/^\s+|\s+$/g, '');
           var lastName  = nameParts.length > 1 ? nameParts[1].replace(/^\s+|\s+$/g, '') : '';
-          properties['fName'] = firstName;
+          var fullName = ((firstName || '') + ' ' + (lastName || '')).trim();
+          properties['name'] = fullName;
+          properties['fName'] = fullName;
           if (lastName != '') {
             properties['lName'] = lastName;
           }
@@ -1005,6 +1008,8 @@ PedigreeImport.initFromInvitae = function(inputText){
 // TODO: convert internal properties to match public names and rename this to "supportedProperties"
 PedigreeImport.JSONToInternalPropertyMapping = {
   'proband':         'proband',
+  'name':            'name',
+  'firstname':       'fName',
   'lastname':        'lName',
   'comments':        'comments',
   'twingroup':       'twinGroup',
