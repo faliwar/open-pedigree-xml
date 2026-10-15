@@ -21,6 +21,92 @@ import getAge from 'pedigree/view/ageCalc';
  * @param {Number} y The y coordinate on the canvas
  */
 
+/**
+ * Helper function to extract full name from a person node or object,
+ * supporting unified name field and falling back to legacy firstName and lastName fields.
+ *
+ * @param {Person|Object} person
+ * @return {String}
+ */
+function getIndividualFullName(person) {
+  if (!person) return '';
+  var name = '';
+  if (typeof person.getName === 'function') {
+    name = person.getName();
+  }
+  if (!name && typeof person.name === 'string') {
+    name = person.name;
+  }
+  if (!name && typeof person._name === 'string') {
+    name = person._name;
+  }
+  if (!name) {
+    var fName = (typeof person.getFirstName === 'function'
+      ? person.getFirstName()
+      : (person.firstName || person.fName || person._firstName)) || '';
+    var lName = (typeof person.getLastName === 'function'
+      ? person.getLastName()
+      : (person.lastName || person.lName || person._lastName)) || '';
+    name = (fName + ' ' + lName).trim();
+  }
+  return (name || '').trim();
+}
+
+/**
+ * Tokenizes and formats a person's name based on nameDisplayFormat setting:
+ * - 'full': Full Name (default)
+ * - 'first_last': First & Last Name
+ * - 'first': First Name Only
+ * - 'none': Empty string (suppresses name label)
+ *
+ * @param {Person|Object} person
+ * @param {String} [format] Optional format override
+ * @return {String}
+ */
+function formatIndividualName(person, format) {
+  var formatSetting = format;
+  if (!formatSetting) {
+    if (typeof PedigreeEditorParameters !== 'undefined' &&
+        PedigreeEditorParameters.attributes &&
+        PedigreeEditorParameters.attributes.nameDisplayFormat) {
+      formatSetting = PedigreeEditorParameters.attributes.nameDisplayFormat;
+    } else {
+      formatSetting = 'full';
+    }
+  }
+
+  if (formatSetting === 'none') {
+    return '';
+  }
+
+  var fullName = getIndividualFullName(person);
+  if (!fullName) {
+    return '';
+  }
+
+  if (formatSetting === 'full') {
+    return fullName;
+  }
+
+  var tokens = fullName.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return '';
+  }
+
+  if (formatSetting === 'first') {
+    return tokens[0];
+  }
+
+  if (formatSetting === 'first_last') {
+    if (tokens.length <= 1) {
+      return tokens[0];
+    }
+    return tokens[0] + ' ' + tokens[tokens.length - 1];
+  }
+
+  return fullName;
+}
+
 var PersonVisuals = Class.create(AbstractPersonVisuals, {
 
   initialize: function($super, node, x, y) {
@@ -221,20 +307,12 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   updateNameLabel: function() {
     this._nameLabel && this._nameLabel.remove();
-    var text =  '';
-    if (this.getNode().getName) {
-      text = this.getNode().getName() || '';
-    } else {
-      this.getNode().getFirstName() && (text = this.getNode().getFirstName());
-      if (this.getNode().getLastName()) {
-        text += ' ' + this.getNode().getLastName();
-      }
+    var text = formatIndividualName(this.getNode());
+    if (text) {
+      text = this._wrapText ? this._wrapText(text.trim(), 15) : text.trim();
     }
 
-    text = this._wrapText(text.trim(), 15);
-
-    this._nameLabel && this._nameLabel.remove();
-    if(text.strip() != '') {
+    if(text && text.trim() != '') {
       this._nameLabel = editor.getPaper().text(this.getX(), this.getY() + PedigreeEditorParameters.attributes.radius, text).attr(PedigreeEditorParameters.attributes.nameLabels);
       this._nameLabel.alignTop = true;
     } else {
@@ -924,8 +1002,8 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       this._labelsBox.attr({
         x: minX - 4,
         y: minY - 2,
-        width: (maxX - minX) + 8,
-        height: (maxY - minY) + 4
+        width: Math.max(0, (maxX - minX) + 8),
+        height: Math.max(0, (maxY - minY) + 4)
       });
       this._labelsBox.oy = (this._labelsBox.attr('y') - selectionOffset);
       this._labelsBox.insertBefore(labels[0]);
@@ -1014,4 +1092,12 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
 //ATTACHES CHILDLESS BEHAVIOR METHODS
 PersonVisuals.addMethods(ChildlessBehaviorVisuals);
 
+PersonVisuals.getIndividualFullName = getIndividualFullName;
+PersonVisuals.formatIndividualName = formatIndividualName;
+if (typeof window !== 'undefined') {
+  window.getIndividualFullName = getIndividualFullName;
+  window.formatIndividualName = formatIndividualName;
+}
+
+export { getIndividualFullName, formatIndividualName };
 export default PersonVisuals;

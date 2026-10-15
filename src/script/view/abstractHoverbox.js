@@ -21,6 +21,62 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 
 var AbstractHoverbox = Class.create({
 
+  pin: function() {
+    if (AbstractHoverbox.pinnedHoverbox && AbstractHoverbox.pinnedHoverbox !== this) {
+      AbstractHoverbox.pinnedHoverbox.unpin(true);
+    }
+    this._isPinned = true;
+    AbstractHoverbox.pinnedHoverbox = this;
+    this.animateDrawHoverZone();
+  },
+
+  unpin: function(hide) {
+    this._isPinned = false;
+    if (AbstractHoverbox.pinnedHoverbox === this) {
+      AbstractHoverbox.pinnedHoverbox = null;
+    }
+    if (hide) {
+      this.animateHideHoverZone(true);
+    }
+  },
+
+  isPinned: function() {
+    return Boolean(this._isPinned);
+  },
+
+  updateHoveredTargetAt: function(canvasX, canvasY) {
+    var view = editor.getView();
+    var grownNodes = view._currentGrownNodes || [];
+    var matchedNodeID = null;
+    for (var i = 0; i < grownNodes.length; i++) {
+      var nodeID = grownNodes[i];
+      var targetNode = view.getNode(nodeID);
+      if (!targetNode || !targetNode.getGraphics()) continue;
+      var tX = targetNode.getGraphics().getX();
+      var tY = targetNode.getGraphics().getY();
+      var radius = PedigreeEditorParameters.attributes.personHoverBoxRadius || 90;
+      if (Math.abs(canvasX - tX) <= radius && Math.abs(canvasY - tY) <= radius) {
+        matchedNodeID = nodeID;
+        break;
+      }
+    }
+    if (view._currentHoveredNode !== matchedNodeID) {
+      if (view._currentHoveredNode !== null) {
+        var prevNode = view.getNode(view._currentHoveredNode);
+        if (prevNode && prevNode.getGraphics() && prevNode.getGraphics().getHoverBox()) {
+          prevNode.getGraphics().getHoverBox().setHighlighted(false);
+        }
+      }
+      view._currentHoveredNode = matchedNodeID;
+      if (matchedNodeID !== null) {
+        var currNode = view.getNode(matchedNodeID);
+        if (currNode && currNode.getGraphics() && currNode.getGraphics().getHoverBox()) {
+          currNode.getGraphics().getHoverBox().setHighlighted(true);
+        }
+      }
+    }
+  },
+
   initialize: function (node, shiftX, shiftY, width, height, nodeX, nodeY, nodeShapes) {
     //var timer = new Timer();
     var me = this;
@@ -291,12 +347,15 @@ var AbstractHoverbox = Class.create({
     icon.transform(['t', x, y]);
 
     // manually compute the size of the mask because Raphael.transform() is exptremely slow
-    var xShift = svgPathBBox.width / 4;
-    var yShift = svgPathBBox.height / 4;
-    var newWidth = svgPathBBox.width * 1.5;
-    var newHeight = svgPathBBox.height * 1.5;
-    var mask = editor.getPaper().rect(x + svgPathBBox.x - xShift, y + svgPathBBox.y - yShift, newWidth, newHeight, 1);
-    mask.attr({ fill: 'gray', opacity: 0, 'stroke-width': 0 });
+    var minDim = 36;
+    var rawW = svgPathBBox.width * 1.5;
+    var rawH = svgPathBBox.height * 1.5;
+    var newWidth  = Math.max(rawW, minDim);
+    var newHeight = Math.max(rawH, minDim);
+    var centerX = x + svgPathBBox.x + svgPathBBox.width / 2;
+    var centerY = y + svgPathBBox.y + svgPathBBox.height / 2;
+    var mask = editor.getPaper().rect(centerX - newWidth / 2, centerY - newHeight / 2, newWidth, newHeight, 4);
+    mask.attr({fill: 'gray', opacity: 0, 'stroke-width' : 0, cursor: 'pointer'});
 
     var button = editor.getPaper().set(mask, icon).toFront();
 
@@ -366,10 +425,11 @@ var AbstractHoverbox = Class.create({
      * @method generateDeleteBtn
      * @return {Raphael.st} the generated button
      */
-  generateDeleteBtn: function () {
+  generateDeleteBtn: function() {
     var me = this;
-    var action = function () {
-      me.animateHideHoverZone();
+    var action = function() {
+      me.unpin(true);
+      me.animateHideHoverZone(true);
       var event = { 'nodeID': me.getNode().getID() };
       document.fire('pedigree:node:remove', event);
     };
@@ -475,7 +535,7 @@ var AbstractHoverbox = Class.create({
     var connection = editor.getPaper().path(path).attr({ 'stroke-width': strokeWidth, stroke: 'gray' }).toBack();
     connection.oPath = path;
 
-    var touchPresent = 'createTouch' in document;
+    var touchPresent = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || ('createTouch' in document);
 
     var orbRadius = touchPresent ? PedigreeEditorParameters.attributes.touchOrbRadius : PedigreeEditorParameters.attributes.orbRadius;
     var orbHue = PedigreeEditorParameters.attributes.orbHue;
@@ -488,10 +548,20 @@ var AbstractHoverbox = Class.create({
     var orb = generateOrb(editor.getPaper(), orbX, orbY, orbRadius * 1.1).attr('cursor', 'pointer');
     orb[0].attr(normalOrbAttr);
 
-    var handle = editor.getPaper().set().push(connection, orb);
+    var hitRadius = 20;
+    var hitArea = editor.getPaper().circle(orbX, orbY, hitRadius).attr({
+      fill: '#ffffff',
+      'fill-opacity': 0,
+      opacity: 0,
+      stroke: 'none',
+      cursor: 'pointer'
+    });
+
+    var handle  = editor.getPaper().set().push(connection, orb, hitArea);
     handle.type = type;
     connection.insertBefore(this.getHoverZoneMask());
     orb.toFront();
+    hitArea.toFront();
 
     var me = this;
     var inHoverMode = false;
@@ -516,7 +586,16 @@ var AbstractHoverbox = Class.create({
       interactionStarted = true;
 
       wrongClick = false;
-      if (e.button != 0) {
+      if (e && e.button !== undefined && e.button !== 0) {
+        interactionStarted = false;
+        wrongClick = true;
+        return;
+      }
+      if (e) {
+        if (e.stopPropagation) e.stopPropagation();
+        if (e.originalEvent && e.originalEvent.stopPropagation) e.originalEvent.stopPropagation();
+      }
+      if (false) {
         interactionStarted = false;
         wrongClick = true;
         return;
@@ -524,6 +603,11 @@ var AbstractHoverbox = Class.create({
       connection.toFront();
       orb.stop();
       orb.toFront();
+      hitArea.stop();
+      hitArea.toFront();
+      hitArea.ox = orbX;
+      hitArea.oy = orbY;
+      hitArea.attr({cx: orbX, cy: orbY});
       connection.node.style.pointerEvents = 'none';
       orb[0].node.style.pointerEvents = 'none';
       orb[1].node.style.pointerEvents = 'none';
@@ -539,7 +623,9 @@ var AbstractHoverbox = Class.create({
         orb.transform('');
         orb.attr(orbAttrX, orb.ox);
         orb.attr(orbAttrY, orb.oy);
-        orb.transform(orb.ot);
+        
+      hitArea.attr({cx: hitArea.ox + dx, cy: hitArea.oy + dy});
+      me.updateHoveredTargetAt(connection.oPath[1][1], connection.oPath[1][2]);orb.transform(orb.ot);
       }
       connection.ox = connection.oPath[1][1];
       connection.oy = connection.oPath[1][2];
@@ -645,8 +731,8 @@ var AbstractHoverbox = Class.create({
             orb.transform(orb.ot);
           });
         }
+        hitArea.animate({cx: hitArea.ox, cy: hitArea.oy}, 1000, 'elastic');
       }
-
       connection.oPath[1][1] = connection.ox;
       connection.oPath[1][2] = connection.oy;
       connection.animate({ 'path': connection.oPath }, 1000, 'elastic');
@@ -655,28 +741,47 @@ var AbstractHoverbox = Class.create({
 
       me.enable();
 
+      if (handle.isDragged && (curHoveredId === null || curHoveredId === undefined)) {
+        toHide && toHide.show();
+      }
+      me.unpin(false);
       if (!handle.isDragged || (curHoveredId !== null && curHoveredId !== undefined)) {
         me.handleAction(handle.type, handle.isDragged, curHoveredId);
       }
     };
 
-    orb.drag(move, start, end);
-    orb.hover(function () {
+        orb.drag(move, start, end);
+    hitArea.drag(move, start, end);
+
+    var onHoverOver = function() {
       orb[0].attr(selectedOrbAttr);
       if (title) {
-        orb[0].attr({ 'title': title });
-        orb[1].attr({ 'title': title });
+        hitArea.attr({'title': title});
+        orb[0].attr({'title': title});
+        orb[1].attr({'title': title});
       }
-    },
-      function () {
-        orb[0].attr(normalOrbAttr);
-      });
+    };
+    var onHoverOut = function() {
+      orb[0].attr(normalOrbAttr);
+    };
+
+    orb.hover(onHoverOver, onHoverOut);
+    hitArea.hover(onHoverOver, onHoverOut);
+
+    var stopTouchProp = function(evt) {
+      evt.stopPropagation();
+    };
+    if (hitArea.node) hitArea.node.addEventListener('touchstart', stopTouchProp, {passive: false});
+    if (orb[0].node) orb[0].node.addEventListener('touchstart', stopTouchProp, {passive: false});
+    if (orb[1].node) orb[1].node.addEventListener('touchstart', stopTouchProp, {passive: false});
 
     this._currentOrbs.push(orb[0]);
     this._currentOrbs.push(orb[1]);
+    this._currentOrbs.push(hitArea);
     this.disable();
     this.getFrontElements().push(orb[0]);
     this.getFrontElements().push(orb[1]);
+    this.getFrontElements().push(hitArea);
     this.enable();
 
     //handle.getType = function() {
@@ -732,7 +837,16 @@ var AbstractHoverbox = Class.create({
      *
      * @method animateHideHoverZone
      */
-  animateHideHoverZone: function () {
+  animateHideHoverZone: function(force) {
+    if (this._isPinned && !force) {
+      return;
+    }
+    if (force) {
+      this._isPinned = false;
+      if (AbstractHoverbox.pinnedHoverbox === this) {
+        AbstractHoverbox.pinnedHoverbox = null;
+      }
+    }
     this._hidden = true;
     if (editor.getView().getCurrentDraggable() !== null) {
       return;

@@ -84,7 +84,10 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
      *
      * @method animateHideHoverZone
      */
-  animateHideHoverZone: function($super) {
+  animateHideHoverZone: function($super, force) {
+    if (this._isPinned && !force) {
+      return;
+    }
     this._hidden = true;
     if(!this.isMenuToggled()){
       if (editor.getView() && editor.getView().getCurrentDraggable() !== null) {
@@ -98,7 +101,7 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
           graphics.unmarkPregnancy();
         }
       }
-      $super();
+      $super(force);
     }
   },
 

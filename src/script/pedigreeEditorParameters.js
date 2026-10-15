@@ -54,6 +54,7 @@ PedigreeEditorParameters.attributes = {
   showGenesInLabel: false,
   showCommentsInLabel: true,
   showLabelPrefixes: false,
+  nameDisplayFormat: 'full',
   disorderShapes: {},
   partnershipNode: {fill: '#555555', stroke: '#000000', 'stroke-width':1.5},
   partnershipRadius: 6.5,

@@ -561,6 +561,7 @@ var View = Class.create({
         var node = this._nodeMap[id];
         if (node && node.getType && node.getType() == 'Person' && node.getGraphics()) {
           var g = node.getGraphics();
+          if (g.updateNameLabel) g.updateNameLabel();
           if (g.updateDisordersLabel) g.updateDisordersLabel();
           if (g.updateHPOLabel) g.updateHPOLabel();
           if (g.updateGenesLabel) g.updateGenesLabel();

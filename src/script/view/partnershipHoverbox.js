@@ -87,6 +87,30 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
       junctionShapedButton.attr(PedigreeEditorParameters.attributes.nodeShapeMenuOffPartner);
     });
     junctionShapedButton.attr('cursor', 'pointer');
+
+    if (junctionShapedButton.node) {
+      var touchMoved = false;
+      var startX = 0, startY = 0;
+      junctionShapedButton.node.addEventListener("touchstart", function(e) {
+        e.stopPropagation();
+        touchMoved = false;
+        var t = e.touches && e.touches[0];
+        if (t) { startX = t.clientX; startY = t.clientY; }
+      }, {passive: false});
+      junctionShapedButton.node.addEventListener("touchmove", function(e) {
+        var t = e.touches && e.touches[0];
+        if (t && (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8)) {
+          touchMoved = true;
+        }
+      }, {passive: true});
+      junctionShapedButton.node.addEventListener("touchend", function(e) {
+        e.stopPropagation();
+        if (!touchMoved) {
+          if (e.cancelable) e.preventDefault();
+          action();
+        }
+      }, {passive: false});
+    }
     this._currentButtons.push(junctionShapedButton);
     this.disable();
     this.getFrontElements().push(junctionShapedButton);
@@ -115,6 +139,7 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
     }
     this._isMenuToggled = isMenuToggled;
     if(isMenuToggled) {
+      this.unpin(false);
       var optBBox = this.getBoxOnHover().getBBox();
       var x = optBBox.x2;
       var y = optBBox.y;
@@ -128,10 +153,13 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
      *
      * @method animateHideHoverZone
      */
-  animateHideHoverZone: function($super) {
+  animateHideHoverZone: function($super, force) {
+    if (this._isPinned && !force) {
+      return;
+    }
     this._hidden = true;
     if(!this.isMenuToggled()){
-      $super();
+      $super(force);
     }
   },
 

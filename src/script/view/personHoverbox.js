@@ -142,7 +142,8 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     var targetSiblingId = null;
 
     var start = function(x, y, e) {
-      if (e.button != 0) return; // Only left click
+      if (e && e.button !== undefined && e.button !== 0) return;
+      if (e && e.stopPropagation) e.stopPropagation(); // Only left click
       isDragged = false;
       startX = x;
       startY = y;
@@ -215,6 +216,12 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
       }
     };
 
+    if (genderShapedButton.node) {
+      genderShapedButton.node.addEventListener("touchstart", function(e) {
+        e.stopPropagation();
+      }, {passive: false});
+    }
+
     genderShapedButton.drag(move, start, end);
 
     this._currentButtons.push(genderShapedButton);
@@ -244,6 +251,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
     this._isMenuToggled = isMenuToggled;
     if(isMenuToggled) {
+      this.unpin(false);
       this.getNode().getGraphics().unmark();
       var optBBox = this.getBoxOnHover().getBBox();
       var x = optBBox.x2;
@@ -258,7 +266,10 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
      *
      * @method animateHideHoverZone
      */
-  animateHideHoverZone: function($super) {
+  animateHideHoverZone: function($super, force) {
+    if (this._isPinned && !force) {
+      return;
+    }
     this._hidden = true;
     if(!this.isMenuToggled()){
       if (editor.getView() && editor.getView().getCurrentDraggable() !== null) {
@@ -272,7 +283,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
           graphics.unmarkPregnancy();
         }
       }
-      $super();
+      $super(force);
     }
   },
 

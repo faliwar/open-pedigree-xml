@@ -650,9 +650,12 @@ var PedigreeEditor = Class.create({
      * @method isAnyMenuVisible
      */
   isAnyMenuVisible: function() {
-    if (this.getNodeMenu().isVisible() || this.getNodeGroupMenu().isVisible() || this.getPartnershipMenu().isVisible()) {
-      return;
+    if ((this.getNodeMenu() && this.getNodeMenu().isVisible()) ||
+        (this.getNodeGroupMenu() && this.getNodeGroupMenu().isVisible()) ||
+        (this.getPartnershipMenu() && this.getPartnershipMenu().isVisible())) {
+      return true;
     }
+    return false;
   },
 
   /**

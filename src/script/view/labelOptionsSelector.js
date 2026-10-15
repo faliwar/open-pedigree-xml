@@ -13,9 +13,10 @@ var LabelOptionsSelector = Class.create({
     this.loadSettings();
   },
 
-      loadSettings: function() {
+  loadSettings: function() {
     try {
       var saved = JSON.parse(localStorage.getItem('openpedigree_label_options_v2') || '{}');
+      PedigreeEditorParameters.attributes.nameDisplayFormat = saved.nameDisplayFormat || 'full';
       PedigreeEditorParameters.attributes.showDisordersInLabel = !!saved.showDisorders; // false by default
       PedigreeEditorParameters.attributes.showHPOInLabel = !!saved.showHPO; // false by default
       PedigreeEditorParameters.attributes.showGenesInLabel = !!saved.showGenes; // false by default
@@ -26,7 +27,8 @@ var LabelOptionsSelector = Class.create({
     }
   },
 
-    saveSettings: function(settings) {
+  saveSettings: function(settings) {
+    PedigreeEditorParameters.attributes.nameDisplayFormat = settings.nameDisplayFormat || 'full';
     PedigreeEditorParameters.attributes.showDisordersInLabel = !!settings.showDisorders;
     PedigreeEditorParameters.attributes.showHPOInLabel = !!settings.showHPO;
     PedigreeEditorParameters.attributes.showGenesInLabel = !!settings.showGenes;
@@ -109,6 +111,39 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showLabelPrefixes
     );
 
+    var nameCard = new Element('div', { 'class': 'label-option-row label-option-select-row' });
+    var nameTextCol = new Element('div', { 'class': 'label-option-text' });
+    var nameTitle = new Element('div', { 'class': 'label-option-title' }).update('Name Display Format');
+    var nameDesc = new Element('div', { 'class': 'label-option-desc' }).update(
+      "Choose how much of each individual's name to display on the pedigree chart."
+    );
+    nameTextCol.insert(nameTitle);
+    nameTextCol.insert(nameDesc);
+
+    var nameSelect = new Element('select', {
+      'id': 'select-name-format',
+      'class': 'label-option-select'
+    });
+    var nameOptions = [
+      { value: 'full', text: 'Full Name' },
+      { value: 'first_last', text: 'First & Last Name' },
+      { value: 'first', text: 'First Name Only' },
+      { value: 'none', text: 'Hide Names' }
+    ];
+    var currentFormat = PedigreeEditorParameters.attributes.nameDisplayFormat || 'full';
+    nameOptions.forEach(function(opt) {
+      var optEl = new Element('option', { 'value': opt.value }).update(opt.text);
+      if (opt.value === currentFormat) {
+        optEl.selected = true;
+      }
+      nameSelect.insert(optEl);
+    });
+
+    nameCard.insert(nameTextCol);
+    nameCard.insert(nameSelect);
+
+    optionsList.insert(nameCard);
+    optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
     optionsList.insert(disordersOpt.row);
     optionsList.insert(hpoOpt.row);
     optionsList.insert(genesOpt.row);
@@ -119,6 +154,7 @@ var LabelOptionsSelector = Class.create({
 
     var applyCurrentValues = function() {
       _this.saveSettings({
+        nameDisplayFormat: nameSelect.value || (nameSelect.getValue ? nameSelect.getValue() : 'full'),
         showDisorders: disordersOpt.input.checked,
         showHPO: hpoOpt.input.checked,
         showGenes: genesOpt.input.checked,
@@ -127,6 +163,7 @@ var LabelOptionsSelector = Class.create({
       });
     };
 
+    nameSelect.observe('change', applyCurrentValues);
     disordersOpt.input.observe('change', applyCurrentValues);
     hpoOpt.input.observe('change', applyCurrentValues);
     genesOpt.input.observe('change', applyCurrentValues);

@@ -1,3 +1,16 @@
+
+/* =========================================
+ * TOUCH AND CANVAS ACTIONS
+ */
+#work-area,
+#canvas,
+#canvas svg,
+.panning-background {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 /* =========================================
  * GENERAL
  */
@@ -1104,6 +1117,33 @@ div.suggestItems .hide-button-wrapper {
 .label-option-row:hover {
   background: #F0F4F8;
   border-color: #B0C4DE;
+}
+
+.label-option-select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+
+.label-option-select {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+  background-color: #FFF;
+  border: 1px solid #CCC;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  min-width: 155px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.label-option-select:focus {
+  border-color: #0066CC;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
 }
 
 .label-option-checkbox {

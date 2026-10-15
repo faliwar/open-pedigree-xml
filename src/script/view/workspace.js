@@ -1,3 +1,4 @@
+import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 import Raphael from 'pedigree/raphael';
 import DriveBackend from '../DriveBackend';
 
@@ -17,11 +18,19 @@ var Workspace = Class.create({
     this.canvas = new Element('div', {'id' : 'canvas'});
     this.workArea = new Element('div', {'id' : 'work-area'}).update(this.canvas);
     $('body').update(this.workArea);
-    var screenDimensions = document.viewport.getDimensions();
+    this.canvas.setStyle({touchAction: 'none'});
+    this.workArea.setStyle({touchAction: 'none'});
+    var screenDimensions = document.viewport ? document.viewport.getDimensions() : null;
     this.generateTopMenu();
-    this.width = screenDimensions.width;
-    this.height = screenDimensions.height - this.canvas.cumulativeOffset().top - 4;
-    this._paper = Raphael('canvas',this.width, this.height);
+    var topOffset = (this.canvas && this.canvas.cumulativeOffset) ? this.canvas.cumulativeOffset().top : 62;
+    var viewportWidth = (screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : (window.innerWidth || 800);
+    var viewportHeight = (screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : (window.innerHeight || 600);
+    this.width = Math.max(100, viewportWidth);
+    this.height = Math.max(100, viewportHeight - topOffset - 4);
+    this._paper = Raphael('canvas', this.width, this.height);
+    if (this._paper && this._paper.canvas) {
+      this._paper.canvas.style.touchAction = 'none';
+    }
     this.viewBoxX = 0;
     this.viewBoxY = 0;
     this.zoomCoefficient = 1;
@@ -41,26 +50,39 @@ var Workspace = Class.create({
       if (editor.isAnyMenuVisible()) {
         return;
       }
+      me.background.isDragged = false;
       me.background.ox = me.viewBoxX;
       me.background.oy = me.viewBoxY;
       //me.background.attr({cursor: 'url(https://mail.google.com/mail/images/2/closedhand.cur)'});
       me.background.attr({cursor: 'move'});
     };
     var move = function(dx, dy) {
-      var deltax = me.viewBoxX - dx/me.zoomCoefficient;
-      var deltay = me.viewBoxY - dy/me.zoomCoefficient;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        me.background.isDragged = true;
+      }
+      var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+      var w = Math.max(10, (me.width || 800) / zoom);
+      var h = Math.max(10, (me.height || 600) / zoom);
+      var deltax = me.viewBoxX - dx / zoom;
+      var deltay = me.viewBoxY - dy / zoom;
 
-      me.getPaper().setViewBox(deltax, deltay, me.width/me.zoomCoefficient, me.height/me.zoomCoefficient);
+      me.getPaper().setViewBox(deltax, deltay, w, h);
       me.background.ox = deltax;
       me.background.oy = deltay;
-      me.background.attr({x: deltax, y: deltay });
+      me.background.attr({x: deltax, y: deltay, width: w, height: h });
     };
     var end = function() {
       me.viewBoxX = me.background.ox;
       me.viewBoxY = me.background.oy;
       me.background.attr({cursor: 'default'});
+      if (!me.background.isDragged) {
+        AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
+      }
     };
     me.background.drag(move, start, end);
+    me.background.click(function() {
+      AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
+    });
 
     if (document.addEventListener) {
       // adapted from from raphaelZPD
@@ -246,10 +268,13 @@ var Workspace = Class.create({
       zoomCoefficient = 0.25;
     }
     zoomCoefficient = Math.round(zoomCoefficient/0.05)/20;
-    var newWidth  = this.width/zoomCoefficient;
-    var newHeight = this.height/zoomCoefficient;
-    this.viewBoxX = this.viewBoxX + (this.width/this.zoomCoefficient - newWidth)/2;
-    this.viewBoxY = this.viewBoxY + (this.height/this.zoomCoefficient - newHeight)/2;
+    var w = Math.max(100, this.width || 800);
+    var h = Math.max(100, this.height || 600);
+    var currentZoom = (this.zoomCoefficient && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var newWidth  = Math.max(10, w / zoomCoefficient);
+    var newHeight = Math.max(10, h / zoomCoefficient);
+    this.viewBoxX = this.viewBoxX + (w / currentZoom - newWidth) / 2;
+    this.viewBoxY = this.viewBoxY + (h / currentZoom - newHeight) / 2;
     this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
     this.zoomCoefficient = zoomCoefficient;
     this.background.attr({x: this.viewBoxX, y: this.viewBoxY, width: newWidth, height: newHeight});
@@ -454,10 +479,13 @@ var Workspace = Class.create({
     (function draw() {
       setTimeout(function() {
         if(progress++ < frames) {
+          var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+          var w = Math.max(10, (me.width || 800) / zoom);
+          var h = Math.max(10, (me.height || 600) / zoom);
           me.viewBoxX += xStep;
           me.viewBoxY += yStep;
-          me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, me.width/me.zoomCoefficient, me.height/me.zoomCoefficient);
-          me.background.attr({x: me.viewBoxX, y: me.viewBoxY });
+          me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, w, h);
+          me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: w, height: h });
           draw();
         }
       }, 1000 * numSeconds / frames);
@@ -480,11 +508,24 @@ var Workspace = Class.create({
      * @method adjustSizeToScreen
      */
   adjustSizeToScreen : function() {
-    var screenDimensions = document.viewport.getDimensions();
-    this.width = screenDimensions.width;
-    this.height = screenDimensions.height - this.canvas.cumulativeOffset().top - 4;
-    var newWidth = this.width / this.zoomCoefficient;
-    var newHeight = this.height / this.zoomCoefficient;
+    var screenDimensions = document.viewport ? document.viewport.getDimensions() : null;
+    var topOffset = (this.canvas && this.canvas.cumulativeOffset) ? this.canvas.cumulativeOffset().top : 62;
+    var viewportWidth = (screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : (window.innerWidth || 800);
+    var viewportHeight = (screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : (window.innerHeight || 600);
+
+    // If viewport dimensions are collapsed (e.g. background tab or zero height), avoid invalid SVG sizing
+    if (viewportWidth <= 10 || viewportHeight <= 10) {
+      return;
+    }
+
+    var calculatedHeight = viewportHeight - topOffset - 4;
+    this.width = Math.max(100, viewportWidth);
+    this.height = Math.max(100, calculatedHeight);
+
+    var zoom = (this.zoomCoefficient && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var newWidth = Math.max(10, this.width / zoom);
+    var newHeight = Math.max(10, this.height / zoom);
+
     this.getPaper().setSize(this.width, this.height);
     this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
     this.background && this.background.attr({
