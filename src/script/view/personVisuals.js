@@ -1,3 +1,5 @@
+import Disorder from 'pedigree/disorder';
+import HPOTerm from 'pedigree/hpoTerm';
 import Raphael from 'pedigree/raphael';
 import { Timer } from 'pedigree/model/helpers';
 import AbstractPersonVisuals from 'pedigree/view/abstractPersonVisuals';
@@ -38,6 +40,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this._isSelected = false;
     this._carrierGraphic = null;
     this._evalLabel = null;
+    this._disordersLabel = null;
+    this._hpoLabel = null;
+    this._genesLabel = null;
     //console.log("person visuals end");
     //timer.printSinceLast("Person visuals time");
   },
@@ -45,22 +50,29 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   _wrapText: function(text, maxChars) {
     if (!text) return '';
     maxChars = maxChars || 15;
-    var words = text.split(' ');
-    var lines = [];
-    var currentLine = '';
-    for (var i = 0; i < words.length; i++) {
-      var word = words[i];
-      if (currentLine.length + word.length > maxChars && currentLine.length > 0) {
-        lines.push(currentLine.trim());
-        currentLine = word + ' ';
-      } else {
-        currentLine += word + ' ';
+    var paragraphs = text.split('\n');
+    var allLines = [];
+    for (var p = 0; p < paragraphs.length; p++) {
+      var para = paragraphs[p];
+      if (para.length === 0) continue;
+      // Split strictly on standard ASCII space ' ' so \u00A0 stays attached
+      var words = para.split(' ');
+      var currentLine = '';
+      for (var i = 0; i < words.length; i++) {
+        var word = words[i];
+        if (word.length === 0) continue;
+        if (currentLine.length + word.length > maxChars && currentLine.length > 0) {
+          allLines.push(currentLine.replace(/^ +| +$/g, ''));
+          currentLine = word + ' ';
+        } else {
+          currentLine += word + ' ';
+        }
+      }
+      if (currentLine.length > 0) {
+        allLines.push(currentLine.replace(/^ +| +$/g, ''));
       }
     }
-    if (currentLine.trim().length > 0) {
-      lines.push(currentLine.trim());
-    }
-    return lines.join('\n');
+    return allLines.join('\n');
   },
 
   generateHoverbox: function(x, y) {
@@ -621,12 +633,21 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   updateCommentsLabel: function() {
     this.getCommentsLabel() && this.getCommentsLabel().remove();
-    if (this.getNode().getComments() != '') {
-      var text = this._wrapText(this.getNode().getComments(), 20); //.replace(/\n/g, '<br />');
-      this._commentsLabel = editor.getPaper().text(this.getX(), this.getY(), text).attr(PedigreeEditorParameters.attributes.commentLabel);
+    this._commentsLabel = null;
+
+    if (PedigreeEditorParameters.attributes.showCommentsInLabel === false) {
+      this.drawLabels();
+      return;
+    }
+
+    var comments = this.getNode().getComments ? this.getNode().getComments() : '';
+    if (comments && comments.trim() !== '') {
+      var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '\uD83D\uDDCE\uFE0E\u00A0' : '';
+      var text = prefix + comments.trim();
+      text = this._wrapText(text, 20);
+      this._commentsLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+        .attr(PedigreeEditorParameters.attributes.commentLabel);
       this._commentsLabel.alignTop = true;
-    } else {
-      this._commentsLabel = null;
     }
     this.drawLabels();
   },
@@ -713,12 +734,143 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      * @method getLabels
      * @return {Raphael.st}
      */
+
+  getDisordersLabel: function() {
+    return this._disordersLabel;
+  },
+
+  updateDisordersLabel: function() {
+    this._disordersLabel && this._disordersLabel.remove();
+    this._disordersLabel = null;
+
+    if (!PedigreeEditorParameters.attributes.showDisordersInLabel) {
+      this.drawLabels();
+      return;
+    }
+
+    var person = this.getNode();
+    var disorders = person.getDisorders ? person.getDisorders() : [];
+    if (disorders.length === 0) {
+      this.drawLabels();
+      return;
+    }
+
+    var names = [];
+    for (var i = 0; i < disorders.length; i++) {
+      var dId = disorders[i];
+      var disorder = editor.getDisorderLegend ? editor.getDisorderLegend().getDisorder(dId) : null;
+      var name = (disorder && disorder.getName && disorder.getName() !== 'loading...') ? disorder.getName() : Disorder.desanitizeID(dId);
+      if (name === 'affected') {
+        name = 'Affected';
+      }
+      if (name && names.indexOf(name) === -1) {
+        names.push(name);
+      }
+    }
+
+    if (names.length === 0) {
+      this.drawLabels();
+      return;
+    }
+
+    var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '\u2B22\u00A0' : '';
+    var formattedLines = [];
+    for (var j = 0; j < names.length; j++) {
+      var line = prefix + names[j];
+      formattedLines.push(this._wrapText(line, 20));
+    }
+    var text = formattedLines.join('\n');
+
+    this._disordersLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+      .attr(PedigreeEditorParameters.attributes.disorderLabel || PedigreeEditorParameters.attributes.label);
+    this._disordersLabel.alignTop = true;
+    this.drawLabels();
+  },
+
+  getHPOLabel: function() {
+    return this._hpoLabel;
+  },
+
+  updateHPOLabel: function() {
+    this._hpoLabel && this._hpoLabel.remove();
+    this._hpoLabel = null;
+
+    if (!PedigreeEditorParameters.attributes.showHPOInLabel) {
+      this.drawLabels();
+      return;
+    }
+
+    var person = this.getNode();
+    var hpos = person.getHPO ? person.getHPO() : [];
+    if (hpos.length === 0) {
+      this.drawLabels();
+      return;
+    }
+
+    var names = [];
+    for (var i = 0; i < hpos.length; i++) {
+      var hId = hpos[i];
+      var term = editor.getHPOLegend ? editor.getHPOLegend().getTerm(hId) : null;
+      var name = (term && term.getName && term.getName() !== 'loading...') ? term.getName() : HPOTerm.desanitizeID(hId);
+      if (name && names.indexOf(name) === -1) {
+        names.push(name);
+      }
+    }
+
+    if (names.length === 0) {
+      this.drawLabels();
+      return;
+    }
+
+    var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '\u25C8\u00A0' : '';
+    var text = prefix + names.join(', ');
+    text = this._wrapText(text, 20);
+
+    this._hpoLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+      .attr(PedigreeEditorParameters.attributes.hpoLabel || PedigreeEditorParameters.attributes.label);
+    this._hpoLabel.alignTop = true;
+    this.drawLabels();
+  },
+
+  getGenesLabel: function() {
+    return this._genesLabel;
+  },
+
+  updateGenesLabel: function() {
+    this._genesLabel && this._genesLabel.remove();
+    this._genesLabel = null;
+
+    if (!PedigreeEditorParameters.attributes.showGenesInLabel) {
+      this.drawLabels();
+      return;
+    }
+
+    var person = this.getNode();
+    var genes = person.getGenes ? person.getGenes() : [];
+    if (genes.length === 0) {
+      this.drawLabels();
+      return;
+    }
+
+    var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '\u29D3\u00A0' : '';
+    var text = prefix + genes.join(', ');
+    text = this._wrapText(text, 20);
+
+    this._genesLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+      .attr(PedigreeEditorParameters.attributes.geneLabel || PedigreeEditorParameters.attributes.label);
+    this._genesLabel.alignTop = true;
+    this.drawLabels();
+  },
+
   getLabels: function() {
     var labels = editor.getPaper().set();
     this.getSBLabel() && labels.push(this.getSBLabel());
     this.getNameLabel() && labels.push(this.getNameLabel());
     this.getAgeLabel() && labels.push(this.getAgeLabel());
     this.getExternalIDLabel() && labels.push(this.getExternalIDLabel());
+    this.getDisordersLabel() && labels.push(this.getDisordersLabel());
+    this.getHPOLabel() && labels.push(this.getHPOLabel());
+    this.getGenesLabel() && labels.push(this.getGenesLabel());
     this.getCommentsLabel() && labels.push(this.getCommentsLabel());
     return labels;
   },

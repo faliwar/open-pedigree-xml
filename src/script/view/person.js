@@ -650,12 +650,14 @@ var Person = Class.create(AbstractPerson, {
       if (numDisorders == 1 && this.getDisorders()[0] == 'affected') {
         this.removeDisorder('affected');
         this.getGraphics().updateDisorderShapes();
+    this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
       } else {
         status = 'affected';
       }
     } else if (numDisorders == 0 && status == 'affected') {
       this.addDisorder('affected');
       this.getGraphics().updateDisorderShapes();
+    this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
     }
 
     if (status != this._carrierStatus) {
@@ -728,6 +730,7 @@ var Person = Class.create(AbstractPerson, {
     if(!this.hasDisorder(disorder.getDisorderID())) {
       editor.getDisorderLegend().addCase(disorder.getDisorderID(), disorder.getName(), this.getID());
       this.getDisorders().push(disorder.getDisorderID());
+      this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
     } else {
       alert('This person already has the specified disorder');
     }
@@ -749,6 +752,7 @@ var Person = Class.create(AbstractPerson, {
     if(this.hasDisorder(disorderID)) {
       editor.getDisorderLegend().removeCase(disorderID, this.getID());
       this._disorders = this.getDisorders().without(disorderID);
+      this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
     } else {
       if (disorderID != 'affected') {
         alert('This person doesn\'t have the specified disorder');
@@ -770,6 +774,7 @@ var Person = Class.create(AbstractPerson, {
       this.addDisorder( disorders[i] );
     }
     this.getGraphics().updateDisorderShapes();
+    this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
     this.setCarrierStatus(); // update carrier status
   },
 
@@ -810,6 +815,7 @@ var Person = Class.create(AbstractPerson, {
     if(!this.hasHPO(hpo.getID())) {
       editor.getHPOLegend().addCase(hpo.getID(), hpo.getName(), this.getID());
       this.getHPO().push(hpo.getID());
+      this.getGraphics().updateHPOLabel && this.getGraphics().updateHPOLabel();
     } else {
       alert('This person already has the specified phenotype');
     }
@@ -825,6 +831,7 @@ var Person = Class.create(AbstractPerson, {
     if(this.hasHPO(hpoID)) {
       editor.getHPOLegend().removeCase(hpoID, this.getID());
       this._hpo = this.getHPO().without(hpoID);
+      this.getGraphics().updateHPOLabel && this.getGraphics().updateHPOLabel();
     } else {
       alert('This person doesn\'t have the specified HPO term');
     }
@@ -843,6 +850,7 @@ var Person = Class.create(AbstractPerson, {
     for(var i = 0; i < hpos.length; i++) {
       this.addHPO( hpos[i] );
     }
+    this.getGraphics().updateHPOLabel && this.getGraphics().updateHPOLabel();
   },
 
   /**
@@ -862,6 +870,7 @@ var Person = Class.create(AbstractPerson, {
     if (this.getGenes().indexOf(gene) == -1) {
       editor.getGeneLegend().addCase(gene, gene, this.getID());
       this.getGenes().push(gene);
+      this.getGraphics().updateGenesLabel && this.getGraphics().updateGenesLabel();
     }
   },
 
@@ -874,6 +883,7 @@ var Person = Class.create(AbstractPerson, {
     if (this.getGenes().indexOf(gene) !== -1) {
       editor.getGeneLegend().removeCase(gene, this.getID());
       this._candidateGenes = this.getGenes().without(gene);
+      this.getGraphics().updateGenesLabel && this.getGraphics().updateGenesLabel();
     }
   },
 
@@ -891,6 +901,7 @@ var Person = Class.create(AbstractPerson, {
       this.addGene( genes[i] );
     }
     this.getGraphics().updateDisorderShapes();
+    this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
   },
 
   /**

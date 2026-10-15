@@ -339,7 +339,7 @@ var Controller = Class.create({
       var changeSet = editor.getGraph().assignParent(parentID, personID);
       editor.getView().applyChanges(changeSet, true);
 
-      if (changeSet.moved.indexOf(personID) != -1) {
+      if (changeSet && Array.isArray(changeSet.moved) && changeSet.moved.indexOf(personID) != -1) {
         editor.getWorkspace().centerAroundNode(personID, true);
       }
 
@@ -348,6 +348,7 @@ var Controller = Class.create({
       }
 
     } catch(err) {
+      console.error('handlePersonDragToNewParent error:', err);
     }
   },
 

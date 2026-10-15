@@ -555,7 +555,23 @@ var View = Class.create({
     return result;
   },
 
-applyChanges: function( changeSet, markNew ) {
+  updateAllLabels: function() {
+    for (var id in this._nodeMap) {
+      if (this._nodeMap.hasOwnProperty(id)) {
+        var node = this._nodeMap[id];
+        if (node && node.getType && node.getType() == 'Person' && node.getGraphics()) {
+          var g = node.getGraphics();
+          if (g.updateDisordersLabel) g.updateDisordersLabel();
+          if (g.updateHPOLabel) g.updateHPOLabel();
+          if (g.updateGenesLabel) g.updateGenesLabel();
+          if (g.updateCommentsLabel) g.updateCommentsLabel();
+          if (g.drawLabels) g.drawLabels();
+        }
+      }
+    }
+  },
+
+  applyChanges: function( changeSet, markNew ) {
     // applies change set of the form {"new": {list of nodes}, "moved": {list of nodes} }
 
     var timer = new Timer();

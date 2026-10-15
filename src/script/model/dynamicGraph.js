@@ -1215,140 +1215,46 @@ DynamicPositionedGraph.prototype = {
   },
 
   assignParent: function( parentId, childId ) {
+    var newList = [];
     if (this.isRelationship(parentId)) {
-      var childHubId   = this.DG.GG.getRelationshipChildhub(parentId);
-      var rankChildHub = this.DG.ranks[childHubId];
-      var rankChild    = this.DG.ranks[childId];
-
+      var childHubId = this.DG.GG.getRelationshipChildhub(parentId);
       var weight = 1;
       this.DG.GG.addEdge(childHubId, childId, weight);
-
-      var animateList = [childId];
-
-      if (rankChildHub != rankChild - 1) {
-        return this.redrawAll(animateList);
-      }
-
-      var positionsBefore  = this.DG.positions.slice(0);
-      var ranksBefore      = this.DG.ranks.slice(0);
-      var vertLevelsBefore = this.DG.vertLevel.copy();
-      var rankYBefore      = this.DG.rankY.slice(0);
-      var consangrBefore   = this.DG.consangr;
-      var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
-
-      // TODO: move vertex closer to other children, if possible?
-
-      // validate: by now the graph should satisfy all assumptions
-      this.DG.GG.validate();
-
-      // update vertical separation for all nodes & compute ancestors
-      this._updateauxiliaryStructures(ranksBefore, rankYBefore);
-
-      positionsBefore[parentId] = Infinity; // so that it is added to the list of moved nodes
-      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
-      return {'moved': movedNodes, 'animate': [childId]};
     } else {
-      var rankParent = this.DG.ranks[parentId];
       var rankChild  = this.DG.ranks[childId];
-
       var partnerProperties = { 'gender': this.DG.GG.getOppositeGender(parentId) };
 
+      var insertChildhubRank = Math.max(0, rankChild - 1);
+      var newChildhubId      = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, null, childId, insertChildhubRank, 0);
+      var insertParentsRank  = Math.max(0, this.DG.ranks[newChildhubId] - 1);
+      var newRelationshipId  = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, null, newChildhubId, insertParentsRank, 0);
+      var newParentId        = this._insertVertex(BaseGraph.TYPE.PERSON, partnerProperties, 1.0, null, newRelationshipId, insertParentsRank, 0);
+      this.DG.GG.addEdge(parentId, newRelationshipId, 1);
 
-      if (rankParent >= rankChild) {
-        var ranksBefore        = this.DG.ranks.slice(0);
-        // need a complete redraw, since this violates the core layout rule. In this case insert orders do not matter
-        var insertChildhubRank = rankChild - 1;
-        var newChildhubId      = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, null, childId, insertChildhubRank, 0);
-        var insertParentsRank  = this.DG.ranks[newChildhubId] - 1;   // note: rank may have changed since last insertion
-        var newRelationshipId  = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, null, newChildhubId, insertParentsRank, 0);
-        var newParentId        = this._insertVertex(BaseGraph.TYPE.PERSON, partnerProperties, 1.0, null, newRelationshipId, insertParentsRank, 0);
-        this.DG.GG.addEdge(parentId, newRelationshipId, 1);
-        var animateList = [childId, parentId];
-        var newList     = [newRelationshipId, newParentId];
-        return this.redrawAll(animateList, newList, ranksBefore);
-      }
-
-      // add new childhub     @ rank (rankChild - 1)
-      // add new relationship @ rank (rankChild - 2)
-      // add new parent       @ rank (rankChild - 2) right next to new relationship
-      //                        (left or right depends on if the other parent is right or left)
-      // depending on other parent rank either draw a multi-rank relationship edge or regular relationship edge
-
-      this._debugPrintAll('before');
-      var timer = new Timer();
-
-      var positionsBefore  = this.DG.positions.slice(0);
-      var ranksBefore      = this.DG.ranks.slice(0);
-      var vertLevelsBefore = this.DG.vertLevel.copy();
-      var rankYBefore      = this.DG.rankY.slice(0);
-      var consangrBefore   = this.DG.consangr;
-      var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
-
-      var x_parent     = this.DG.positions[parentId];
-      var x_child      = this.DG.positions[childId];
-
-      if (rankParent == rankChild - 2) {
-        // the order of new node creation is then:
-        // 1) new relationship node
-        // 2) new partner
-        // 3) new childhub
-        var preferLeft = (x_child < x_parent);
-
-        // add same-rank relationship edge
-        var insertRelatOrder  = this._findBestInsertPosition( rankParent, parentId, preferLeft);
-        var newRelationshipId = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, parentId, null, rankParent, insertRelatOrder);
-
-        var newParentOrder = (this.DG.order.vOrder[parentId] > this.DG.order.vOrder[newRelationshipId]) ? insertRelatOrder : (insertRelatOrder+1);
-        var newParentId    = this._insertVertex(BaseGraph.TYPE.PERSON, partnerProperties, 1.0, null, newRelationshipId, rankParent, newParentOrder);
-
-        var insertChildhubRank  = rankChild - 1;
-        var insertChildhubOrder = this._findBestInsertPosition( insertChildhubRank, newRelationshipId );
-        var newChildhubId       = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, newRelationshipId, null, insertChildhubRank, insertChildhubOrder);
-
-        this.DG.GG.addEdge(newChildhubId, childId, 1);
-      } else {
-        // need to add a multi-rank edge: order of node creation is different:
-        // 1) new childhub
-        // 2) new relationship node
-        // 3) new partner
-        // 4) multi-rank edge
-        // add a multi-rank relationship edge (e.g. a sequence of edges between virtual nodes on intermediate ranks)
-
-        var insertChildhubRank  = rankChild - 1;
-        var insertChildhubOrder = this._findBestInsertPosition( insertChildhubRank, childId );
-        var newChildhubId       = this._insertVertex(BaseGraph.TYPE.CHILDHUB, {}, 1.0, null, childId, insertChildhubRank, insertChildhubOrder);
-
-        var insertParentsRank = rankChild - 2;
-
-        var insertRelatOrder  = this._findBestInsertPosition( insertParentsRank, newChildhubId );
-        var newRelationshipId = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, null, newChildhubId, insertParentsRank, insertRelatOrder);
-
-        var newParentOrder = (this.DG.positions[parentId] > this.DG.positions[newRelationshipId]) ? insertRelatOrder : (insertRelatOrder+1);
-        var newParentId    = this._insertVertex(BaseGraph.TYPE.PERSON, partnerProperties, 1.0, null, newRelationshipId, insertParentsRank, newParentOrder);
-
-        this._addMultiRankEdge(parentId, newRelationshipId);
-      }
-
-      // validate: by now the graph should satisfy all assumptions
-      this.DG.GG.validate();
-
-      // fix common layout mistakes (e.g. relationship not right above the only child)
-      // and update vertical positioning of all edges
-      this._heuristics.improvePositioning(ranksBefore, rankYBefore);
-
-      // update ancestors
-      this.updateAncestors();
-
-      timer.printSinceLast('=== DragToParentOrChild runtime: ');
-      this._debugPrintAll('after');
-
-      if (this.DG.positions.length >= 31) {
-        var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
-      }
-      var newNodes   = [newRelationshipId, newParentId];
-      return {'new': newNodes, 'moved': movedNodes, 'highlight': [parentId, newParentId, childId]};
+      newList = [newRelationshipId, newParentId];
     }
 
+    // Recompute global layout (equivalent to clicking the re-layout button)
+    var baseGraph = this.DG.GG.makeGWithCollapsedMultiRankEdges();
+    this._recreateUsingBaseGraph(baseGraph);
+
+    var allNodes = this._getAllNodes();
+    var movedNodes = allNodes.filter(function(id) {
+      return !arrayContains(newList, id);
+    });
+
+    var highlight = newList.slice(0);
+    highlight.push(childId);
+    if (!this.isRelationship(parentId)) {
+      highlight.push(parentId);
+    }
+
+    return {
+      'new': newList,
+      'moved': movedNodes,
+      'highlight': highlight,
+      'animate': [childId]
+    };
   },
 
   assignPartner: function( person1, person2, childProperties, sharedChildren ) {

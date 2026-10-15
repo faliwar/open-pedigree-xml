@@ -113,22 +113,53 @@ PedigreeExport.exportAsInvitae = function(pedigree, privacySetting = 'all'){
 PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   var image = $('canvas');
   var background = image.getElementsByClassName('panning-background')[0];
-  var backgroundPosition = background.nextSibling;
-  var backgroundParent = background.parentNode;
-  backgroundParent.removeChild(background);
-  var bbox = image.down().getBBox();
+  var backgroundPosition = background ? background.nextSibling : null;
+  var backgroundParent = background ? background.parentNode : null;
+  if (backgroundParent && background) {
+    backgroundParent.removeChild(background);
+  }
+
+  var svgElement = image.down();
+  var bbox;
+  try {
+    bbox = svgElement.getBBox();
+  } catch (e) {
+    bbox = { x: 0, y: 0, width: svgElement.clientWidth || 1200, height: svgElement.clientHeight || 900 };
+  }
+  var bWidth = (bbox && bbox.width > 0) ? bbox.width : (svgElement.clientWidth || 1200);
+  var bHeight = (bbox && bbox.height > 0) ? bbox.height : (svgElement.clientHeight || 900);
+  var bX = (bbox && typeof bbox.x === 'number') ? bbox.x : 0;
+  var bY = (bbox && typeof bbox.y === 'number') ? bbox.y : 0;
+
   var pedigreeImage = image.innerHTML
+    .replace(/&nbsp;/g, '&#160;')
     .replace(/xmlns:xlink=".*?"/, '')
     .replace(/width=".*?"/, '')
-    .replace(/height=".*?"/, '')
-    .replace(/viewBox=".*?"/, 'viewBox="' + bbox.x + ' ' + bbox.y + ' ' + bbox.width + ' ' + bbox.height + '" width="' + bbox.width + '" height="' + bbox.height + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+    .replace(/height=".*?"/, '');
+
+  if (/viewBox=".*?"/.test(pedigreeImage)) {
+    pedigreeImage = pedigreeImage.replace(/viewBox=".*?"/, 'viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+  } else {
+    pedigreeImage = pedigreeImage.replace(/<svg/i, '<svg viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+  }
+
   var context = window.location.href.replace(/&/g, '&amp;');
   pedigreeImage = pedigreeImage.split(context).join('');
 
-  backgroundParent.insertBefore(background, backgroundPosition);
+  if (backgroundParent && background) {
+    backgroundParent.insertBefore(background, backgroundPosition);
+  }
 
   const parser = new DOMParser();
-  const dom = parser.parseFromString(pedigreeImage, 'application/xml');
+  let dom = parser.parseFromString(pedigreeImage, 'image/svg+xml');
+  if (dom.getElementsByTagName('parsererror').length > 0) {
+    console.warn('SVG XML parsing issue:', dom.getElementsByTagName('parsererror')[0].textContent);
+    var htmlDoc = parser.parseFromString(pedigreeImage, 'text/html');
+    var svgEl = htmlDoc.querySelector('svg');
+    if (svgEl) {
+      dom = parser.parseFromString(new XMLSerializer().serializeToString(svgEl), 'image/svg+xml');
+    }
+  }
 
   function removeHiddenNodes(domNode) {
     let toRemove = [];
@@ -169,7 +200,7 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
 
   const serializer = new XMLSerializer();
   return serializer.serializeToString(dom);
-}
+};
 
 
 
@@ -179,95 +210,98 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   let legend = [];
   let itemCount = 0;
   let container = document.getElementById('legend-container');
-  let rgbRegex =/^rgb\(([0-9]+), ?([0-9]+), ?([0-9]+)\)$/;
-  for (let c of container.childNodes){
-    if (c.tagName !== 'DIV'){
-      continue;
-    }
-    if (c.style && c.style.display === 'none'){
-      continue;
-    }
+  let rgbRegex = /^rgb\(([0-9]+),\s*([0-9]+),\s*([0-9]+)\)$/;
 
-    let h2Array = c.getElementsByTagName('H2');
-    let legendSection = {
-      heading: '',
-      items: []
-    };
-    legend.push(legendSection);
-    let colour = null;
-    let name = null;
-    let cases = null;
+  if (container) {
+    for (let c of container.childNodes) {
+      if (c.tagName !== 'DIV') continue;
+      if (c.style && c.style.display === 'none') continue;
 
-    if (h2Array){
-      legendSection.heading = h2Array[0].textContent;
-    }
-    for (let li of c.getElementsByTagName('li')){
-      let colourArray = li.getElementsByClassName('disorder-color');
-      if (colourArray){
-        colour = colourArray[0].style.backgroundColor;
-        if (colour.startsWith('#')){
-          // already hex
-        } else if (colour.startsWith('rgb(')){
-          // rgb
-          let colourSplit = rgbRegex.exec(colour);
-          if (colourSplit != null){
-            colour = '#' + parseInt(colourSplit[1]).toString(16).padStart(2, '0') + parseInt(colourSplit[2]).toString(16).padStart(2, '0') + parseInt(colourSplit[3]).toString(16).padStart(2, '0');
+      let h2Array = c.getElementsByTagName('H2');
+      let legendSection = {
+        heading: '',
+        items: []
+      };
+
+      if (h2Array && h2Array.length > 0 && h2Array[0].textContent) {
+        legendSection.heading = h2Array[0].textContent.trim();
+      }
+
+      for (let li of c.getElementsByTagName('li')) {
+        let colour = '#CCCCCC';
+        let colourArray = li.getElementsByClassName('disorder-color');
+        if (colourArray && colourArray.length > 0 && colourArray[0].style) {
+          let bg = colourArray[0].style.backgroundColor || '';
+          if (bg.startsWith('#')) {
+            colour = bg;
+          } else if (bg.startsWith('rgb(')) {
+            let colourSplit = rgbRegex.exec(bg);
+            if (colourSplit != null) {
+              colour = '#' + parseInt(colourSplit[1]).toString(16).padStart(2, '0') +
+                             parseInt(colourSplit[2]).toString(16).padStart(2, '0') +
+                             parseInt(colourSplit[3]).toString(16).padStart(2, '0');
+            }
           }
         }
-      }
-      let nameArray = li.getElementsByClassName('disorder-name');
-      if (nameArray){
-        name = nameArray[0].textContent;
-      }
-      let casesArray = li.getElementsByClassName('disorder-cases');
-      if (casesArray){
-        cases = casesArray[0].textContent;
+
+        let name = '';
+        let nameArray = li.getElementsByClassName('disorder-name');
+        if (nameArray && nameArray.length > 0 && nameArray[0].textContent) {
+          name = nameArray[0].textContent.trim();
+        }
+
+        let cases = '';
+        let casesArray = li.getElementsByClassName('disorder-cases');
+        if (casesArray && casesArray.length > 0 && casesArray[0].textContent) {
+          cases = casesArray[0].textContent.replace(/\u00A0/g, ' ').trim();
+        }
+
+        legendSection.items.push({ colour: colour || '#CCCCCC', name: name, cases: cases });
+        itemCount++;
       }
 
-      legendSection.items.push({colour: colour, name: name, cases: cases});
-      itemCount++;
+      if (legendSection.items.length > 0 || legendSection.heading) {
+        legend.push(legendSection);
+      }
     }
   }
 
-
   let compress = false;
-  let doc = new PDFDocument({compress: compress, size: pageSize, layout: layout});
+  let doc = new PDFDocument({ compress: compress, size: pageSize, layout: layout });
 
   let stream = doc.pipe(blobStream());
   stream.on('finish', function () {
     let blob = stream.toBlob('application/pdf');
-    if (embedXML) {
+    if (embedXML && typeof PedigreeExport.exportAsInvitae === 'function') {
       let xml = PedigreeExport.exportAsInvitae(pedigree, privacySetting);
-      let finalBlob = new Blob([blob, "\n% PedigreeXML: ", btoa(unescape(encodeURIComponent(xml)))], {type: 'application/pdf'});
+      let finalBlob = new Blob([blob, "\n% PedigreeXML: ", btoa(unescape(encodeURIComponent(xml)))], { type: 'application/pdf' });
       saveAs(finalBlob, 'open-pedigree.pdf');
     } else {
       saveAs(blob, 'open-pedigree.pdf');
     }
   });
+
   let headingCount = legend.length;
 
-  // work out max width for text
+  // calculate max width for legend text
   let maxWidth = 0;
   doc.save();
-  for (let cat of legend){
+  for (let cat of legend) {
     doc.fontSize(14);
-    const hw = doc.widthOfString(cat.heading);
-    if (hw > maxWidth){
-      maxWidth = hw;
-    }
+    const hw = cat.heading ? doc.widthOfString(cat.heading) : 0;
+    if (hw > maxWidth) maxWidth = hw;
     for (let item of cat.items) {
       doc.fontSize(10);
-      const w = doc.widthOfString(item.name + ' (' + item.cases + ')');
-      if (w > maxWidth) {
-        maxWidth = w;
-      }
+      const textStr = (item.name || '') + (item.cases ? ' (' + item.cases + ')' : '');
+      const w = doc.widthOfString(textStr);
+      if (w > maxWidth) maxWidth = w;
     }
   }
   doc.restore();
 
   let lineOffset = 14;
   let catOffset = 2;
-  let legendHeight = (lineOffset * (headingCount+itemCount)) + (headingCount*catOffset) + 10;
+  let legendHeight = (lineOffset * (headingCount + itemCount)) + (headingCount * catOffset) + 10;
   let xOffset = 5;
   let yOffset = doc.page.height - legendHeight;
   let pedigreeXOffset = 5;
@@ -276,7 +310,6 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   let pedigreeHeight = Math.max(doc.page.height - legendHeight, doc.page.height * 0.6);
 
   if (legendPos === 'TopLeft') {
-    // easy one.
     xOffset = 5;
     yOffset = 5;
     pedigreeYOffset = legendHeight;
@@ -285,29 +318,30 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     yOffset = doc.page.height - legendHeight;
     pedigreeYOffset = 5;
   } else if (legendPos === 'BottomRight') {
-    xOffset = doc.page.width - (20 + maxWidth) ;
+    xOffset = doc.page.width - (20 + maxWidth);
     yOffset = doc.page.height - legendHeight;
     pedigreeYOffset = 5;
   } else {
-    // 'TopRight' default
-    xOffset = doc.page.width - (20 + maxWidth) ;
+    // TopRight default
+    xOffset = doc.page.width - (20 + maxWidth);
     yOffset = 5;
     pedigreeYOffset = legendHeight;
   }
 
-
-  for (let cat of legend){
+  for (let cat of legend) {
     doc.save();
     doc.fontSize(14);
-    doc.text(cat.heading, xOffset, yOffset, {lineBreak: false});
-    yOffset += lineOffset;
-    for (let item of cat.items){
-      // console.log(item);
+    if (cat.heading) {
+      doc.text(cat.heading, xOffset, yOffset, { lineBreak: false });
+      yOffset += lineOffset;
+    }
+    for (let item of cat.items) {
       doc.save();
-      doc.rect(xOffset, yOffset, 8, 8).fill(item.colour, 1);
+      doc.rect(xOffset, yOffset, 8, 8).fill(item.colour || '#CCCCCC', 1);
       doc.restore();
       doc.fontSize(10);
-      doc.text(item.name + ' (' + item.cases + ')', xOffset + 10, yOffset, {lineBreak: false});
+      const textStr = (item.name || '') + (item.cases ? ' (' + item.cases + ')' : '');
+      doc.text(textStr, xOffset + 10, yOffset, { lineBreak: false });
       yOffset += lineOffset;
     }
     yOffset += catOffset;
@@ -318,23 +352,25 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     doc.save();
     doc.fontSize(6);
     doc.fillColor('#888888');
-    doc.text('To edit: upload PDF to Open Pedigree XML.', 10, 10, {lineBreak: false});
+    doc.text('To edit: upload PDF to Open Pedigree XML.', 10, 10, { lineBreak: false });
     doc.restore();
   }
 
   let options = {
-    warningCallback: (str)=>console.error(str),
+    warningCallback: (str) => console.warn('SVGtoPDF warning:', str),
     useCSS: false,
     assumePt: false,
     preserveAspectRatio: 'xMidYMid meet',
-    // use at least 60% of height for image, this may overwrite the legend.
     height: pedigreeHeight,
     width: pedigreeWidth
   };
 
-  SVGtoPDF(doc, pedigreeImage, pedigreeXOffset, pedigreeYOffset, options);
+  try {
+    SVGtoPDF(doc, pedigreeImage, pedigreeXOffset, pedigreeYOffset, options);
+  } catch (err) {
+    console.error('Error drawing SVG into PDF:', err);
+  }
   doc.end();
-  // doc.write('open-pedigree.pdf');
   return doc;
 };
 

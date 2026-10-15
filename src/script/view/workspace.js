@@ -191,7 +191,8 @@ var Workspace = Class.create({
         items: [
           { key : 'undo',     label : 'Undo', icon : 'undo'},
           { key : 'redo',     label : 'Redo', icon : 'redo'},
-          { key : 'relayout', label : 'Re-layout', icon : 'sitemap'}
+          { key : 'relayout', label : 'Re-layout', icon : 'sitemap'},
+            { key : 'labels',   label : 'Labels',     icon : 'tags'}
         ]
       }, {
         name : 'reset',

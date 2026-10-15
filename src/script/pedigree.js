@@ -1,3 +1,4 @@
+import LabelOptionsSelector from 'pedigree/view/labelOptionsSelector';
 import Controller from 'pedigree/controller';
 import SaveLoadEngine from 'pedigree/saveLoadEngine';
 import View from 'pedigree/view';
@@ -73,6 +74,7 @@ var PedigreeEditor = Class.create({
 
     this._actionStack = new ActionStack();
     this._templateSelector = new TemplateSelector();
+    this._labelOptionsSelector = new LabelOptionsSelector();
     this._importSelector = new ImportSelector();
     this._exportSelector = new ExportSelector();
     this._driveFileSelector = new DriveFileSelector();
@@ -98,6 +100,11 @@ var PedigreeEditor = Class.create({
     var relayoutButton = $('action-relayout');
     relayoutButton && relayoutButton.on('click', function(event) {
       document.fire('pedigree:graph:relayout');
+    });
+
+    var labelsButton = $('action-labels');
+    labelsButton && labelsButton.on('click', function(event) {
+      editor.getLabelOptionsSelector().show();
     });
 
     var clearButton = $('action-clear');
@@ -584,6 +591,10 @@ var PedigreeEditor = Class.create({
      */
   getTemplateSelector: function() {
     return this._templateSelector;
+  },
+
+  getLabelOptionsSelector: function() {
+    return this._labelOptionsSelector;
   },
 
   /**

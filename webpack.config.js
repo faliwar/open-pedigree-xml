@@ -75,6 +75,31 @@ module.exports = {
     ],
   },
 
+  plugins: [
+    {
+      apply: (compiler) => {
+        compiler.hooks.afterEmit.tap('AutoCopyMinJsPlugin', (compilation) => {
+          const fs = require('fs');
+          const path = require('path');
+          const distFile = path.resolve(__dirname, 'dist', 'pedigree.min.js');
+          const targetFile = path.resolve(__dirname, 'pedigree.min.js');
+          if (fs.existsSync(distFile)) {
+            fs.copyFileSync(distFile, targetFile);
+            console.log('\n[AutoCopyMinJsPlugin] Successfully copied dist/pedigree.min.js -> ./pedigree.min.js');
+          }
+          const distAssets = path.resolve(__dirname, 'dist', 'assets');
+          const targetAssets = path.resolve(__dirname, 'assets');
+          if (fs.existsSync(distAssets)) {
+            if (!fs.existsSync(targetAssets)) fs.mkdirSync(targetAssets, { recursive: true });
+            for (const file of fs.readdirSync(distAssets)) {
+              fs.copyFileSync(path.join(distAssets, file), path.join(targetAssets, file));
+            }
+          }
+        });
+      }
+    }
+  ],
+
   resolve: {
   	alias: {
       'pedigree': path.resolve(__dirname, 'src/script/'),
