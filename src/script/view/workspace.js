@@ -97,6 +97,7 @@ var Workspace = Class.create({
     var panStartTouch = {clientX: 0, clientY: 0};
     var panStartViewBox = {x: 0, y: 0};
     var isPanMoved = false;
+    var lastTap = null;
 
     var isBackgroundTarget = function(target) {
       if (!target) return false;
@@ -210,6 +211,30 @@ var Workspace = Class.create({
           isPanning = false;
           if (!isPanMoved) {
             AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
+            // Double-tap on empty background: zoom in one step around the tap (or reset when maxed out)
+            var tap = e.changedTouches && e.changedTouches[0];
+            if (tap && e.type === 'touchend') {
+              var now = Date.now();
+              if (lastTap && now - lastTap.time < 300 &&
+                  Math.hypot(tap.clientX - lastTap.x, tap.clientY - lastTap.y) < 30) {
+                lastTap = null;
+                var curZoom = me.zoomCoefficient || 1;
+                var targetZoom = curZoom >= 1.25 - 0.001 ? 0.5 : Math.min(1.25, curZoom + 0.15);
+                targetZoom = Math.round(targetZoom * 100) / 100;
+                var tapDiv = me.viewportToDiv(tap.clientX, tap.clientY);
+                var tapCanvas = me.divToCanvas(tapDiv.x, tapDiv.y);
+                me.viewBoxX = tapCanvas.x - tapDiv.x / targetZoom;
+                me.viewBoxY = tapCanvas.y - tapDiv.y / targetZoom;
+                me.zoomCoefficient = targetZoom;
+                var tw = Math.max(10, (me.width || 800) / targetZoom);
+                var th = Math.max(10, (me.height || 600) / targetZoom);
+                me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, tw, th);
+                me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: tw, height: th});
+                me.syncSliderToZoom(targetZoom);
+              } else {
+                lastTap = {time: now, x: tap.clientX, y: tap.clientY};
+              }
+            }
           }
         }
       }

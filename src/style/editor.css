@@ -273,6 +273,62 @@
   border: 0 none;
   box-shadow: none;
 }
+/* Touch-friendly controls on small screens (>= 40px targets) */
+@media (max-width: 768px) {
+  .view-controls {
+    left: 6px;
+    top: 6px;
+    opacity: .95;
+  }
+  .view-controls-pan {
+    width: 96px;
+    height: 96px;
+    border-radius: 48px;
+  }
+  .view-controls-pan .pan-up,
+  .view-controls-pan .pan-down {
+    left: 28px;
+    width: 40px;
+    height: 28px;
+    font-size: 16px;
+  }
+  .view-controls-pan .pan-up { top: 2px; }
+  .view-controls-pan .pan-down { bottom: 2px; }
+  .view-controls-pan .pan-left,
+  .view-controls-pan .pan-right {
+    top: 28px;
+    width: 28px;
+    height: 40px;
+    font-size: 16px;
+  }
+  .view-controls-pan .pan-left { left: 2px; }
+  .view-controls-pan .pan-right { right: 2px; }
+  .view-controls-pan .pan-home {
+    top: 28px;
+    left: 28px;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  .view-controls-zoom {
+    width: 96px;
+    top: 106px;
+  }
+  .view-controls-zoom .zoom-button {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+  .view-controls-zoom .zoom-track {
+    height: 140px !important;
+    width: 8px;
+    margin: 8px auto;
+  }
+  .view-controls-zoom .zoom-handle {
+    width: 40px;
+    height: 20px;
+  }
+}
 /* =========================================
  * CANVAS
  */
