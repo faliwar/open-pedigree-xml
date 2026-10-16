@@ -144,7 +144,7 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
     }
     this._isMenuToggled = isMenuToggled;
     if(isMenuToggled) {
-      this.unpin(false);
+      this.unpin(true);
       var optBBox = this.getBoxOnHover().getBBox();
       var x = optBBox.x2;
       var y = optBBox.y;
@@ -167,7 +167,7 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
       return;
     }
     this._hidden = true;
-    if(!this.isMenuToggled()){
+    if(!this.isMenuToggled() || force){
       $super(force);
     }
   },

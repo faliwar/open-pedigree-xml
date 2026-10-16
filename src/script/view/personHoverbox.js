@@ -260,7 +260,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
     this._isMenuToggled = isMenuToggled;
     if(isMenuToggled) {
-      this.unpin(false);
+      this.unpin(true);
       this.getNode().getGraphics().unmark();
       var optBBox = this.getBoxOnHover().getBBox();
       var x = optBBox.x2;
@@ -284,7 +284,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
       return;
     }
     this._hidden = true;
-    if(!this.isMenuToggled()){
+    if(!this.isMenuToggled() || force){
       if (editor.getView() && editor.getView().getCurrentDraggable() !== null) {
         return;
       }

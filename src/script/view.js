@@ -6,6 +6,7 @@ import PersonGroup from 'pedigree/view/personGroup';
 import LineSet from 'pedigree/view/lineSet';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { drawCornerCurve, drawLevelChangeCurve } from 'pedigree/view/graphicHelpers';
+import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 
 /**
  * View is responsible for graphical representation of th epedigree as well as user interaction
@@ -581,6 +582,7 @@ var View = Class.create({
     try {
 
       this.unmarkAll();
+      AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
 
       if (!changeSet) {
         return;
@@ -763,6 +765,7 @@ var View = Class.create({
             if (hb && !hb.isMenuToggled()) {
               hb.removeButtons();
               hb.removeHandles();
+              hb.animateHideHoverZone(true);
             }
           }
         }

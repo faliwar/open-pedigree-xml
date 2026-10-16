@@ -1,3 +1,5 @@
+import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
+
 /**
  * The UI element ("bubble") that contains options for the creation of a new node.
  *
@@ -340,6 +342,9 @@ var NodetypeSelectionBubble = Class.create({
     }
     this.element.hide();
     this.resetParameters();  // reset number of twins/number of persons
+    if (typeof AbstractHoverbox !== 'undefined' && AbstractHoverbox.unpinAll) {
+      AbstractHoverbox.unpinAll(true);
+    }
   },
 
   /**

@@ -22,11 +22,10 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 var AbstractHoverbox = Class.create({
 
   pin: function() {
-    if (AbstractHoverbox.pinnedHoverbox && AbstractHoverbox.pinnedHoverbox !== this) {
-      AbstractHoverbox.pinnedHoverbox.unpin(true);
-    }
+    AbstractHoverbox.unpinAll(true, this);
     this._isPinned = true;
     AbstractHoverbox.pinnedHoverbox = this;
+    AbstractHoverbox.activeHoverbox = this;
     this.animateDrawHoverZone();
   },
 
@@ -35,7 +34,10 @@ var AbstractHoverbox = Class.create({
     if (AbstractHoverbox.pinnedHoverbox === this) {
       AbstractHoverbox.pinnedHoverbox = null;
     }
-    if (hide) {
+    if (AbstractHoverbox.activeHoverbox === this) {
+      AbstractHoverbox.activeHoverbox = null;
+    }
+    if (hide !== false) {
       this.animateHideHoverZone(true);
     }
   },
@@ -777,7 +779,7 @@ var AbstractHoverbox = Class.create({
       if (handle.isDragged && (curHoveredId === null || curHoveredId === undefined)) {
         toHide && toHide.show();
       }
-      me.unpin(false);
+      me.unpin(true);
       if (!handle.isDragged || (curHoveredId !== null && curHoveredId !== undefined)) {
         me.handleAction(handle.type, handle.isDragged, curHoveredId);
       }
@@ -847,6 +849,10 @@ var AbstractHoverbox = Class.create({
       return;
     } // do not redraw when dragging
 
+    // Always enforce AT MOST ONE active hoverbox across the pedigree
+    AbstractHoverbox.unpinAll(true, this);
+    AbstractHoverbox.activeHoverbox = this;
+
     this.getNode().getGraphics().setSelected(true);
     var drawBox = this.getBoxOnHover();
     if (drawBox && typeof drawBox.stop === 'function') {
@@ -883,6 +889,9 @@ var AbstractHoverbox = Class.create({
         AbstractHoverbox.pinnedHoverbox = null;
       }
     }
+    if (AbstractHoverbox.activeHoverbox === this) {
+      AbstractHoverbox.activeHoverbox = null;
+    }
     this._hidden = true;
     if (editor.getView().getCurrentDraggable() !== null) {
       return;
@@ -891,7 +900,11 @@ var AbstractHoverbox = Class.create({
     this.getNode().getGraphics().setSelected(false);
     var hideBox = this.getBoxOnHover();
     if (hideBox && typeof hideBox.stop === 'function') {
-      hideBox.stop().animate({ opacity: 0 }, 200);
+      if (force) {
+        hideBox.stop().attr({ opacity: 0 });
+      } else {
+        hideBox.stop().animate({ opacity: 0 }, 200);
+      }
     }
 
     this.hideButtons();
@@ -945,11 +958,7 @@ var AbstractHoverbox = Class.create({
       me._justClosedMenu = false;
     }, 100);
 
-    if (this._hidden) {
-      this.animateHideHoverZone();
-    } else {
-      this.animateDrawHoverZone();
-    }
+    this.animateHideHoverZone(true);
   },
 
   onWidgetShow: function () {
@@ -957,10 +966,40 @@ var AbstractHoverbox = Class.create({
   }
 });
 
-AbstractHoverbox.unpinAll = function (hide) {
-  if (AbstractHoverbox.pinnedHoverbox) {
-    AbstractHoverbox.pinnedHoverbox.unpin(hide);
+AbstractHoverbox.pinnedHoverbox = null;
+AbstractHoverbox.activeHoverbox = null;
+
+AbstractHoverbox.unpinAll = function (hide, exceptHoverbox) {
+  if (AbstractHoverbox.pinnedHoverbox && AbstractHoverbox.pinnedHoverbox !== exceptHoverbox) {
+    try {
+      AbstractHoverbox.pinnedHoverbox.unpin(hide);
+    } catch (e) {}
+    AbstractHoverbox.pinnedHoverbox = null;
   }
+  if (AbstractHoverbox.activeHoverbox && AbstractHoverbox.activeHoverbox !== exceptHoverbox) {
+    try {
+      AbstractHoverbox.activeHoverbox.animateHideHoverZone(true);
+    } catch (e) {}
+    AbstractHoverbox.activeHoverbox = null;
+  }
+  try {
+    var view = editor && editor.getView && editor.getView();
+    if (view && (view.getNodeMap || view._nodeMap)) {
+      var map = typeof view.getNodeMap === 'function' ? view.getNodeMap() : view._nodeMap;
+      for (var id in map) {
+        if (map.hasOwnProperty(id)) {
+          var node = map[id];
+          var hb = node && node.getGraphics && node.getGraphics().getHoverBox && node.getGraphics().getHoverBox();
+          if (hb && hb !== exceptHoverbox) {
+            hb._isPinned = false;
+            if (hide) {
+              hb.animateHideHoverZone(true);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {}
 };
 
 export default AbstractHoverbox;
