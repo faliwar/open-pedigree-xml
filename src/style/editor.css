@@ -277,36 +277,78 @@
 @media (max-width: 768px) {
   #editor-menu {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-    padding: 4px;
+    padding: 2px 4px;
+    font-size: 12px;
   }
-  #editor-menu .title,
-  #editor-menu .powered-by {
+  #editor-menu .title {
     float: none;
-    flex: 0 0 auto;
+    flex: 1 0 100%;
+    margin: 0;
+    padding: 4px 4px 4px 27px;
+    border-right: 0;
+    background-position-x: 4px;
   }
   #editor-menu .powered-by {
-    order: 99;
-    font-size: 11px;
+    display: none;
   }
-  #editor-menu .action-group {
-    flex: 0 0 auto;
-    margin-right: .5em;
-    padding-right: .5em;
+  #editor-menu .action-group,
+  #editor-menu .action-group:not(:last-of-type) {
+    display: flex;
+    flex-wrap: wrap;
+    border-right: 0;
+    margin: 0 4px 0 0;
+    padding: 0;
   }
   #editor-menu .menu-item {
-    min-height: 40px;
-    line-height: 40px;
-    padding: 0 .6em;
-    margin: 0 .2em 0 0;
-    font-size: 14px;
+    min-height: 36px;
+    line-height: 36px;
+    padding: 0 .5em;
+    margin: 0 2px 0 0;
+    font-size: 12px;
   }
   #attribution {
     display: none;
+  }
+  /* Node property panel: fit the screen, scroll inside */
+  .menu-box,
+  .menu-box.relationship-menu {
+    position: fixed !important;
+    left: 6px !important;
+    right: 6px !important;
+    top: auto !important;
+    bottom: 6px !important;
+    width: auto !important;
+    max-height: 55vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y !important;
+    box-sizing: border-box;
+    font-size: 13px;
+  }
+  .menu-box .tabs dd > a {
+    padding: .6em 1.2em;
+  }
+  .menu-box .tabs-content > .content.active,
+  .menu-box form.content {
+    padding: .2em .8em .5em !important;
+  }
+  .menu-box .field-box {
+    padding: .3em 0;
+  }
+  .menu-box .field-box input[type=text],
+  .menu-box .field-box textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .menu-box .close-button {
+    margin: .8em .5em 0 0;
+    width: 28px;
+    height: 28px;
+    line-height: 24px;
+    font-size: 22px;
   }
   .view-controls {
     left: 6px;
