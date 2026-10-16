@@ -73,6 +73,14 @@ DriveBackend.listXmlFiles = function (onSuccess, onFailure) {
         onFailure(err.message || String(err));
       })
       .listXmlFiles();
+  } else if (typeof window !== 'undefined' && window.location && window.location.search && window.location.search.indexOf('drive=1') !== -1) {
+    onSuccess([
+      { id: 'file-1', name: 'Comprehensive_Clinical_Pedigree_Alpha.xml', lastUpdated: '2026-10-15T14:30:00Z' },
+      { id: 'file-2', name: 'Hereditary_Cardiac_Condition_Index_Case_982.xml', lastUpdated: '2026-10-14T11:20:00Z' },
+      { id: 'file-3', name: 'BRCA1_Family_History_Report_Version_3.xml', lastUpdated: '2026-10-12T09:15:00Z' },
+      { id: 'file-4', name: 'Fabry_Disease_Kinship_Tree_Longitudinal.xml', lastUpdated: '2026-10-10T16:45:00Z' },
+      { id: 'file-5', name: 'Neurofibromatosis_Type_1_Extended_Chart.xml', lastUpdated: '2026-10-08T08:00:00Z' }
+    ]);
   } else {
     console.warn('[DriveBackend] Not in Apps Script environment. Cannot list Drive files.');
     onFailure('Google Apps Script environment not detected.\n\nTo use this functionality, deploy it as a showModelessDialog in Google Apps Script.');

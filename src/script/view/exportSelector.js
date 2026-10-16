@@ -143,17 +143,34 @@ var ExportSelector = Class.create({
     mainDiv.insert(buttons);
 
     var cancelButton = buttons.down('input[name="cancel"]');
-    cancelButton.observe('click', function (event) {
+    var onCancel = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this.hide();
-    });
+    };
+    cancelButton.observe('click', onCancel);
+    cancelButton.observe('touchend', onCancel);
+
     var exportButton = buttons.down('input[name="export"]');
-    exportButton.observe('click', function (event) {
+    var onExport = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this._onExportStarted(false);
-    });
+    };
+    exportButton.observe('click', onExport);
+    exportButton.observe('touchend', onExport);
+
     var copyButton = buttons.down('input[name="copy"]');
-    copyButton.observe('click', function (event) {
+    var onCopy = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this._onExportStarted(true);
-    });
+    };
+    copyButton.observe('click', onCopy);
+    copyButton.observe('touchend', onCopy);
 
     var closeShortcut = ['Esc'];
     this.dialog = new PhenoTips.widgets.ModalPopup(mainDiv, { close: { method: this.hide.bind(this), keys: closeShortcut } }, { extraClassName: 'pedigree-import-chooser', title: 'Pedigree export', displayCloseButton: true });
@@ -257,7 +274,13 @@ var ExportSelector = Class.create({
      * @method show
      */
   show: function () {
-    this.dialog.show();
+    if (this.dialog) {
+      if (this.dialog.dialog) {
+        this.dialog.dialog.removeClassName('hidden');
+        this.dialog.dialog.setStyle({ display: '' });
+      }
+      this.dialog.show();
+    }
   },
 
   /**
@@ -266,7 +289,13 @@ var ExportSelector = Class.create({
      * @method hide
      */
   hide: function () {
-    this.dialog.closeDialog();
+    if (this.dialog) {
+      this.dialog.closeDialog();
+      if (this.dialog.dialog) {
+        this.dialog.dialog.setStyle({ display: 'none' });
+        this.dialog.dialog.addClassName('hidden');
+      }
+    }
   }
 });
 

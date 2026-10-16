@@ -106,6 +106,9 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
     $super();
 
+    this.generateNodeShapeBtn();
+
+    // Menu / properties button (top-left)
     this.generateMenuBtn();
 
     // proband (and the root node 0) can't be removed
@@ -114,7 +117,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
   },
 
-  generateMenuBtn: function() {
+  generateNodeShapeBtn: function() {
     var me = this;
     var genderShapedButton = this.getNode().getGraphics().getGenderShape().clone();
     
@@ -212,7 +215,12 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
         }
       } else {
         // Treat as click
-        me.toggleMenu(!me.isMenuToggled());
+        var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 768);
+        if (isTouch && !me.isPinned()) {
+          me.pin();
+        } else {
+          me.toggleMenu(!me.isMenuToggled());
+        }
       }
     };
 
@@ -223,6 +231,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     }
 
     genderShapedButton.drag(move, start, end);
+    genderShapedButton.toFront();
 
     this._currentButtons.push(genderShapedButton);
     this.disable();
@@ -258,6 +267,10 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
       var y = optBBox.y;
       var position = editor.getWorkspace().canvasToDiv(x+5, y);
       editor.getNodeMenu().show(this.getNode(), position.x, position.y);
+    } else {
+      if (editor.getNodeMenu && editor.getNodeMenu().isVisible()) {
+        editor.getNodeMenu().hide();
+      }
     }
   },
 
@@ -358,7 +371,8 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
         document.fire('pedigree:person:newparent', event);
       }
     }
-    this.animateHideHoverZone();
+    this.unpin(true);
+    this.animateHideHoverZone(true);
   }
 });
 

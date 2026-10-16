@@ -10,6 +10,7 @@ import '../public/vendor/xwiki/colibri.css';
 import '../public/vendor/phenotips/Widgets.css';
 import '../public/vendor/phenotips/DateTimePicker.css';
 import '../public/vendor/phenotips/Skin.css';
+import './script/view/modalPatch';
 import './style/editor.css';
 
 var editor;

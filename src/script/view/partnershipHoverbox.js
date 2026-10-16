@@ -75,7 +75,12 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
   generateMenuBtn: function() {
     var me = this;
     var action = function() {
-      me.toggleMenu(!me.isMenuToggled());
+      var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 768);
+      if (isTouch && !me.isPinned()) {
+        me.pin();
+      } else {
+        me.toggleMenu(!me.isMenuToggled());
+      }
     };
     var junctionShapedButton = this.getNode().getGraphics().getJunctionShape().clone();
     junctionShapedButton.attr(PedigreeEditorParameters.attributes.nodeShapeMenuOffPartner);
@@ -145,6 +150,10 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
       var y = optBBox.y;
       var position = editor.getWorkspace().canvasToDiv(x+5, y);
       editor.getPartnershipMenu().show(this.getNode(), position.x, position.y);
+    } else {
+      if (editor.getPartnershipMenu && editor.getPartnershipMenu().isVisible()) {
+        editor.getPartnershipMenu().hide();
+      }
     }
   },
 
@@ -198,7 +207,8 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
       }
       // if user selects anything the bubble will fire an even on its own
     }
-    this.animateHideHoverZone();
+    this.unpin(true);
+    this.animateHideHoverZone(true);
   }
 });
 

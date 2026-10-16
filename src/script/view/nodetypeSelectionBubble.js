@@ -248,19 +248,41 @@ var NodetypeSelectionBubble = Class.create({
      */
   _positionAt : function(x, y) {
     y = Math.round(y);
-    if (y + this.element.getHeight() > editor.getWorkspace().getWorkArea().getHeight()) {
+    var workArea = editor.getWorkspace().getWorkArea();
+    var workAreaH = (workArea && workArea.getHeight) ? workArea.getHeight() : window.innerHeight;
+    var workAreaW = (workArea && workArea.getWidth) ? workArea.getWidth() : window.innerWidth;
+    var elH = this.element.getHeight() || 40;
+    var elW = this.element.getWidth() || 260;
+
+    if (y + elH > workAreaH - 10) {
       this.element.addClassName('upside');
-      y = Math.round(y - this.element.getHeight());
+      y = Math.round(y - elH);
+    } else {
+      this.element.removeClassName('upside');
+    }
+    // Ensure y is not hidden above top bar
+    if (y < 54) {
+      y = 54;
     }
     this.element.style.top = y + 'px';
-    var dx = Math.round(this.element.getWidth()/2);
-    if (x - dx + this.element.getWidth() > editor.getWorkspace().getWorkArea().getWidth()) {
-      dx = Math.round(this.element.getWidth() - (editor.getWorkspace().getWorkArea().getWidth() - x));
-    } else if (dx > x) {
-      dx = Math.round(x);
+
+    var dx = Math.round(elW / 2);
+    var left = Math.round(x - dx);
+    if (left + elW > workAreaW - 6) {
+      left = workAreaW - elW - 6;
+      dx = Math.round(x - left);
     }
-    this.element.down('.callout-handle').style.left = dx + 'px';
-    this.element.style.left = Math.round(x - dx) + 'px';
+    if (left < 6) {
+      left = 6;
+      dx = Math.round(x - left);
+    }
+    // Clamp handle within bubble bounds
+    dx = Math.max(12, Math.min(elW - 12, dx));
+    var handleEl = this.element.down('.callout-handle');
+    if (handleEl) {
+      handleEl.style.left = dx + 'px';
+    }
+    this.element.style.left = left + 'px';
   },
 
   /**
@@ -276,19 +298,23 @@ var NodetypeSelectionBubble = Class.create({
     if (!this._node) {
       return;
     }
+    // Close other selection bubble if open
+    if (editor.getSiblingSelectionBubble && editor.getSiblingSelectionBubble() !== this && editor.getSiblingSelectionBubble().hide) {
+      editor.getSiblingSelectionBubble().hide();
+    }
+    if (editor.getNodetypeSelectionBubble && editor.getNodetypeSelectionBubble() !== this && editor.getNodetypeSelectionBubble().hide) {
+      editor.getNodetypeSelectionBubble().hide();
+    }
     //console.log("show1");
     this._node.onWidgetShow();
-    // TODO decide which options to display, depending on the source node's status
-    // E.g.:
-    // if (/* the node has actual (person) children */) {
-    //   this.element.select('.marker-type-option').invoke('hide');
-    // } else if (/* the node cannot have children */) {
-    //   this.element.select('.person-type-option').invoke('hide');
-    // }
     this.element.show();
     this.expandedOptionsContainer.update('');
     this._positionAt(x, y);
-    document.observe('mousedown', this._onClickOutside);
+    if (!this._boundOnClickOutside) {
+      this._boundOnClickOutside = this._onClickOutside.bind(this);
+    }
+    document.observe('mousedown', this._boundOnClickOutside);
+    document.observe('touchend', this._boundOnClickOutside);
   },
 
   /**
@@ -298,7 +324,10 @@ var NodetypeSelectionBubble = Class.create({
      */
   hide : function() {
     //console.log("hide1");
-    document.stopObserving('mousedown', this._onClickOutside);
+    if (this._boundOnClickOutside) {
+      document.stopObserving('mousedown', this._boundOnClickOutside);
+      document.stopObserving('touchend', this._boundOnClickOutside);
+    }
     $$('.expand-arrow').forEach(function(arrow) {
       arrow.collapse();
     });

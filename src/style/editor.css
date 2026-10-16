@@ -11,16 +11,37 @@
   -webkit-user-select: none;
   user-select: none;
 }
+#work-area {
+  width: 100%;
+  max-width: 100vw;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#canvas {
+  width: 100%;
+  max-width: 100vw;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 /* =========================================
  * GENERAL
  */
+html,
 #body {
+  width: 100%;
+  max-width: 100vw;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 /* =========================================
  * MENU
  */
 #editor-menu {
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   background: #F8F8F8;
   padding: 5px;
   border-bottom: 1px solid #ccc;
@@ -95,6 +116,15 @@
 
 #editor-menu .powered-by sup {
   font-size: 0.6em;
+}
+
+/* Wrapper of all action groups: transparent on desktop, dropdown sheet on mobile */
+#editor-menu .menu-actions {
+  display: inline;
+}
+#editor-menu .mobile-bar-actions,
+#editor-menu .mobile-menu-backdrop {
+  display: none;
 }
 
 
@@ -273,41 +303,258 @@
   border: 0 none;
   box-shadow: none;
 }
-/* Touch-friendly controls on small screens (>= 40px targets) */
+/* Keyframe animations for mobile dropdown */
+@keyframes mobileSheetSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes mobileBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Responsive touch-friendly mobile navigation & controls */
 @media (max-width: 768px) {
   #editor-menu {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
-    padding: 2px 4px;
-    font-size: 12px;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 10px;
+    font-size: 13px;
+    position: relative;
+    z-index: 100010;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
   #editor-menu .title {
     float: none;
-    flex: 1 0 100%;
+    flex: 1 1 auto;
+    min-width: 0;
     margin: 0;
-    padding: 4px 4px 4px 27px;
-    border-right: 0;
-    background-position-x: 4px;
+    padding: 0 0 0 28px;
+    border-right: none;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 48px;
+    background-position-x: 2px;
   }
-  #editor-menu .powered-by {
+  #editor-menu .mobile-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+  .mobile-bar-button {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-bar-button:active {
+    background: #e2e8f0;
+    transform: scale(0.96);
+  }
+  .mobile-bar-button.menu-toggle {
+    background: #0089dc;
+    border-color: #0089dc;
+    color: #ffffff;
+    font-size: 16px;
+    box-shadow: 0 1px 2px rgba(0, 137, 220, 0.25);
+  }
+  .mobile-bar-button.menu-toggle .icon-close {
+    display: none !important;
+  }
+  .mobile-bar-button.menu-toggle .icon-open {
+    display: inline-block !important;
+  }
+  #editor-menu.mobile-open .mobile-bar-button.menu-toggle {
+    background: #e11d48;
+    border-color: #e11d48;
+    color: #ffffff;
+  }
+  #editor-menu.mobile-open .mobile-bar-button.menu-toggle .icon-close {
+    display: inline-block !important;
+  }
+  #editor-menu.mobile-open .mobile-bar-button.menu-toggle .icon-open {
+    display: none !important;
+  }
+
+  .mobile-menu-backdrop {
     display: none;
   }
-  #editor-menu .action-group,
-  #editor-menu .action-group:not(:last-of-type) {
+  #editor-menu.mobile-open .mobile-menu-backdrop {
+    display: block;
+    position: fixed;
+    top: 48px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 100020;
+    animation: mobileBackdropFadeIn 0.2s ease;
+  }
+
+  #editor-menu .menu-actions {
+    display: none;
+  }
+  #editor-menu.mobile-open .menu-actions {
     display: flex;
-    flex-wrap: wrap;
-    border-right: 0;
-    margin: 0 4px 0 0;
-    padding: 0;
+    flex-direction: column;
+    position: fixed;
+    top: 48px;
+    left: auto;
+    right: 0;
+    width: 100%;
+    max-width: 400px;
+    max-height: calc(100vh - 54px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-top: none;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+    padding: 12px 14px 18px;
+    z-index: 100030;
+    border-radius: 0 0 14px 14px;
+    animation: mobileSheetSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
   }
+
+  #editor-menu .action-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 0 0 10px 0;
+    padding: 0 0 8px 0;
+    border-right: none !important;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  #editor-menu .action-group:last-of-type {
+    border-bottom: none;
+    margin-bottom: 4px;
+    padding-bottom: 0;
+  }
+  #editor-menu .action-group::before {
+    content: attr(data-title);
+    grid-column: 1 / -1;
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin: 2px 2px 2px 4px;
+  }
+
   #editor-menu .menu-item {
-    min-height: 36px;
-    line-height: 36px;
-    padding: 0 .5em;
-    margin: 0 2px 0 0;
-    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 12px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e293b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
+  #editor-menu .menu-item .fa {
+    font-size: 14px;
+    width: 16px;
+    text-align: center;
+    color: #0089dc;
+  }
+  #editor-menu .menu-item:hover,
+  #editor-menu .menu-item:active {
+    background: #f0f9ff;
+    border-color: #0089dc;
+    color: #0089dc;
+    box-shadow: none;
+  }
+  #editor-menu .menu-item.clear {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+  #editor-menu .menu-item.clear .fa {
+    color: #ef4444;
+  }
+  #editor-menu .menu-item.clear:hover,
+  #editor-menu .menu-item.clear:active {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+  }
+  #editor-menu .disabled-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 12px;
+    margin: 0;
+    font-size: 13px;
+    color: #94a3b8;
+    background: #f1f5f9;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    box-sizing: border-box;
+    cursor: not-allowed;
+  }
+
+  #editor-menu .powered-by {
+    display: block;
+    float: none;
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+    padding: 10px 0 2px;
+    margin: 2px 0 0;
+    border-top: 1px solid #f1f5f9;
+  }
+  #editor-menu .powered-by a {
+    color: #64748b;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
   #attribution {
     display: none;
   }
@@ -349,6 +596,29 @@
     height: 28px;
     line-height: 24px;
     font-size: 22px;
+  }
+  /* Node type selection callout (add child / sibling bubble) */
+  .callout {
+    padding: 6px 4px;
+    z-index: 1000;
+    max-width: calc(100vw - 12px);
+    box-sizing: border-box;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+  .node-type-options .node-type-option {
+    margin: 2px 4px;
+    height: 38px;
+    width: 38px;
+    line-height: 38px;
+    font-size: 20px;
+    box-sizing: border-box;
+    touch-action: manipulation;
+  }
+  .callout .expand-arrow {
+    display: inline-block;
+    padding: 6px 8px;
+    font-size: 16px;
+    touch-action: manipulation;
   }
   .view-controls {
     left: 6px;
@@ -402,6 +672,585 @@
   .view-controls-zoom .zoom-handle {
     width: 40px;
     height: 20px;
+  }
+}
+
+/* =========================================
+ * MOBILE MODAL DIALOGS
+ * Responsive & touch-friendly modals: Templates, Labels, Export, Import, Drive Open XML, Shared Children
+ * Applies to all portrait mobile (width <= 768px) and all landscape mobile (height <= 520px)
+ * ========================================= */
+@media (max-width: 768px), (max-height: 520px) {
+  .xdialog-modal-container,
+  .msdialog-modal-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 200000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+    text-align: left !important;
+  }
+
+  .xdialog-modal-container[style*="display: none"],
+  .msdialog-modal-container[style*="display: none"],
+  .xdialog-modal-container.hidden,
+  .msdialog-modal-container.hidden {
+    display: none !important;
+  }
+
+  .xdialog-screen,
+  .msdialog-screen {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(15, 23, 42, 0.65) !important;
+    -webkit-backdrop-filter: blur(2px) !important;
+    backdrop-filter: blur(2px) !important;
+    z-index: 0 !important;
+  }
+
+  .xdialog-box,
+  .msdialog-box {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+    right: auto !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 460px !important;
+    max-height: 88vh !important;
+    max-height: 88dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    border-radius: 12px !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35) !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    overflow: hidden !important;
+    z-index: 1 !important;
+  }
+
+  .xdialog-title,
+  .msdialog-title {
+    flex-shrink: 0 !important;
+    display: block !important;
+    padding: 12px 46px 12px 14px !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    background: #1e293b !important;
+    background-image: none !important;
+    color: #f8fafc !important;
+    text-shadow: none !important;
+    border-radius: 11px 11px 0 0 !important;
+    line-height: 1.35 !important;
+    box-sizing: border-box !important;
+    cursor: default !important;
+    position: relative !important;
+  }
+
+  .xdialog-close,
+  .msdialog-close {
+    position: absolute !important;
+    top: 7px !important;
+    right: 8px !important;
+    z-index: 10 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    float: none !important;
+    font-size: 24px !important;
+    line-height: 1 !important;
+    font-family: inherit !important;
+    font-weight: 400 !important;
+    color: #cbd5e1 !important;
+    background: transparent !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    pointer-events: auto !important;
+  }
+
+  .xdialog-close:hover,
+  .xdialog-close:active,
+  .msdialog-close:hover,
+  .msdialog-close:active {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .xdialog-box .xdialog-content,
+  .msdialog-box .xdialog-content,
+  .msdialog-box .content {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    margin: 0 !important;
+    padding: 12px 14px !important;
+    max-height: calc(88vh - 48px) !important;
+    max-height: calc(88dvh - 48px) !important;
+    box-sizing: border-box !important;
+    color: #334155 !important;
+  }
+
+  /* 1. Templates Selector Modal */
+  .msdialog-box.pedigree-template-chooser,
+  .xdialog-box.pedigree-template-chooser,
+  .msdialog-modal-container .pedigree-template-chooser {
+    width: 100% !important;
+    max-width: 460px !important;
+  }
+
+  .pedigree-template-chooser .template-picture-container {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 2px !important;
+    box-sizing: border-box !important;
+  }
+
+  .pedigree-template-chooser .picture-box {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 10px 6px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    min-height: 90px !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+  }
+
+  .pedigree-template-chooser .picture-box:hover,
+  .pedigree-template-chooser .picture-box:active {
+    border-color: #0066cc !important;
+    box-shadow: 0 4px 10px rgba(0, 102, 204, 0.18) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  .pedigree-template-chooser .picture-box svg {
+    max-width: 100% !important;
+    max-height: 80px !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  /* 2. Labels Dialog */
+  .msdialog-box.label-options-modal-box,
+  .xdialog-box.label-options-modal-box {
+    width: 100% !important;
+    max-width: 460px !important;
+  }
+
+  .label-options-dialog-content {
+    padding: 4px 2px !important;
+    font-size: 13px !important;
+  }
+
+  .label-options-intro {
+    font-size: 12.5px !important;
+    margin-bottom: 10px !important;
+    color: #475569 !important;
+    line-height: 1.4 !important;
+  }
+
+  .label-options-list {
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .label-option-row {
+    padding: 8px 10px !important;
+    gap: 10px !important;
+    border-radius: 8px !important;
+  }
+
+  .label-option-select-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+
+  .label-option-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  .label-option-checkbox {
+    width: 18px !important;
+    height: 18px !important;
+    margin-top: 2px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .label-options-buttons {
+    width: 100% !important;
+    margin-top: 12px !important;
+  }
+
+  .label-options-buttons .buttonwrapper {
+    width: 100% !important;
+    display: block !important;
+  }
+
+  .label-options-done-btn {
+    width: 100% !important;
+    min-height: 42px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 3. Export & Import Dialogs */
+  .msdialog-box.pedigree-import-chooser,
+  .xdialog-box.pedigree-import-chooser {
+    width: 100% !important;
+    max-width: 460px !important;
+  }
+
+  .import-selector {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 13px !important;
+  }
+
+  .import-selector .import-section {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin: 8px 0 4px 0 !important;
+  }
+
+  .import-selector .import-block {
+    margin-bottom: 8px !important;
+  }
+
+  .import-selector table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+
+  .import-selector table tr {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 4px !important;
+  }
+
+  .import-selector table td {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .import-type-label,
+  .export-subconfig-label,
+  .import-config-label,
+  .import-mark-label1,
+  .import-mark-label2 {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    box-sizing: border-box !important;
+    color: #334155 !important;
+    margin: 0 !important;
+  }
+
+  .import-type-label input[type="radio"],
+  .import-type-label input[type="checkbox"],
+  .export-subconfig-label input[type="radio"],
+  .export-subconfig-label input[type="checkbox"],
+  .import-config-label input[type="radio"],
+  .import-mark-label1 input[type="checkbox"],
+  .import-mark-label2 input[type="checkbox"] {
+    margin: 2px 0 0 0 !important;
+    flex-shrink: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .import-selector select {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 38px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+    padding: 4px 8px !important;
+    margin: 3px 0 6px 0 !important;
+  }
+
+  .import-textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 90px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
+    border: 1px solid #cbd5e1 !important;
+    box-sizing: border-box !important;
+    padding: 6px !important;
+  }
+
+  .import-upload {
+    margin: 4px 0 10px 0 !important;
+    font-size: 12px !important;
+    text-align: center !important;
+    color: #0066cc !important;
+  }
+
+  /* Export / Import button rows */
+  .msdialog-box .buttons.import-block-bottom,
+  .xdialog-box .buttons.import-block-bottom {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+    padding: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .msdialog-box .buttons.import-block-bottom .buttonwrapper,
+  .xdialog-box .buttons.import-block-bottom .buttonwrapper {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .msdialog-box .buttons.import-block-bottom input.button,
+  .xdialog-box .buttons.import-block-bottom input.button {
+    width: 100% !important;
+    min-height: 42px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+
+  .msdialog-box .buttons.import-block-bottom input.button#export_button,
+  .msdialog-box .buttons.import-block-bottom input.button#import_button,
+  .xdialog-box .buttons.import-block-bottom input.button#export_button,
+  .xdialog-box .buttons.import-block-bottom input.button#import_button {
+    background: #0066cc !important;
+    color: #ffffff !important;
+    border: none !important;
+  }
+
+  .msdialog-box .buttons.import-block-bottom input.button#copy_button,
+  .xdialog-box .buttons.import-block-bottom input.button#copy_button {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .msdialog-box .buttons.import-block-bottom input.button.secondary,
+  .xdialog-box .buttons.import-block-bottom input.button.secondary {
+    background: transparent !important;
+    color: #64748b !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* 4. Drive Open XML Dialog */
+  .msdialog-box.pedigree-drive-chooser,
+  .xdialog-box.pedigree-drive-chooser,
+  .drive-file-selector {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .drive-selector-header {
+    font-size: 13px !important;
+    margin-bottom: 8px !important;
+    color: #1e293b !important;
+  }
+
+  .drive-file-list {
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    margin: 6px 0 !important;
+  }
+
+  .drive-file-table {
+    width: 100% !important;
+    font-size: 12px !important;
+  }
+
+  .drive-file-table thead th {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .drive-file-row td {
+    padding: 8px 6px !important;
+  }
+
+  .drive-file-name {
+    word-break: break-word !important;
+    max-width: 130px !important;
+  }
+
+  .drive-file-date {
+    font-size: 10.5px !important;
+    padding: 0 4px !important;
+  }
+
+  .drive-open-btn {
+    min-height: 32px !important;
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* 5. Shared Children Dialog */
+  .msdialog-box.shared-children-modal-box,
+  .xdialog-box.shared-children-modal-box {
+    width: 100% !important;
+    max-width: 460px !important;
+  }
+
+  .shared-children-list {
+    max-height: 180px !important;
+  }
+
+  .shared-children-buttons {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+
+  .shared-children-buttons .buttonwrapper {
+    width: 100% !important;
+    display: block !important;
+  }
+
+  .shared-children-confirm-btn,
+  .shared-children-cancel-btn {
+    width: 100% !important;
+    min-height: 40px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Landscape orientation adjustments for mobile */
+  @media (orientation: landscape) and (max-height: 520px) {
+    .xdialog-box,
+    .msdialog-box {
+      max-height: 94vh !important;
+      max-height: 94dvh !important;
+      max-width: 520px !important;
+    }
+
+    .xdialog-box .xdialog-content,
+    .msdialog-box .xdialog-content,
+    .msdialog-box .content {
+      max-height: calc(94vh - 44px) !important;
+      max-height: calc(94dvh - 44px) !important;
+      padding: 8px 12px !important;
+    }
+
+    .pedigree-template-chooser .template-picture-container {
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+      gap: 8px !important;
+    }
+
+    .pedigree-template-chooser .picture-box {
+      min-height: 70px !important;
+      padding: 6px 4px !important;
+    }
+
+    .pedigree-template-chooser .picture-box svg {
+      max-height: 55px !important;
+    }
+
+    .msdialog-box .buttons.import-block-bottom,
+    .xdialog-box .buttons.import-block-bottom {
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+    }
+
+    .msdialog-box .buttons.import-block-bottom .buttonwrapper,
+    .xdialog-box .buttons.import-block-bottom .buttonwrapper {
+      flex: 1 1 30% !important;
+      min-width: 100px !important;
+    }
+
+    .shared-children-buttons {
+      flex-direction: row !important;
+    }
+
+    .shared-children-buttons .buttonwrapper {
+      flex: 1 1 45% !important;
+    }
   }
 }
 /* =========================================
@@ -964,10 +1813,182 @@
   box-shadow: #0066CC 0 0 5px 0;
 }
 
-/* Drive selector modal */
+/* =========================================
+ * MODAL DIALOGS (DESKTOP & BASE)
+ * Centered vertically and horizontally within the viewer
+ * ========================================= */
+.xdialog-modal-container,
+.msdialog-modal-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 100014 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+}
+
+.xdialog-modal-container[style*="display: none"],
+.msdialog-modal-container[style*="display: none"],
+.xdialog-modal-container.hidden,
+.msdialog-modal-container.hidden {
+  display: none !important;
+}
+
+.xdialog-screen,
+.msdialog-screen {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+  backdrop-filter: blur(2px) !important;
+  z-index: 0 !important;
+}
+
+.xdialog-box,
+.msdialog-box {
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  margin: auto !important;
+  z-index: 1 !important;
+  max-height: calc(100vh - 40px) !important;
+  max-height: calc(100dvh - 40px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35) !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  overflow: hidden !important;
+}
+
+.xdialog-title,
+.msdialog-title {
+  flex-shrink: 0 !important;
+  display: block !important;
+  padding: 12px 46px 12px 16px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  background: #1e293b !important;
+  background-image: none !important;
+  color: #f8fafc !important;
+  text-shadow: none !important;
+  border-radius: 11px 11px 0 0 !important;
+  line-height: 1.35 !important;
+  box-sizing: border-box !important;
+  cursor: default !important;
+  position: relative !important;
+}
+
+.xdialog-close,
+.msdialog-close {
+  position: absolute !important;
+  top: 8px !important;
+  right: 10px !important;
+  z-index: 10 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  float: none !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-family: inherit !important;
+  font-weight: 400 !important;
+  color: #cbd5e1 !important;
+  background: transparent !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+  pointer-events: auto !important;
+}
+
+.xdialog-close:hover,
+.xdialog-close:active,
+.msdialog-close:hover,
+.msdialog-close:active {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.xdialog-box .xdialog-content,
+.msdialog-box .content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  flex: 1 1 auto !important;
+  max-height: calc(100vh - 120px) !important;
+  max-height: calc(100dvh - 120px) !important;
+  box-sizing: border-box !important;
+  padding: 14px 18px !important;
+  margin: 0 !important;
+  color: #334155 !important;
+}
+
+/* Dialog dimensions on Desktop */
+.msdialog-box.label-options-modal-box,
+.xdialog-box.label-options-modal-box {
+  width: 520px !important;
+  max-width: 92vw !important;
+}
+
+.msdialog-box.pedigree-import-chooser,
+.xdialog-box.pedigree-import-chooser {
+  width: 600px !important;
+  max-width: 92vw !important;
+}
+
+.msdialog-box.pedigree-template-chooser,
+.xdialog-box.pedigree-template-chooser {
+  width: 640px !important;
+  max-width: 92vw !important;
+}
+
+.msdialog-box.shared-children-modal-box,
+.xdialog-box.shared-children-modal-box {
+  width: 520px !important;
+  max-width: 92vw !important;
+}
+
+/* Drive selector modal overrides - 100% width for list and table */
+.msdialog-box.pedigree-drive-chooser,
+.xdialog-box.pedigree-drive-chooser {
+  width: 780px !important;
+  max-width: 92vw !important;
+}
+
+.msdialog-box.pedigree-drive-chooser .content {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 16px 20px !important;
+}
+
 .drive-file-selector {
-  min-width: 500px;
-  max-width: 700px;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .drive-selector-header {
@@ -975,6 +1996,8 @@
   margin-bottom: 1em;
   font-size: 1em;
   color: #333;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .drive-selector-loading {
@@ -982,6 +2005,8 @@
   padding: 2em 1em;
   color: #666;
   font-size: 1.1em;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .drive-selector-loading .fa-spinner {
@@ -998,6 +2023,8 @@
   border: 1px solid #FFCCCC;
   border-radius: 4px;
   margin: 0.5em 0;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .drive-selector-error .fa-exclamation-triangle {
@@ -1009,17 +2036,37 @@
   margin-right: 0.5em;
 }
 
-/* File list */
+/* File list - 100% width container */
 .drive-file-list {
-  max-height: 400px;
-  overflow-y: auto;
-  margin: 0.5em 0;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px !important;
+  margin: 0.5em 0 !important;
 }
 
+/* File table - 100% width spanning full dialog */
 .drive-file-table {
-  width: 100%;
-  border-collapse: collapse;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  border-collapse: collapse !important;
   font-size: 0.9em;
+  table-layout: auto !important;
+  box-sizing: border-box !important;
+}
+
+.drive-file-table thead,
+.drive-file-table tbody {
+  width: 100% !important;
+}
+
+.drive-file-table tr {
+  width: 100% !important;
 }
 
 .drive-file-table thead th {
@@ -1036,6 +2083,7 @@
 .drive-file-row {
   cursor: pointer;
   transition: background-color 0.15s ease;
+  width: 100% !important;
 }
 
 .drive-file-row:hover {
@@ -1050,6 +2098,7 @@
 .drive-file-name {
   font-weight: 500;
   color: #222;
+  word-break: break-word;
 }
 
 .drive-file-icon {
@@ -1078,11 +2127,6 @@
 .drive-open-btn:hover {
   background-color: #0066CC !important;
   color: #FFF !important;
-}
-
-/* Drive chooser modal overrides */
-.pedigree-drive-chooser .msdialog-box {
-  width: 650px;
 }
 
 /* Sibling Drag and Drop Reordering */

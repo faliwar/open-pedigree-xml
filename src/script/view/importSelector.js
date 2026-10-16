@@ -98,13 +98,24 @@ var ImportSelector = Class.create( {
     mainDiv.insert(buttons);
 
     var cancelButton = buttons.down('input[name="cancel"]');
-    cancelButton.observe('click', function(event) {
+    var onCancel = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this.hide();
-    });
+    };
+    cancelButton.observe('click', onCancel);
+    cancelButton.observe('touchend', onCancel);
+
     var importButton = buttons.down('input[name="import"]');
-    importButton.observe('click', function(event) {
+    var onImport = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this._onImportStarted();
-    });
+    };
+    importButton.observe('click', onImport);
+    importButton.observe('touchend', onImport);
 
     var closeShortcut = ['Esc'];
 
@@ -222,7 +233,13 @@ var ImportSelector = Class.create( {
      * @method show
      */
   show: function() {
-    this.dialog.show();
+    if (this.dialog) {
+      if (this.dialog.dialog) {
+        this.dialog.dialog.removeClassName('hidden');
+        this.dialog.dialog.setStyle({ display: '' });
+      }
+      this.dialog.show();
+    }
   },
 
   /**
@@ -232,7 +249,13 @@ var ImportSelector = Class.create( {
      */
   hide: function() {
     this.importValue.value = '';
-    this.dialog.closeDialog();
+    if (this.dialog) {
+      this.dialog.closeDialog();
+      if (this.dialog.dialog) {
+        this.dialog.dialog.setStyle({ display: 'none' });
+        this.dialog.dialog.addClassName('hidden');
+      }
+    }
   }
 });
 

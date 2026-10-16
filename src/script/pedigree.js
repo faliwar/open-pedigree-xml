@@ -650,6 +650,9 @@ var PedigreeEditor = Class.create({
      * @method isAnyMenuVisible
      */
   isAnyMenuVisible: function() {
+    if ($('editor-menu') && $('editor-menu').hasClassName('mobile-open')) {
+      return true;
+    }
     if ((this.getNodeMenu() && this.getNodeMenu().isVisible()) ||
         (this.getNodeGroupMenu() && this.getNodeGroupMenu().isVisible()) ||
         (this.getPartnershipMenu() && this.getPartnershipMenu().isVisible())) {

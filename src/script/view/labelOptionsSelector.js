@@ -179,10 +179,15 @@ var LabelOptionsSelector = Class.create({
     buttons.insert(new Element('span', { 'class': 'buttonwrapper' }).insert(closeBtn));
     mainDiv.insert(buttons);
 
-    closeBtn.observe('click', function() {
+    var onDone = function(event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       applyCurrentValues();
       _this.hide();
-    });
+    };
+    closeBtn.observe('click', onDone);
+    closeBtn.observe('touchend', onDone);
 
     this.dialog = new PhenoTips.widgets.ModalPopup(
       mainDiv,
@@ -194,7 +199,9 @@ var LabelOptionsSelector = Class.create({
       },
       {
         extraClassName: 'label-options-modal-box',
-        title: 'Label Display Options'
+        title: 'Label Display Options',
+        displayCloseButton: true,
+        removeOnClose: true
       }
     );
 
@@ -203,8 +210,12 @@ var LabelOptionsSelector = Class.create({
 
   hide: function() {
     if (this.dialog) {
-      this.dialog.close();
+      var d = this.dialog;
       this.dialog = null;
+      d.close();
+      if (d.dialog && d.dialog.parentNode) {
+        d.dialog.remove();
+      }
     }
   }
 });

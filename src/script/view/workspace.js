@@ -23,8 +23,8 @@ var Workspace = Class.create({
     var screenDimensions = document.viewport ? document.viewport.getDimensions() : null;
     this.generateTopMenu();
     var topOffset = (this.canvas && this.canvas.cumulativeOffset) ? this.canvas.cumulativeOffset().top : 62;
-    var viewportWidth = (screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : (window.innerWidth || 800);
-    var viewportHeight = (screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : (window.innerHeight || 600);
+    var viewportWidth = (window.innerWidth && window.innerWidth > 0) ? window.innerWidth : ((screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : 800);
+    var viewportHeight = (window.innerHeight && window.innerHeight > 0) ? window.innerHeight : ((screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : 600);
     this.width = Math.max(100, viewportWidth);
     this.height = Math.max(100, viewportHeight - topOffset - 4);
     this._paper = Raphael('canvas', this.width, this.height);
@@ -333,17 +333,27 @@ var Workspace = Class.create({
     menu.insert(new Element('a', {'class': 'title', 'href': 'https://github.com/faliwar/open-pedigree-xml'})
         .update('Open Pedigree XML'));
 
+    // Mobile-only app bar controls (hidden on desktop via CSS)
+    var mobileBar = new Element('div', {'class': 'mobile-bar-actions'});
+    menu.insert(mobileBar);
+
+    // Container for all action groups: inline on desktop, dropdown sheet on mobile
+    var actions = new Element('div', {'class': 'menu-actions', 'id': 'editor-menu-actions'});
+    menu.insert(actions);
+
     this.getWorkArea().insert({before : menu});
     var submenus = [];
 
     if (editor.isUnsupportedBrowser()) {
       submenus = [{
         name : 'input',
+        title: 'Info',
         items: [
           { key : 'readonlymessage', label : 'Unsuported browser mode', icon : 'exclamation-triangle'}
         ]
       }, {
         name : 'output',
+        title: 'Output',
         items: [
           { key : 'export',    label : 'Export', icon : 'file-export'},
           { key : 'close',     label : 'Close', icon : 'times'}
@@ -352,9 +362,10 @@ var Workspace = Class.create({
     } else {
       submenus = [];
       
-      if (DriveBackend.isAppScriptEnvironment()) {
+      if (DriveBackend.isAppScriptEnvironment() || (typeof window !== 'undefined' && window.location && window.location.search && window.location.search.indexOf('drive=1') !== -1)) {
         submenus.push({
           name : 'drive',
+          title: 'Google Drive',
           items: [
             { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
             { key : 'save-drive', label : 'Save XML', icon : 'save'},
@@ -365,12 +376,14 @@ var Workspace = Class.create({
 
       submenus = submenus.concat([{
         name : 'input',
+        title: 'Load',
         items: [
           { key : 'templates', label : 'Templates', icon : 'copy'},
           { key : 'import',    label : 'Import', icon : 'file-import'}
         ]
       }, {
         name : 'edit',
+        title: 'Edit',
         items: [
           { key : 'undo',     label : 'Undo', icon : 'undo'},
           { key : 'redo',     label : 'Redo', icon : 'redo'},
@@ -379,11 +392,13 @@ var Workspace = Class.create({
         ]
       }, {
         name : 'reset',
+        title: 'Reset',
         items: [
           { key : 'clear',  label : 'Clear all', icon : 'times-circle'}
         ]
       }, {
         name : 'output',
+        title: 'Output',
         items: [
           { key : 'export',    label : 'Export', icon : 'file-export'},
           { key : 'close',     label : 'Close', icon : 'times'}
@@ -391,8 +406,8 @@ var Workspace = Class.create({
       }]);
     }
     var _createSubmenu = function(data) {
-      var submenu = new Element('div', {'class' : data.name + '-actions action-group'});
-      menu.insert(submenu);
+      var submenu = new Element('div', {'class' : data.name + '-actions action-group', 'data-title' : data.title || ''});
+      actions.insert(submenu);
       data.items.each(function (item) {
         submenu.insert(_createMenuItem(item));
       });
@@ -408,11 +423,95 @@ var Workspace = Class.create({
     };
     submenus.each(_createSubmenu);
 
-    menu.insert(new Element('div', {'class': 'powered-by'})
+    actions.insert(new Element('div', {'class': 'powered-by'})
       .insert('Powered by ')
       .insert(new Element('a', {'href': 'https://phenotips.com/'})
         .update('PhenoTips')
         .insert(new Element('sup').update('&reg;'))));
+
+    this._setupMobileMenu(menu, mobileBar, actions);
+  },
+
+  /**
+   * Adds the compact mobile app bar behaviour: quick Undo/Redo shortcuts and a
+   * hamburger toggle that shows all actions in a dropdown sheet over the canvas.
+   * Shortcuts proxy clicks to the original menu items so all handlers stay in one place.
+   *
+   * @method _setupMobileMenu
+   */
+  _setupMobileMenu: function(menu, mobileBar, actions) {
+    var _createBarButton = function(cls, icon, title) {
+      var btn = new Element('button', {'type': 'button', 'class': 'mobile-bar-button ' + cls, 'title': title, 'aria-label': title});
+      btn.insert(new Element('span', {'class': 'fa fa-fw fa-' + icon}));
+      mobileBar.insert(btn);
+      return btn;
+    };
+
+    ['undo', 'redo'].each(function(key) {
+      var original = $('action-' + key);
+      if (!original) {
+        return;
+      }
+      menu.addClassName('has-quick-' + key);
+      var quick = _createBarButton('quick-' + key, key, key.charAt(0).toUpperCase() + key.slice(1));
+      quick.observe('click', function(e) {
+        e.stop();
+        original.click();
+      });
+    });
+
+    var toggle = new Element('button', {'type': 'button', 'class': 'mobile-bar-button menu-toggle', 'title': 'Menu', 'aria-label': 'Menu'});
+    toggle.insert(new Element('span', {'class': 'fa fa-fw fa-bars icon-open'}));
+    toggle.insert(new Element('span', {'class': 'fa fa-fw fa-times icon-close'}));
+    toggle.writeAttribute({'aria-expanded': 'false', 'aria-controls': 'editor-menu-actions'});
+    mobileBar.insert(toggle);
+
+    try {
+      if (window.FontAwesome && window.FontAwesome.dom && typeof window.FontAwesome.dom.i2svg === 'function') {
+        window.FontAwesome.dom.i2svg({node: mobileBar});
+      }
+    } catch (e) {}
+
+    var backdrop = new Element('div', {'class': 'mobile-menu-backdrop'});
+    menu.insert(backdrop);
+
+    var setOpen = function(open) {
+      if (open) {
+        menu.addClassName('mobile-open');
+      } else {
+        menu.removeClassName('mobile-open');
+      }
+      toggle.writeAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    this.closeMobileMenu = function() {
+      setOpen(false);
+    };
+
+    toggle.observe('click', function(e) {
+      e.stop();
+      setOpen(!menu.hasClassName('mobile-open'));
+    });
+    backdrop.observe('click', function(e) {
+      e.stop();
+      setOpen(false);
+    });
+    // Close after an action was chosen (the item's own handler still runs)
+    actions.observe('click', function(e) {
+      if (e.findElement('.menu-item')) {
+        setOpen(false);
+      }
+    });
+    document.observe('keydown', function(e) {
+      if (e.keyCode === 27 && menu.hasClassName('mobile-open')) {
+        setOpen(false);
+      }
+    });
+    Event.observe(window, 'resize', function() {
+      // e.g. orientation change or switching to the desktop layout
+      if (menu.hasClassName('mobile-open') && toggle.offsetParent === null) {
+        setOpen(false);
+      }
+    });
   },
 
   /**
@@ -876,8 +975,8 @@ var Workspace = Class.create({
   adjustSizeToScreen : function() {
     var screenDimensions = document.viewport ? document.viewport.getDimensions() : null;
     var topOffset = (this.canvas && this.canvas.cumulativeOffset) ? this.canvas.cumulativeOffset().top : 62;
-    var viewportWidth = (screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : (window.innerWidth || 800);
-    var viewportHeight = (screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : (window.innerHeight || 600);
+    var viewportWidth = (window.innerWidth && window.innerWidth > 0) ? window.innerWidth : ((screenDimensions && screenDimensions.width > 0) ? screenDimensions.width : 800);
+    var viewportHeight = (window.innerHeight && window.innerHeight > 0) ? window.innerHeight : ((screenDimensions && screenDimensions.height > 0) ? screenDimensions.height : 600);
 
     // If viewport dimensions are collapsed (e.g. background tab or zero height), avoid invalid SVG sizing
     if (viewportWidth <= 10 || viewportHeight <= 10) {

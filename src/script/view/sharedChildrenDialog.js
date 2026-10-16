@@ -168,7 +168,10 @@ var SharedChildrenDialog = Class.create({
     buttons.insert(new Element('span', { 'class': 'buttonwrapper' }).insert(cancelBtn));
     mainDiv.insert(buttons);
 
-    confirmBtn.observe('click', function() {
+    var onConfirm = function(ev) {
+      if (ev) {
+        try { ev.stop(); } catch (err) {}
+      }
       var selected = [];
       listContainer.select('.shared-child-checkbox').each(function(cb) {
         if (cb.checked) {
@@ -178,11 +181,18 @@ var SharedChildrenDialog = Class.create({
       _this._confirmed = true;
       _this.hide();
       _this._onConfirm(selected);
-    });
+    };
+    confirmBtn.observe('click', onConfirm);
+    confirmBtn.observe('touchend', onConfirm);
 
-    cancelBtn.observe('click', function() {
+    var onCancel = function(ev) {
+      if (ev) {
+        try { ev.stop(); } catch (err) {}
+      }
       _this.hide();
-    });
+    };
+    cancelBtn.observe('click', onCancel);
+    cancelBtn.observe('touchend', onCancel);
 
     var closeShortcut = ['Esc'];
     this.dialog = new PhenoTips.widgets.ModalPopup(

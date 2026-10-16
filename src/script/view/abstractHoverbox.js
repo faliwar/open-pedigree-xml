@@ -107,6 +107,42 @@ var AbstractHoverbox = Class.create({
     this.animateHideHoverZone = this.animateHideHoverZone.bind(this);
     // hide initially
     this.getBoxOnHover().attr({ opacity: 0 });
+
+    var onMaskTap = function(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (!me.isPinned()) {
+        me.pin();
+      } else {
+        if (typeof me.toggleMenu === 'function') {
+          me.toggleMenu(!me.isMenuToggled());
+        }
+      }
+    };
+    this._mask.click(onMaskTap);
+    if (this._mask.node) {
+      var maskMoved = false;
+      var maskStartX = 0, maskStartY = 0;
+      this._mask.node.addEventListener('touchstart', function(e) {
+        e.stopPropagation();
+        maskMoved = false;
+        var t = e.touches && e.touches[0];
+        if (t) { maskStartX = t.clientX; maskStartY = t.clientY; }
+      }, {passive: false});
+      this._mask.node.addEventListener('touchmove', function(e) {
+        var t = e.touches && e.touches[0];
+        if (t && (Math.abs(t.clientX - maskStartX) > 8 || Math.abs(t.clientY - maskStartY) > 8)) {
+          maskMoved = true;
+        }
+      }, {passive: true});
+      this._mask.node.addEventListener('touchend', function(e) {
+        e.stopPropagation();
+        if (!maskMoved) {
+          if (e.cancelable) e.preventDefault();
+          onMaskTap(e);
+        }
+      }, {passive: false});
+    }
+
     this.enable();
     //timer.printSinceLast("=== abstract howerbox runtime: ");
     this._isMenuToggled = false;
@@ -413,11 +449,10 @@ var AbstractHoverbox = Class.create({
       me.toggleMenu(!me.isMenuToggled());
     };
     var attributes = PedigreeEditorParameters.attributes.menuBtnIcon;
-    var x = this.getX() + this.getWidth() - 20 - this.getWidth() / 40;
-    var y = this.getY() + this.getHeight() / 40;
+    var x = this.getX() + 4;
+    var y = this.getY() + 4;
     this.createButton(x, y, editor.getView().__menuButton_svgPath, editor.getView().__menuButton_BBox,
       attributes, action, 'menu-trigger', 'node properties');
-
   },
   /**
      * Creates and returns a delete button (big red X).
@@ -548,7 +583,7 @@ var AbstractHoverbox = Class.create({
     var orb = generateOrb(editor.getPaper(), orbX, orbY, orbRadius * 1.1).attr('cursor', 'pointer');
     orb[0].attr(normalOrbAttr);
 
-    var hitRadius = 20;
+    var hitRadius = touchPresent ? 24 : 20;
     var hitArea = editor.getPaper().circle(orbX, orbY, hitRadius).attr({
       fill: '#ffffff',
       'fill-opacity': 0,
@@ -798,6 +833,9 @@ var AbstractHoverbox = Class.create({
     return false;
   },
 
+  toggleMenu: function (isMenuToggled) {
+  },
+
   /*
      * Fades the hoverbox graphics in
      *
@@ -918,5 +956,11 @@ var AbstractHoverbox = Class.create({
     this._isMenuToggled = true;
   }
 });
+
+AbstractHoverbox.unpinAll = function (hide) {
+  if (AbstractHoverbox.pinnedHoverbox) {
+    AbstractHoverbox.pinnedHoverbox.unpin(hide);
+  }
+};
 
 export default AbstractHoverbox;

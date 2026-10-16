@@ -100,9 +100,14 @@ var DriveFileSelector = Class.create({
     mainDiv.insert(buttons);
 
     var cancelButton = buttons.down('input[name="cancel"]');
-    cancelButton.observe('click', function () {
+    var onCancel = function (event) {
+      if (event) {
+        try { event.stop(); } catch (err) {}
+      }
       _this.hide();
-    });
+    };
+    cancelButton.observe('click', onCancel);
+    cancelButton.observe('touchend', onCancel);
 
     // Create and show the dialog
     var closeShortcut = ['Esc'];
@@ -111,7 +116,8 @@ var DriveFileSelector = Class.create({
     }, {
       extraClassName: 'pedigree-import-chooser pedigree-drive-chooser',
       title: 'Open XML from Drive',
-      displayCloseButton: true
+      displayCloseButton: true,
+      removeOnClose: true
     });
 
     this._dialog.show();
@@ -135,7 +141,12 @@ var DriveFileSelector = Class.create({
    */
   hide: function () {
     if (this._dialog) {
-      this._dialog.closeDialog();
+      var d = this._dialog;
+      this._dialog = null;
+      d.closeDialog();
+      if (d.dialog && d.dialog.parentNode) {
+        d.dialog.remove();
+      }
     }
   },
 
@@ -215,19 +226,29 @@ var DriveFileSelector = Class.create({
       'data-file-id': file.id,
       'data-file-name': file.name
     });
-    openBtn.observe('click', function () {
+    var onOpen = function (ev) {
+      if (ev) {
+        try { ev.stop(); } catch (err) {}
+      }
       _this._onFileSelected(file.id, file.name);
-    });
+    };
+    openBtn.observe('click', onOpen);
+    openBtn.observe('touchend', onOpen);
     actionCell.insert(openBtn);
     row.insert(actionCell);
 
     // Make entire row clickable
-    row.observe('click', function (event) {
+    var onRowClick = function (event) {
       // Don't trigger if clicking the button itself
       if (event.target.tagName !== 'INPUT') {
+        if (event && event.type === 'touchend') {
+          try { event.stop(); } catch (err) {}
+        }
         _this._onFileSelected(file.id, file.name);
       }
-    });
+    };
+    row.observe('click', onRowClick);
+    row.observe('touchend', onRowClick);
 
     return row;
   },

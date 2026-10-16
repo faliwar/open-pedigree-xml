@@ -38,7 +38,9 @@ var NodeMenu = Class.create({
 
     this.closeButton = new Element('span', {'class' : 'close-button'}).update('×');
     this.menuBox.insert({'top': this.closeButton});
-    this.closeButton.observe('click', this.hide.bindAsEventListener(this));
+    var hideMenu = this.hide.bindAsEventListener(this);
+    this.closeButton.observe('click', hideMenu);
+    this.closeButton.observe('touchend', hideMenu);
 
     this.form = new Element('form', {'method' : 'get', 'action' : '', 'class': 'tabs-content'});
 
@@ -826,13 +828,20 @@ var NodeMenu = Class.create({
     this._setCrtData(node.getSummary());
     this.menuBox.show();
     this.reposition(x, y);
-    document.observe('mousedown', this._onClickOutside);
+    if (!this._boundOnClickOutside) {
+      this._boundOnClickOutside = this._onClickOutside.bind(this);
+    }
+    document.observe('mousedown', this._boundOnClickOutside);
+    document.observe('touchend', this._boundOnClickOutside);
   },
 
   hide : function() {
     this.hideSuggestPicker();
     this._onscreen = false;
-    document.stopObserving('mousedown', this._onClickOutside);
+    if (this._boundOnClickOutside) {
+      document.stopObserving('mousedown', this._boundOnClickOutside);
+      document.stopObserving('touchend', this._boundOnClickOutside);
+    }
     if (this.targetNode) {
       this.targetNode.onWidgetHide();
       delete this.targetNode;
@@ -860,6 +869,29 @@ var NodeMenu = Class.create({
   },
 
   reposition : function(x, y) {
+    var isMobile = (window.innerWidth <= 768);
+    if (isMobile) {
+      // On mobile, .menu-box is fixed at the bottom of the screen (bottom sheet via CSS).
+      // Never pan horizontally (which disaligns the canvas) or override fixed CSS positioning!
+      if (this.targetNode && this.targetNode.getGraphics) {
+        var nodeGraphics = this.targetNode.getGraphics();
+        if (nodeGraphics && typeof nodeGraphics.getX === 'function') {
+          var nodeScreenPos = editor.getWorkspace().canvasToDiv(nodeGraphics.getX(), nodeGraphics.getY());
+          var menuHeight = (this.menuBox && this.menuBox.getHeight) ? this.menuBox.getHeight() : Math.round(window.innerHeight * 0.5);
+          var menuTop = window.innerHeight - menuHeight - 10;
+          var topBarBottom = 54;
+          // If the node is hidden behind the bottom sheet or above the top bar, gently shift vertically:
+          if (nodeScreenPos.y > menuTop - 40 || nodeScreenPos.y < topBarBottom + 20) {
+            var targetScreenY = Math.max(topBarBottom + 50, Math.min(menuTop - 60, (topBarBottom + menuTop) / 2));
+            var deltaScreenY = nodeScreenPos.y - targetScreenY;
+            var zoom = editor.getWorkspace().zoomCoefficient || 1;
+            editor.getWorkspace().panTo(editor.getWorkspace().viewBoxX, editor.getWorkspace().viewBoxY + Math.floor(deltaScreenY / zoom), true);
+          }
+        }
+      }
+      return;
+    }
+
     x = Math.floor(x);
     if (x !== undefined && isFinite(x)) {
       if (this.canvas && x + this.menuBox.getWidth() > (this.canvas.getWidth() + 10)) {
