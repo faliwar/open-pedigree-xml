@@ -45,18 +45,20 @@ var Workspace = Class.create({
     Event.observe (window, 'resize', me.adjustSizeToScreen);
     this.generateViewControls();
 
-    //Initialize pan by dragging
-    var start = function() {
-      if (editor.isAnyMenuVisible()) {
+    // Initialize pan by dragging (desktop mouse)
+    var start = function(x, y, evt) {
+      if (evt && (evt.type === 'touchstart' || (evt.touches && evt.touches.length > 0))) return;
+      if (editor && editor.isAnyMenuVisible && editor.isAnyMenuVisible()) {
         return;
       }
       me.background.isDragged = false;
       me.background.ox = me.viewBoxX;
       me.background.oy = me.viewBoxY;
-      //me.background.attr({cursor: 'url(https://mail.google.com/mail/images/2/closedhand.cur)'});
       me.background.attr({cursor: 'move'});
     };
-    var move = function(dx, dy) {
+    var move = function(dx, dy, x, y, evt) {
+      if (evt && (evt.type === 'touchmove' || (evt.touches && evt.touches.length > 0))) return;
+      if (me._isPinching) return;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         me.background.isDragged = true;
       }
@@ -71,7 +73,8 @@ var Workspace = Class.create({
       me.background.oy = deltay;
       me.background.attr({x: deltax, y: deltay, width: w, height: h });
     };
-    var end = function() {
+    var end = function(evt) {
+      if (evt && (evt.type === 'touchend' || (evt.touches && evt.touches.length > 0))) return;
       me.viewBoxX = me.background.ox;
       me.viewBoxY = me.background.oy;
       me.background.attr({cursor: 'default'});
@@ -84,8 +87,140 @@ var Workspace = Class.create({
       AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
     });
 
+    // Mobile Touch Gestures: 1-finger canvas panning and 2-finger pinch-to-zoom
+    var isPinching = false;
+    var pinchStartDist = 0;
+    var pinchStartZoom = 1;
+    var pinchAnchorCanvas = {x: 0, y: 0};
+
+    var isPanning = false;
+    var panStartTouch = {clientX: 0, clientY: 0};
+    var panStartViewBox = {x: 0, y: 0};
+    var isPanMoved = false;
+
+    var isBackgroundTarget = function(target) {
+      if (!target) return false;
+      if (target === me.background.node || target === me._paper.canvas || target === me.canvas) return true;
+      if (target.classList && target.classList.contains('panning-background')) return true;
+      if (target.tagName && target.tagName.toLowerCase() === 'svg') return true;
+      return false;
+    };
+
+    var onCanvasTouchStart = function(e) {
+      if (editor && editor.isAnyMenuVisible && editor.isAnyMenuVisible()) {
+        return;
+      }
+      if (e.touches.length === 2) {
+        isPinching = true;
+        isPanning = false;
+        me._isPinching = true;
+
+        var t1 = e.touches[0];
+        var t2 = e.touches[1];
+        pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        pinchStartZoom = me.zoomCoefficient || 1;
+
+        var midClientX = (t1.clientX + t2.clientX) / 2;
+        var midClientY = (t1.clientY + t2.clientY) / 2;
+        var midDiv = me.viewportToDiv(midClientX, midClientY);
+        pinchAnchorCanvas = me.divToCanvas(midDiv.x, midDiv.y);
+
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (e.touches.length === 1) {
+        isPinching = false;
+        me._isPinching = false;
+        if (isBackgroundTarget(e.target)) {
+          isPanning = true;
+          isPanMoved = false;
+          panStartTouch = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+          panStartViewBox = { x: me.viewBoxX, y: me.viewBoxY };
+        } else {
+          isPanning = false;
+        }
+      }
+    };
+
+    var onCanvasTouchMove = function(e) {
+      if (isPinching && e.touches.length >= 2) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        var t1 = e.touches[0];
+        var t2 = e.touches[1];
+        var currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        if (pinchStartDist > 0) {
+          var scale = currentDist / pinchStartDist;
+          var newZoom = Math.min(1.25, Math.max(0.15, pinchStartZoom * scale));
+
+          var currentMidClientX = (t1.clientX + t2.clientX) / 2;
+          var currentMidClientY = (t1.clientY + t2.clientY) / 2;
+          var curMidDiv = me.viewportToDiv(currentMidClientX, currentMidClientY);
+
+          var newW = Math.max(10, (me.width || 800) / newZoom);
+          var newH = Math.max(10, (me.height || 600) / newZoom);
+
+          me.viewBoxX = pinchAnchorCanvas.x - curMidDiv.x / newZoom;
+          me.viewBoxY = pinchAnchorCanvas.y - curMidDiv.y / newZoom;
+          me.zoomCoefficient = newZoom;
+
+          me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, newW, newH);
+          me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: newW, height: newH});
+          me.syncSliderToZoom(newZoom);
+        }
+      } else if (isPanning && e.touches.length === 1) {
+        e.preventDefault();
+        var dx = e.touches[0].clientX - panStartTouch.clientX;
+        var dy = e.touches[0].clientY - panStartTouch.clientY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          isPanMoved = true;
+        }
+        var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+        var w = Math.max(10, (me.width || 800) / zoom);
+        var h = Math.max(10, (me.height || 600) / zoom);
+        var curX = panStartViewBox.x - dx / zoom;
+        var curY = panStartViewBox.y - dy / zoom;
+
+        me.getPaper().setViewBox(curX, curY, w, h);
+        me.background.attr({x: curX, y: curY, width: w, height: h});
+        me.viewBoxX = curX;
+        me.viewBoxY = curY;
+      }
+    };
+
+    var onCanvasTouchEnd = function(e) {
+      if (isPinching) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.touches.length === 1) {
+          // Smooth 2-to-1 finger transition: update pan reference so canvas does not jump
+          isPinching = false;
+          me._isPinching = false;
+          isPanning = true;
+          isPanMoved = true;
+          panStartTouch = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+          panStartViewBox = { x: me.viewBoxX, y: me.viewBoxY };
+        } else if (e.touches.length === 0) {
+          isPinching = false;
+          me._isPinching = false;
+          isPanning = false;
+        }
+      } else if (isPanning) {
+        if (e.touches.length === 0) {
+          isPanning = false;
+          if (!isPanMoved) {
+            AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
+          }
+        }
+      }
+    };
+
+    this.canvas.addEventListener('touchstart', onCanvasTouchStart, {passive: false});
+    window.addEventListener('touchmove', onCanvasTouchMove, {passive: false});
+    window.addEventListener('touchend', onCanvasTouchEnd, {passive: false});
+    window.addEventListener('touchcancel', onCanvasTouchEnd, {passive: false});
+
     if (document.addEventListener) {
-      // adapted from from raphaelZPD
       me.handleMouseWheel = function(evt) {
         if (evt.preventDefault) {
           evt.preventDefault();
@@ -93,26 +228,27 @@ var Workspace = Class.create({
           evt.returnValue = false;
         }
 
-        // disable while menu is active - too easy to scroll and get the active node out of sight, which is confusing
-        if (editor.isAnyMenuVisible()) {
+        if (editor && editor.isAnyMenuVisible && editor.isAnyMenuVisible()) {
           return;
         }
 
-        var delta;
-        if (evt.wheelDelta) {
+        var delta = 0;
+        if (evt.deltaY !== undefined) {
+          delta = evt.deltaY;
+        } else if (evt.wheelDelta !== undefined) {
           delta = -evt.wheelDelta;
-        } // Chrome/Safari
-        else {
+        } else if (evt.detail !== undefined) {
           delta = evt.detail;
-        } // Mozilla
+        }
 
         if (delta > 0) {
           me.__zoom['out'].click();
-        } else {
+        } else if (delta < 0) {
           me.__zoom['in'].click();
         }
       };
 
+      this.canvas.addEventListener('wheel', me.handleMouseWheel, {passive: false});
       if (navigator.userAgent.toLowerCase().indexOf('webkit') >= 0) {
         this.canvas.addEventListener('mousewheel', me.handleMouseWheel, false); // Chrome/Safari
       } else {
@@ -255,19 +391,66 @@ var Workspace = Class.create({
   },
 
   /**
-     * Adjusts the canvas viewbox to the given zoom coefficient
-     *
-     * @method zoom
-     * @param {Number} zoomCoefficient The zooming ratio
-     */
-  zoom: function(zoomCoefficient) {
+   * Converts zoom coefficient to slider value ratio [0, 1]
+   */
+  zoomToSliderValue: function(zoom) {
+    if (zoom >= 0.25) {
+      return Math.max(0, Math.min(0.9, (1.25 - zoom) * 0.9));
+    } else {
+      return Math.max(0.9, Math.min(1.0, 1.15 - zoom));
+    }
+  },
+
+  /**
+   * Converts slider value ratio [0, 1] to zoom coefficient
+   */
+  sliderValueToZoom: function(val) {
+    if (val <= 0.9) {
+      return 1.25 - (val / 0.9);
+    } else {
+      return 1.15 - val;
+    }
+  },
+
+  /**
+   * Synchronizes the slider handle position and internal value with the given zoom
+   */
+  syncSliderToZoom: function(zoom) {
+    var ratio = this.zoomToSliderValue(zoom);
+    this.syncSliderHandlePosition(ratio);
+    if (this.zoomSlider) {
+      this.zoomSlider.value = ratio;
+      this.zoomSlider.values = [ratio];
+    }
+  },
+
+  /**
+   * Sets the slider handle top position based on value ratio [0, 1]
+   */
+  syncSliderHandlePosition: function(ratio) {
+    if (this.__zoom && this.__zoom.handle && this.__zoom.track) {
+      var trackH = this.__zoom.track.offsetHeight || 200;
+      var handleH = this.__zoom.handle.offsetHeight || 12;
+      var topPx = Math.round(ratio * (trackH - handleH));
+      this.__zoom.handle.style.top = topPx + 'px';
+    }
+  },
+
+  /**
+   * Adjusts the canvas viewbox to the given zoom coefficient
+   *
+   * @method zoom
+   * @param {Number} zoomCoefficient The zooming ratio
+   * @param {Boolean} skipSliderSync Optional flag to skip updating slider handle
+   */
+  zoom: function(zoomCoefficient, skipSliderSync) {
     if (zoomCoefficient < 0.15) {
       zoomCoefficient = 0.15;
     }
-    if (zoomCoefficient > 0.15 && zoomCoefficient < 0.25) {
-      zoomCoefficient = 0.25;
+    if (zoomCoefficient > 1.25) {
+      zoomCoefficient = 1.25;
     }
-    zoomCoefficient = Math.round(zoomCoefficient/0.05)/20;
+    zoomCoefficient = Math.round(zoomCoefficient * 100) / 100;
     var w = Math.max(100, this.width || 800);
     var h = Math.max(100, this.height || 600);
     var currentZoom = (this.zoomCoefficient && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
@@ -278,58 +461,149 @@ var Workspace = Class.create({
     this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
     this.zoomCoefficient = zoomCoefficient;
     this.background.attr({x: this.viewBoxX, y: this.viewBoxY, width: newWidth, height: newHeight});
+    if (!skipSliderSync) {
+      this.syncSliderToZoom(zoomCoefficient);
+    }
   },
 
   /**
-     * Creates the controls for panning and zooming
-     *
-     * @method generateViewControls
-     */
+   * Creates the controls for panning and zooming
+   *
+   * @method generateViewControls
+   */
   generateViewControls : function() {
     var _this = this;
     this.__controls = new Element('div', {'class' : 'view-controls'});
+
     // Pan controls
     this.__pan = new Element('div', {'class' : 'view-controls-pan', title : 'Pan'});
     this.__controls.insert(this.__pan);
+
+    var triggerPanAction = function(direction, evt) {
+      if (evt) {
+        evt.preventDefault && evt.preventDefault();
+        evt.stopPropagation && evt.stopPropagation();
+        if (evt.stop) evt.stop();
+      }
+      if (direction === 'home') {
+        _this.centerAroundNode();
+      } else if (direction === 'up') {
+        _this.panTo(_this.viewBoxX, _this.viewBoxY - 300);
+      } else if (direction === 'down') {
+        _this.panTo(_this.viewBoxX, _this.viewBoxY + 300);
+      } else if (direction === 'left') {
+        _this.panTo(_this.viewBoxX - 300, _this.viewBoxY);
+      } else if (direction === 'right') {
+        _this.panTo(_this.viewBoxX + 300, _this.viewBoxY);
+      }
+    };
+
     ['up', 'right', 'down', 'left', 'home'].each(function (direction) {
       var faIconClass = (direction == 'home') ? 'fa-user' : 'fa-arrow-' + direction;
-      _this.__pan[direction] = new Element('span', {'class' : 'view-control-pan pan-' + direction + ' fa fa-fw ' + faIconClass, 'title' : 'Pan ' + direction});
+      _this.__pan[direction] = new Element('span', {
+        'class' : 'view-control-pan pan-' + direction,
+        'title' : (direction == 'home' ? 'Center on proband' : 'Pan ' + direction)
+      });
+      _this.__pan[direction].insert(new Element('i', {'class' : 'fa fa-fw ' + faIconClass}));
       _this.__pan.insert(_this.__pan[direction]);
-      _this.__pan[direction].observe('click', function(event) {
-        if (direction == 'home') {
-          _this.centerAroundNode(0);
-        } else if(direction == 'up') {
-          _this.panTo(_this.viewBoxX, _this.viewBoxY - 300);
-        } else if(direction == 'down') {
-          _this.panTo(_this.viewBoxX, _this.viewBoxY + 300);
-        } else if(direction == 'left') {
-          _this.panTo(_this.viewBoxX - 300, _this.viewBoxY);
-        } else {
-          _this.panTo(_this.viewBoxX + 300, _this.viewBoxY);
-        }
+
+      var lastDirTouchTime = 0;
+      _this.__pan[direction].addEventListener('touchend', function(e) {
+        lastDirTouchTime = Date.now();
+        triggerPanAction(direction, e);
+      }, {passive: false});
+      _this.__pan[direction].addEventListener('click', function(e) {
+        if (Date.now() - lastDirTouchTime < 400) return;
+        triggerPanAction(direction, e);
       });
     });
+
+    // Circular widget container handler (supports clicking anywhere in quadrants or center)
+    var lastPanTouchTime = 0;
+    var handlePanInput = function(e) {
+      if (e) {
+        e.preventDefault && e.preventDefault();
+        e.stopPropagation && e.stopPropagation();
+        if (e.stop) e.stop();
+      }
+
+      var target = e.target;
+      while (target && target !== _this.__pan && !(target.classList && target.classList.contains('view-control-pan'))) {
+        target = target.parentNode;
+      }
+      if (target && target.classList && target.classList.contains('view-control-pan')) {
+        var foundDir = null;
+        ['up', 'right', 'down', 'left', 'home'].each(function(dir) {
+          if (target.classList.contains('pan-' + dir)) {
+            foundDir = dir;
+          }
+        });
+        if (foundDir) {
+          triggerPanAction(foundDir, e);
+          return;
+        }
+      }
+
+      // Check coordinates relative to center of circle
+      var rect = _this.__pan.getBoundingClientRect();
+      var clientX = e.clientX;
+      var clientY = e.clientY;
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      }
+      if (clientX !== undefined && clientY !== undefined) {
+        var relX = clientX - (rect.left + rect.width / 2);
+        var relY = clientY - (rect.top + rect.height / 2);
+        var dist = Math.hypot(relX, relY);
+        if (dist <= 15) {
+          triggerPanAction('home', e);
+        } else if (Math.abs(relX) > Math.abs(relY)) {
+          triggerPanAction(relX > 0 ? 'right' : 'left', e);
+        } else {
+          triggerPanAction(relY > 0 ? 'down' : 'up', e);
+        }
+      }
+    };
+
+    this.__pan.addEventListener('touchstart', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }, {passive: false});
+
+    this.__pan.addEventListener('touchend', function(e) {
+      lastPanTouchTime = Date.now();
+      handlePanInput(e);
+    }, {passive: false});
+
+    this.__pan.addEventListener('click', function(e) {
+      if (Date.now() - lastPanTouchTime < 400) return;
+      handlePanInput(e);
+    });
+
     // Zoom controls
     var trackLength = 200;
     this.__zoom = new Element('div', {'class' : 'view-controls-zoom', title : 'Zoom'});
     this.__controls.insert(this.__zoom);
     this.__zoom.track  = new Element('div', {'class' : 'zoom-track'});
     this.__zoom.handle = new Element('div', {'class' : 'zoom-handle', title : 'Drag to zoom'});
-    this.__zoom['in']  = new Element('div', {'class' : 'zoom-button zoom-in fa fa-fw fa-search-plus', title : 'Zoom in'});
-    this.__zoom['out'] = new Element('div', {'class' : 'zoom-button zoom-out fa fa-fw fa-search-minus', title : 'Zoom out'});
+    this.__zoom['in']  = new Element('div', {'class' : 'zoom-button zoom-in', title : 'Zoom in'});
+    this.__zoom['in'].insert(new Element('i', {'class' : 'fa fa-fw fa-search-plus'}));
+    this.__zoom['out'] = new Element('div', {'class' : 'zoom-button zoom-out', title : 'Zoom out'});
+    this.__zoom['out'].insert(new Element('i', {'class' : 'fa fa-fw fa-search-minus'}));
     this.__zoom.label  = new Element('div', {'class' : 'zoom-crt-value'});
+
     this.__zoom.insert(this.__zoom['in']);
     this.__zoom.insert(this.__zoom.track);
     this.__zoom.track.insert(this.__zoom.handle);
     this.__zoom.track.style.height = trackLength + 'px';
-    this.__zoom.insert(this.__zoom.out);
+    this.__zoom.insert(this.__zoom['out']);
     this.__zoom.insert(this.__zoom.label);
-    // Scriptaculous slider
-    // see also http://madrobby.github.com/scriptaculous/slider/
-    //
-    // Here a non-linear scale is used: slider positions form [0 to 0.9] correspond to
-    // zoom coefficients from 1.25x to 0.25x, and zoom positions from (0.9 to 1]
-    // correspond to single deepest zoom level 0.15x
+
+    // Scriptaculous slider for desktop mouse dragging
     this.zoomSlider = new Control.Slider(this.__zoom.handle, this.__zoom.track, {
       axis:'vertical',
       minimum: 0,
@@ -337,46 +611,113 @@ var Workspace = Class.create({
       increment : 1,
       alignY: 6,
       onSlide : function (value) {
-        // Called whenever the Slider is moved by dragging.
-        // The called function gets the slider value (or array if slider has multiple handles) as its parameter.
-        if (value <= 0.9) {
-          _this.zoom(-value/0.9 + 1.25);
-        } else {
-          _this.zoom(0.15);
-        }
+        _this.zoom(_this.sliderValueToZoom(value), true);
       },
       onChange : function (value) {
-        // Called whenever the Slider has finished moving or has had its value changed via the setSlider Value function.
-        // The called function gets the slider value (or array if slider has multiple handles) as its parameter.
-        if (value <= 0.9) {
-          _this.zoom(-value/0.9 + 1.25);
-        } else {
-          _this.zoom(0.15);
-        }
+        _this.zoom(_this.sliderValueToZoom(value), true);
       }
     });
-    if (editor.isUnsupportedBrowser()) {
-      this.zoomSlider.setValue(0.25 * 0.9); // 0.25 * 0.9 corresponds to zoomCoefficient of 1, i.e. 1:1
-      // - for best chance of decent looks on non-SVG browsers like IE8
+
+    if (editor && editor.isUnsupportedBrowser && editor.isUnsupportedBrowser()) {
+      this.zoomSlider.setValue(0.25 * 0.9);
     } else {
-      this.zoomSlider.setValue(0.5 * 0.9);  // 0.5 * 0.9 corresponds to zoomCoefficient of 0.75x
+      this.zoomSlider.setValue(0.5 * 0.9);
     }
-    this.__zoom['in'].observe('click', function(event) {
-      if (_this.zoomCoefficient < 0.25) {
-        _this.zoomSlider.setValue(0.9);
-      }   // zoom in from the any value below 0.25x goes to 0.25x (which is 0.9 on the slider)
-      else {
-        _this.zoomSlider.setValue(-(_this.zoomCoefficient - 1)*0.9);
-      }     // +0.25x
+
+    // Step zoom helper for + and - buttons
+    var lastZoomTouchTime = 0;
+    var stepZoom = function(delta, evt) {
+      if (evt) {
+        evt.preventDefault && evt.preventDefault();
+        evt.stopPropagation && evt.stopPropagation();
+        if (evt.stop) evt.stop();
+      }
+      var curZoom = _this.zoomCoefficient || 1;
+      var newZoom = Math.min(1.25, Math.max(0.15, Math.round((curZoom + delta) * 100) / 100));
+      if (Math.abs(newZoom - curZoom) > 0.001) {
+        _this.zoom(newZoom);
+      }
+    };
+
+    this.__zoom['in'].addEventListener('touchstart', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }, {passive: false});
+
+    this.__zoom['in'].addEventListener('touchend', function(e) {
+      lastZoomTouchTime = Date.now();
+      stepZoom(+0.15, e);
+    }, {passive: false});
+
+    this.__zoom['in'].addEventListener('click', function(e) {
+      if (Date.now() - lastZoomTouchTime < 400) return;
+      stepZoom(+0.15, e);
     });
-    this.__zoom['out'].observe('click', function(event) {
-      if (_this.zoomCoefficient <= 0.25) {
-        _this.zoomSlider.setValue(1);
-      }     // zoom out from 0.25x goes to the final slider position
-      else {
-        _this.zoomSlider.setValue(-(_this.zoomCoefficient - 1.5)*0.9);
-      }   // -0.25x
+
+    this.__zoom['out'].addEventListener('touchstart', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }, {passive: false});
+
+    this.__zoom['out'].addEventListener('touchend', function(e) {
+      lastZoomTouchTime = Date.now();
+      stepZoom(-0.15, e);
+    }, {passive: false});
+
+    this.__zoom['out'].addEventListener('click', function(e) {
+      if (Date.now() - lastZoomTouchTime < 400) return;
+      stepZoom(-0.15, e);
     });
+
+    // Touch support for slider track and handle (mobile touch dragging & tapping)
+    var isDraggingSlider = false;
+    var updateSliderFromTouch = function(e) {
+      var touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+      if (!touch) return;
+      var trackRect = _this.__zoom.track.getBoundingClientRect();
+      var trackH = trackRect.height || 200;
+      var offsetY = touch.clientY - trackRect.top;
+      var ratio = Math.max(0, Math.min(1, offsetY / trackH));
+      var targetZoom = _this.sliderValueToZoom(ratio);
+      _this.zoom(targetZoom, true);
+      _this.syncSliderHandlePosition(ratio);
+      if (_this.zoomSlider) {
+        _this.zoomSlider.value = ratio;
+        _this.zoomSlider.values = [ratio];
+      }
+    };
+
+    var onSliderTouchStart = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingSlider = true;
+      updateSliderFromTouch(e);
+      window.addEventListener('touchmove', onWindowSliderTouchMove, {passive: false});
+      window.addEventListener('touchend', onWindowSliderTouchEnd, {passive: false});
+      window.addEventListener('touchcancel', onWindowSliderTouchEnd, {passive: false});
+    };
+
+    var onWindowSliderTouchMove = function(e) {
+      if (!isDraggingSlider) return;
+      e.preventDefault();
+      e.stopPropagation();
+      updateSliderFromTouch(e);
+    };
+
+    var onWindowSliderTouchEnd = function(e) {
+      if (!isDraggingSlider) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingSlider = false;
+      updateSliderFromTouch(e);
+      window.removeEventListener('touchmove', onWindowSliderTouchMove);
+      window.removeEventListener('touchend', onWindowSliderTouchEnd);
+      window.removeEventListener('touchcancel', onWindowSliderTouchEnd);
+    };
+
+    this.__zoom.track.addEventListener('touchstart', onSliderTouchStart, {passive: false});
+    this.__zoom.handle.addEventListener('touchstart', onSliderTouchStart, {passive: false});
+
     // Insert all controls in the document
     this.getWorkArea().insert(this.__controls);
   },
@@ -549,7 +890,12 @@ var Workspace = Class.create({
      * @param {Number} nodeID The id of the node
      */
   centerAroundNode: function(nodeID, instant, xCenterShift, yCenterShift) {
-    var node = editor.getNode(nodeID);
+    var probandId = 0;
+    if (editor && editor.getGraph && typeof editor.getGraph().getProbandId === 'function') {
+      probandId = editor.getGraph().getProbandId();
+    }
+    var targetId = (nodeID !== undefined && editor && editor.getNode && editor.getNode(nodeID)) ? nodeID : probandId;
+    var node = (editor && editor.getNode) ? (editor.getNode(targetId) || editor.getNode(0)) : null;
     if(node) {
       var x = node.getX(),
         y = node.getY();
@@ -562,6 +908,8 @@ var Workspace = Class.create({
       var xOffset = this.getWidth()/this.zoomCoefficient;
       var yOffset = this.getHeight()/this.zoomCoefficient;
       this.panTo(x - xOffset/2 - xCenterShift, y - yOffset/2 - yCenterShift, instant);
+    } else {
+      this.panTo(0, 0, instant);
     }
   }
 });

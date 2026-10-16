@@ -974,6 +974,19 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     var hasLabels = false;
 
+    // Labels carry translate transforms from previous moves (setPos). Work in absolute
+    // coordinates: stop pending animations, drop transforms and re-anchor on the node's X.
+    var curX = this.getX();
+    if (this._labelsBox) {
+      this._labelsBox.stop();
+      this._labelsBox.transform('');
+    }
+    for (var j = 0; j < labels.length; j++) {
+      labels[j].stop();
+      labels[j].transform('');
+      labels[j].attr('x', curX);
+    }
+
     for (var i = 0; i < labels.length; i++) {
       var offset = (labels[i].alignTop) ? (getElementHalfHeight(labels[i]) - 7) : 0;
       labels[i].attr('y', startY + offset);

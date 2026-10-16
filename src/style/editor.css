@@ -106,94 +106,167 @@
   left: 10px;
   top: 10px;
   padding: 4px;
-  opacity: .8;
+  opacity: .85;
   z-index: 100000;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: opacity 0.2s ease;
 }
 .view-controls:hover {
-  /* opacity: 1; */
+  opacity: 1;
+}
+.view-controls svg {
+  pointer-events: none;
 }
 /* ----------------------------------------
  * Pan
  */
 .view-controls-pan {
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   left: 0;
   top: 0;
   position: absolute;
-  border: 1px solid #aaa;
+  border: 1px solid #bbb;
   background: #FFF;
-  border-radius: 30px;
-  box-shadow: 0 0 6px #AAAAAA;
+  border-radius: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
-.view-controls-pan * {
-  width: 16px;
-  height: 16px;
+.view-control-pan {
   position: absolute;
   cursor: pointer;
-  line-height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  transition: color 0.15s ease, transform 0.1s ease;
 }
 .view-control-pan:hover, .view-controls-zoom .zoom-button:hover {
   color: #0089DC;
 }
+.view-control-pan:active, .view-controls-zoom .zoom-button:active {
+  color: #006eb0;
+}
 .view-controls-pan .pan-up {
-  top: 4px;
-  left: 22px;
+  top: 2px;
+  left: 20px;
+  width: 24px;
+  height: 20px;
+  font-size: 13px;
 }
 .view-controls-pan .pan-right {
-  top: 22px;
-  right: 4px;
+  top: 20px;
+  right: 2px;
+  width: 20px;
+  height: 24px;
+  font-size: 13px;
 }
 .view-controls-pan .pan-down {
-  bottom: 4px;
-  left: 22px;
+  bottom: 2px;
+  left: 20px;
+  width: 24px;
+  height: 20px;
+  font-size: 13px;
 }
 .view-controls-pan .pan-left {
-  top: 22px;
-  left: 4px;
+  top: 20px;
+  left: 2px;
+  width: 20px;
+  height: 24px;
+  font-size: 13px;
 }
 .view-controls-pan .pan-home {
-  top: 22px;
-  left: 22px;
-  font-size: 12px;
+  top: 20px;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  border-radius: 50%;
 }
 /* ----------------------------------------
  * Zoom
  */
 .view-controls-zoom {
-  width: 60px;
+  width: 64px;
   left: 0;
-  top: 70px;
+  top: 74px;
   position: absolute;
   text-align: center;
-}
-.view-controls-zoom * {
-  background: #FFF;
-  border: 1px solid #aaa;
-  border-radius: 4px;
-  box-shadow: 0 0 6px #AAAAAA;
-  margin: auto;
-}
-.view-controls-zoom .zoom-track {
-  width: 4px;
-  height: 200px;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 .view-controls-zoom .zoom-button {
+  background: #FFF;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
   cursor: pointer;
-  line-height: 20px;
-  width: 20px;
-  height: 20px;
-  padding: 2px 2px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #555;
+  margin: 0 auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.view-controls-zoom .zoom-track {
+  width: 6px;
+  height: 200px;
+  position: relative;
+  background: #FFF;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  margin: 6px auto;
+  cursor: pointer;
+  touch-action: none;
+}
+.view-controls-zoom .zoom-track::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: -18px;
+  width: 42px;
+  cursor: pointer;
 }
 .view-controls-zoom .zoom-handle {
+  background: #FFF;
+  border: 1px solid #888;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   position: absolute;
   top: 0;
-  left: 0;
-  width: 20px;
-  height: 10px;
-  margin-left: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 12px;
+  margin-left: 0;
+  touch-action: none;
+  z-index: 2;
+  transition: background 0.15s ease;
+}
+.view-controls-zoom .zoom-handle:hover,
+.view-controls-zoom .zoom-handle.selected {
+  background: #f0f7fd;
+  border-color: #0089DC;
 }
 .view-controls-zoom .zoom-crt-value {
   background: transparent;

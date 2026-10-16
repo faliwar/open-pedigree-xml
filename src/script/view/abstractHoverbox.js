@@ -623,9 +623,7 @@ var AbstractHoverbox = Class.create({
         orb.transform('');
         orb.attr(orbAttrX, orb.ox);
         orb.attr(orbAttrY, orb.oy);
-        
-      hitArea.attr({cx: hitArea.ox + dx, cy: hitArea.oy + dy});
-      me.updateHoveredTargetAt(connection.oPath[1][1], connection.oPath[1][2]);orb.transform(orb.ot);
+        orb.transform(orb.ot);
       }
       connection.ox = connection.oPath[1][1];
       connection.oy = connection.oPath[1][2];
