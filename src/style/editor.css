@@ -92,10 +92,11 @@ html,
   padding: .35em;
   margin: 0 .7em;
 
-  padding-left: 27px; /* for background image */
-  background: url(../assets/open-pedigree-icon.png);
+  padding-left: 28px; /* for background image */
+  background-image: url(../assets/open-pedigree-icon.png);
   background-repeat: no-repeat;
-  background-position-y: center;
+  background-position: left center;
+  background-size: 20px 20px;
 
   border-right: 1px solid #ccc;
   margin-right: 1em;
@@ -344,7 +345,7 @@ html,
     flex: 1 1 auto;
     min-width: 0;
     margin: 0;
-    padding: 0 0 0 28px;
+    padding: 0 0 0 30px;
     border-right: none;
     font-size: 15px;
     font-weight: 700;
@@ -353,7 +354,8 @@ html,
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 48px;
-    background-position-x: 2px;
+    background-position: left center;
+    background-size: 20px 20px;
   }
   #editor-menu .mobile-bar-actions {
     display: flex;

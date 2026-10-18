@@ -329,7 +329,7 @@ var Workspace = Class.create({
     var menu = new Element('div', {'id' : 'editor-menu'});
 
     menu.insert(new Element('a', {'class': 'title', 'href': 'https://github.com/faliwar/open-pedigree-xml'})
-        .update('Open Pedigree XML'));
+        .update('Open Pedigree X'));
 
     // Mobile-only app bar controls (hidden on desktop via CSS)
     var mobileBar = new Element('div', {'class': 'mobile-bar-actions'});

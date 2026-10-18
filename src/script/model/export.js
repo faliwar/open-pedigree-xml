@@ -352,7 +352,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     doc.save();
     doc.fontSize(6);
     doc.fillColor('#888888');
-    doc.text('To edit: upload PDF to Open Pedigree XML.', 10, 10, { lineBreak: false });
+    doc.text('To edit: upload PDF to Open Pedigree X.', 10, 10, { lineBreak: false });
     doc.restore();
   }
 

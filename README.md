@@ -1,7 +1,7 @@
-# Open Pedigree XML 
+# Open Pedigree X
 
 <p align="center">
-  <img src="https://repository-images.githubusercontent.com/212736090/2759df80-fe9e-11e9-8fa0-8237e35cbaf7" width="400px" alt="Open Pedigree logo"/>
+  <img src="./assets/opx-logo.png" width="500px" alt="Open Pedigree X logo"/>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 
 ## A free and open-source pedigree tool powered by PhenoTips®
 
-Open Pedigree is a robust browser-based genomic pedigree drawing solution using [Prototype](prototypejs.org), [Raphaël](https://dmitrybaranovskiy.github.io/raphael/), and [PhenoTips](https://phenotips.com).
+Open Pedigree X is a robust browser-based genomic pedigree drawing solution using [Prototype](https://prototypejs.org), [Raphaël](https://dmitrybaranovskiy.github.io/raphael/), and [PhenoTips](https://phenotips.com).
 
 <img width="983" alt="image" src="./assets/openpedigreexml.png">
 
@@ -33,22 +33,49 @@ This repository forks phenotips/open-pedigree and adapts it for compatibility wi
 
 ✔ Import from PED, LINKAGE, GEDCOM (Cyrillic), BOADICEA, or GA4GH Pedigree (FHIR)
 
-## Changes in this Fork (Open Pedigree XML)
+## Changes in this Fork (Open Pedigree X)
 
-This repository is a modified fork of the original Open Pedigree project. Key changes and improvements include:
+This repository (`open-pedigree-xml`) is an enhanced fork of the original Open Pedigree project, rebranded as **Open Pedigree X**. It introduces comprehensive optimizations for modern clinical and research workflows, complete mobile/touch support, enhanced demographic modeling, and native cloud integration:
 
-*   **Platform Integrations:** Configured for deployment into Google Apps Script and uses Google Drive for data storage.
-*   **XML Support:** Implementation of XML import and export functionality.
-*   **Export to Clipboard:** Added feature to quickly export pedigree data to the clipboard.
-*   **Editable PDF Exports** Embeds XML metadata directly into exported PDFs, allowing them to be re-imported and updated later.
-*   **Visual & Styling Improvements:** Several styling enhancements, including a clean white background for better visibility/exporting, as well as layout support for single parents and parentless siblings.
-*   **Demographics Handling:** Improved handling of date of birth and calculation of current age.
+### 📱 Responsive Mobile & Touch Support
+* **Mobile-Optimized Interface**: Fully reworked header bar, responsive action menus, sliding drawers, backdrop overlays, and mobile-friendly dialogs.
+* **Touch Zoom & Pan**: Pinch-to-zoom and pan gestures calibrated specifically for touch screens with bug fixes for zoom boundaries and hoverbox interactions.
+* **Dynamic Hoverboxes**: Adapted node hover actions and editing menus for touch and pointer events without displacement glitches.
+
+### 🧬 Family Modeling & Graph Enhancements
+* **Complex Family Support**: Full support for parentless persons, parentless siblings, and childless couples without layout breakdown.
+* **Proband Flexibility**: Ability to seamlessly change or reassign the proband across the pedigree.
+* **Single-Parent Layout Fixes**: Resolved staircase displacement effects and node shifts in single-parent offspring lineages.
+* **Displacement Bug Fixes**: Corrected automatic node positioning, intergenerational alignments, and consanguinity connection rendering.
+
+### 📋 Clinical Demographics & Phenotype Annotations
+* **Direct Age Input & Calculation**: Enter age directly with automated calculation, robust handling of approximate date of birth (DOB), and death age tracking.
+* **Unified Name Fields**: Streamlined single-field full name input for faster data entry.
+* **Optimized Disease & Phenotype Search**: Integrated lookup and autocomplete optimizations (including Ontology Lookup Service suggestions).
+* **Carrier & Genetic Marker Support**: Added support for `+` and `-` allele and marker notation.
+* **Configurable Node Labels**: Custom display options to toggle and reorder visible node metadata (names, DOB, age, phenotypes, genotypes).
+
+### 💾 Import, Export & File Formats
+* **Invitae/Progeny XML**: Comprehensive import and export compatibility for clinical XML pedigree files, including miscarriage and abortion modeling.
+* **Drag-and-Drop Import**: Drag XML or supported pedigree files directly into the workspace canvas.
+* **Round-Trip PDF Embeds**: Export high-resolution pedigree PDFs with embedded XML metadata, allowing exported PDFs to be reopened and updated later.
+* **Export to Clipboard**: Quick-copy pedigree image data directly to the system clipboard for immediate pasting into clinical notes, slides, or EHRs.
+* **Corrected GA4GH Pedigree (FHIR)**: Fixed export compatibility with the GA4GH Pedigree FHIR profile.
+
+### ☁️ Google Workspace & Cloud Integration
+* **Google Apps Script & Drive Deployment**: Native integration to run as an Apps Script web app or container-bound sidebar.
+* **Drive File Management**: Browse, load, autosave, and rename pedigree XML files directly to Google Drive (with URL/file ID deep linking).
+* **Environment-Aware Toolbars**: Automatically reveals Drive features when hosted inside Google Apps Script, cleanly falling back to local file modes in standalone browsers.
+
+### 🎨 Visual & Styling Modernization
+* **Clean White Background**: Crisp, publication-ready white canvas background for high-contrast exports and presentations.
+* **Updated Branding & Assets**: High-resolution icons and transparent UI marks for desktop and mobile viewports.
 
 ## Getting started
 
 ### Command line
 
-Quickly get started with open pedigree on your computer:
+Quickly get started with Open Pedigree X on your computer:
 ```
 git clone https://github.com/faliwar/open-pedigree-xml.git
 cd open-pedigree-xml
@@ -59,7 +86,7 @@ Open a browser to http://localhost:9000/
 
 ### Google Apps Script
 
-This version of Open Pedigree is optimized to run as a web app or sidebar within Google Apps Script and can save/load XML files directly from a designated Google Drive folder.
+This version of Open Pedigree X is optimized to run as a web app or sidebar within Google Apps Script and can save/load XML files directly from a designated Google Drive folder.
 
 The best way to deploy it is by separating the HTML and JS files in your Apps Script project.
 
@@ -71,7 +98,7 @@ The best way to deploy it is by separating the HTML and JS files in your Apps Sc
   <head>
     <meta charset="UTF-8">
     <base target="_top">
-    <title>Open Pedigree XML</title>
+    <title>Open Pedigree X</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.3/prototype.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/effects.js"></script>
@@ -111,7 +138,7 @@ const FOLDER_ID = 'YOUR_FOLDER_ID_HERE';
 function doGet() {
   return HtmlService.createTemplateFromFile('index')
       .evaluate()
-      .setTitle('Open Pedigree XML')
+      .setTitle('Open Pedigree X')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
