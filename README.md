@@ -17,7 +17,7 @@
 
 Open Pedigree X is a robust browser-based genomic pedigree drawing solution using [Prototype](https://prototypejs.org), [Raphaël](https://dmitrybaranovskiy.github.io/raphael/), and [PhenoTips](https://phenotips.com).
 
-<img width="983" alt="image" src="./assets/openpedigreexml.png">
+<img width="983" alt="image" src="./assets/openpedigreex.png">
 
 This repository forks phenotips/open-pedigree and adapts it for compatibility with Invitae/Progeny XML formats. It is configured for deployment to Google Apps Script and uses Google Drive for storage.
 
