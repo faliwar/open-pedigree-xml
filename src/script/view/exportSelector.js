@@ -131,6 +131,12 @@ var ExportSelector = Class.create({
     embedXmlRow.insert(embedXmlLabel.wrap('td'));
     configListElementPDF.insert(embedXmlRow);
 
+    var showNumbersRow = new Element('tr');
+    var showNumbersInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'pdf-show-numbers' });
+    var showNumbersLabel = new Element('label', { 'class': 'export-subconfig-label' }).insert(showNumbersInput).insert('Show generation (I, II, III...) and individual (1, 2, 3...) numbers');
+    showNumbersRow.insert(showNumbersLabel.wrap('td'));
+    configListElementPDF.insert(showNumbersRow);
+
     var promptConfig = new Element('div', { 'class': 'import-section' }).update('Options:');
     var dataSection3 = new Element('div', { 'class': 'import-block' });
     dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementPDF);
@@ -263,7 +269,8 @@ var ExportSelector = Class.create({
         var layout = $$('select[name="pdf-page-orientation"]')[0].value;
         var legendPos = $$('select[name="pdf-legend-pos"]')[0].value;
         var embedXML = $$('input[type=checkbox][name="pdf-embed-xml"]')[0].checked;
-        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML);
+        var showNumbers = $$('input[type=checkbox][name="pdf-show-numbers"]')[0].checked;
+        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML, showNumbers);
       }
     }
   },

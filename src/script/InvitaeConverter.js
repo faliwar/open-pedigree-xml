@@ -1,5 +1,6 @@
 import BaseGraph from 'pedigree/model/baseGraph';
 import RelationshipTracker from 'pedigree/model/relationshipTracker';
+import OntologyLookup from 'pedigree/ontologyLookup';
 
 /**
  * InvitaeConverter handles import and export of pedigrees in the Invitae/Progeny
@@ -17,6 +18,41 @@ import RelationshipTracker from 'pedigree/model/relationshipTracker';
 var InvitaeConverter = function () {};
 
 InvitaeConverter.prototype = {};
+
+/**
+ * Returns the human-readable name for a MONDO/HP code if it has been resolved by the
+ * editor legends; otherwise returns the value unchanged (free text, or name not loaded yet).
+ * @private
+ */
+InvitaeConverter._resolveOntologyName = function (value, kind) {
+  if (!value) {
+    return value;
+  }
+  var oboID = OntologyLookup.toOboID(value);
+  if (!oboID) {
+    return value;
+  }
+  if (OntologyLookup._cache && OntologyLookup._cache[oboID] && OntologyLookup._cache[oboID].label) {
+    return OntologyLookup._cache[oboID].label;
+  }
+  try {
+    if (typeof editor !== 'undefined' && editor) {
+      var item = null;
+      if (kind === 'hpo' && editor.getHPOLegend) {
+        item = editor.getHPOLegend().getTerm(value);
+      } else if (kind === 'disorder' && editor.getDisorderLegend) {
+        item = editor.getDisorderLegend().getDisorder(value);
+      }
+      var name = item && item.getName ? item.getName() : null;
+      if (name && name !== 'loading...') {
+        return name;
+      }
+    }
+  } catch (e) {
+    // fall through and keep the code
+  }
+  return value;
+};
 
 // ===========================================================================================
 //  IMPORT: Invitae/Progeny XML → BaseGraph
@@ -876,7 +912,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   if (props.disorders && props.disorders.length > 0) {
     xml += '<conditions>';
     for (var d = 0; d < props.disorders.length; d++) {
-      var disorderName = props.disorders[d];
+      var disorderName = InvitaeConverter._resolveOntologyName(props.disorders[d], 'disorder');
       var condStatus = 'affected';
       if (props.carrierStatus === 'carrier') {
         condStatus = 'carrier';
@@ -900,10 +936,11 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     var noteIdx = 12;
     if (hasHpoNotes) {
       for (var h = 0; h < props.hpoTerms.length; h++) {
+        var hpoName = InvitaeConverter._resolveOntologyName(props.hpoTerms[h], 'hpo');
         xml += '<note id="' + noteIdx + '" note_id="' + noteIdx + '"';
-        xml += ' value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"';
+        xml += ' value="' + InvitaeConverter._escapeXml(hpoName) + '"';
         xml += ' string_type="composite" string_title="Phenotype"';
-        xml += ' string_value="' + InvitaeConverter._escapeXml(props.hpoTerms[h]) + '"/>';
+        xml += ' string_value="' + InvitaeConverter._escapeXml(hpoName) + '"/>';
         noteIdx++;
       }
     }

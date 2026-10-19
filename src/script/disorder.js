@@ -1,4 +1,5 @@
 import { isInt } from 'pedigree/model/helpers';
+import OntologyLookup from 'pedigree/ontologyLookup';
 /*
  * Disorder is a class for storing genetic disorder info and loading it from the
  * the OMIM database. These disorders can be attributed to an individual in the Pedigree.
@@ -11,7 +12,7 @@ var Disorder = Class.create( {
 
   initialize: function(disorderID, name, callWhenReady) {
     // user-defined disorders
-    if (name == null && !isInt(disorderID)) {
+    if (name == null && !isInt(disorderID) && !OntologyLookup.toOboID(disorderID)) {
       name = Disorder.desanitizeID(disorderID);
     }
 
@@ -38,6 +39,17 @@ var Disorder = Class.create( {
   },
 
   load: function(callWhenReady) {
+    if (OntologyLookup.toOboID(this._disorderID)) {
+      OntologyLookup.fetchLabel(this._disorderID, function(label) {
+        if (label) {
+          this._name = label;
+        }
+        if (callWhenReady) {
+          callWhenReady();
+        }
+      }.bind(this));
+      return;
+    }
     var baseOMIMServiceURL = Disorder.getOMIMServiceURL();
     var queryURL           = baseOMIMServiceURL + '&q=id:' + this._disorderID;
     //console.log("queryURL: " + queryURL);
@@ -77,6 +89,10 @@ Disorder.sanitizeID = function(disorderID) {
 };
 
 Disorder.desanitizeID = function(disorderID) {
+  var oboID = OntologyLookup.toOboID(disorderID);
+  if (oboID) {
+    return oboID;
+  }
   var temp = disorderID.replace(/__/g, ' ');
   temp = temp.replace(/_L_/g, '(');
   return temp.replace(/_J_/g, ')');

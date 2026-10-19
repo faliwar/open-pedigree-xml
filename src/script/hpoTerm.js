@@ -1,3 +1,4 @@
+import OntologyLookup from 'pedigree/ontologyLookup';
 /*
  * HPOTerm is a class for storing phenotype information and loading it from the
  * the HPO database. These phenotypes can be attributed to an individual in the Pedigree.
@@ -37,6 +38,17 @@ var HPOTerm = Class.create( {
   },
 
   load: function(callWhenReady) {
+    if (OntologyLookup.toOboID(this._hpoID)) {
+      OntologyLookup.fetchLabel(this._hpoID, function(label) {
+        if (label) {
+          this._name = label;
+        }
+        if (callWhenReady) {
+          callWhenReady();
+        }
+      }.bind(this));
+      return;
+    }
     var baseServiceURL = HPOTerm.getServiceURL();
     var queryURL       = baseServiceURL + '&q=id%3A' + HPOTerm.desanitizeID(this._hpoID).replace(':','%5C%3A');
     //console.log("QueryURL: " + queryURL);

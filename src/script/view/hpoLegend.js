@@ -76,7 +76,9 @@ var HPOLegend = Class.create( Legend, {
   _updateTermName: function(id) {
     //console.log("updating phenotype display for " + id + ", name = " + this.getTerm(id).getName());
     var name = this._legendBox.down('li#' + this._getPrefix() + '-' + id + ' .disorder-name');
-    name.update(this.getTerm(id).getName());
+    if (name) {
+      name.update(this.getTerm(id).getName());
+    }
     if (window.editor && editor.getView && editor.getView().updateAllLabels) { editor.getView().updateAllLabels(); }
   }
 });
