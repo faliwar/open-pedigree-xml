@@ -4,6 +4,9 @@
  * @class ImportSelector
  */
 
+import LLM_INSTRUCTIONS from 'pedigree/llmInstructionsContent';
+import InvitaeConverter from 'pedigree/InvitaeConverter';
+
 var ImportSelector = Class.create( {
 
   initialize: function() {
@@ -14,6 +17,7 @@ var ImportSelector = Class.create( {
     var _this = this;
 
     var mainDiv = new Element('div', {'class': 'import-selector'});
+    this.mainDiv = mainDiv;
 
     var promptImport = new Element('div', {'class': 'import-section'}).update('Import data:');
     this.importValue = new Element('textarea', {'id': 'import', 'value': '', 'class': 'import-textarea'});
@@ -39,10 +43,134 @@ var ImportSelector = Class.create( {
       mainDiv.insert(uploadFileSelector).insert(uploadLink);
     }
 
+    // AI / LLM Assistant helper section
+    var aiHelperSection = new Element('div', {
+      'id': 'import-llm-helper',
+      'class': 'import-llm-helper highlight-invitae',
+      'title': 'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+    });
+    this.aiHelperSection = aiHelperSection;
+
+    var aiHeader = new Element('div', {'class': 'import-llm-header'});
+    var aiBadge = new Element('span', {'class': 'import-llm-badge'}).update('<i class="fas fa-robot"></i> AI / LLM Assistant');
+    var aiDesc = new Element('span', {'class': 'import-llm-desc'}).update('Generate Pedigree XML from Clinical Notes');
+    aiHeader.insert(aiBadge).insert(aiDesc);
+
+    var aiTip = new Element('div', {'class': 'import-llm-tip'}).update(
+      'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+    );
+
+    var aiActions = new Element('div', {'class': 'import-llm-actions'});
+
+    // Action 1 — Copy LLM Instructions (.md)
+    var copyBtn = new Element('button', {
+      'type': 'button',
+      'class': 'llm-btn llm-btn-copy',
+      'title': 'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+    }).update('<i class="fas fa-copy"></i> Copy LLM Instructions (.md)');
+
+    var fallbackCopy = function(text, cb) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+        if (cb) cb();
+      } catch (err) {
+        alert('Could not copy automatically. Please use the Download button instead.');
+      }
+      document.body.removeChild(ta);
+    };
+
+    copyBtn.observe('click', function(ev) {
+      if (ev) {
+        try { ev.stop(); } catch (e) {}
+      }
+      var textToCopy = LLM_INSTRUCTIONS;
+      var onCopied = function() {
+        copyBtn.addClassName('copied');
+        copyBtn.update('<i class="fas fa-check"></i> Copied!');
+        setTimeout(function() {
+          copyBtn.removeClassName('copied');
+          copyBtn.update('<i class="fas fa-copy"></i> Copy LLM Instructions (.md)');
+        }, 2000);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(onCopied).catch(function() {
+          fallbackCopy(textToCopy, onCopied);
+        });
+      } else {
+        fallbackCopy(textToCopy, onCopied);
+      }
+    });
+
+    // Action 2 — Download LLMInstructions.md
+    var downloadBtn = new Element('button', {
+      'type': 'button',
+      'class': 'llm-btn',
+      'title': 'Download LLMInstructions.md to attach to an LLM chat'
+    }).update('<i class="fas fa-download"></i> Download LLMInstructions.md');
+
+    downloadBtn.observe('click', function(ev) {
+      if (ev) {
+        try { ev.stop(); } catch (e) {}
+      }
+      try {
+        var blob = new Blob([LLM_INSTRUCTIONS], { type: 'text/markdown;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'LLMInstructions.md';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      } catch (err) {
+        window.open('LLMInstructions.md', '_blank');
+      }
+    });
+
+    // Action 3 — Quick Links to Open LLMs
+    var quickLinks = new Element('div', {'class': 'import-llm-quicklinks'});
+    var qlLabel = new Element('span', {'class': 'quicklinks-label'}).update('Open AI:');
+    quickLinks.insert(qlLabel);
+
+    var llmServices = [
+      { name: 'Gemini', url: 'https://gemini.google.com/' },
+      { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+      { name: 'Claude', url: 'https://claude.ai/' },
+      { name: 'DeepSeek', url: 'https://chat.deepseek.com/' }
+    ];
+
+    llmServices.forEach(function(item) {
+      var link = new Element('a', {
+        'href': item.url,
+        'target': '_blank',
+        'rel': 'noopener noreferrer',
+        'class': 'llm-link',
+        'title': 'Open ' + item.name + ' in a new tab'
+      }).update(item.name + ' <i class="fas fa-external-link-alt" style="font-size: 0.72em;"></i>');
+      quickLinks.insert(link);
+    });
+
+    aiActions.insert(copyBtn).insert(downloadBtn).insert(quickLinks);
+    aiHelperSection.insert(aiHeader).insert(aiTip).insert(aiActions);
+    mainDiv.insert(aiHelperSection);
+
     var _addTypeOption = function (checked, labelText, value) {
       var optionWrapper = new Element('tr');
       var input = new Element('input', {'type' : 'radio', 'value': value, 'name': 'select-type'});
-      input.observe('click', _this.disableEnableOptions );
+      input.observe('click', function() {
+        _this.disableEnableOptions();
+      });
       if (checked) {
         input.checked = true;
       }
@@ -171,25 +299,46 @@ var ImportSelector = Class.create( {
      * Disables unapplicable options on input type selection
      */
   disableEnableOptions: function() {
-    var importType = $$('input:checked[type=radio][name="select-type"]')[0].value;
-    //console.log("Import type: " + importType);
-    var pedOnlyOptions = $$('input[type=radio][name="select-options"]');
-    for (var i = 0; i < pedOnlyOptions.length; i++) {
-      if (importType != 'ped') {
-        pedOnlyOptions[i].disabled = true;
-      } else {
-        pedOnlyOptions[i].disabled = false;
+    var container = this.mainDiv || document;
+    var checkedRadio = null;
+    if (container.down) {
+      checkedRadio = container.down('input:checked[type=radio][name="select-type"]');
+    }
+    if (!checkedRadio) {
+      var radios = $$('input:checked[type=radio][name="select-type"]');
+      if (radios && radios.length > 0) {
+        checkedRadio = radios[0];
       }
     }
-    var pedAndGedcomOption = $$('input[type=checkbox][name="mark-evaluated"]')[0];
-    if (importType != 'ped' && importType != 'gedcom') {
-      pedAndGedcomOption.disabled = true;
-    } else {
-      pedAndGedcomOption.disabled = false;
+    var importType = checkedRadio ? checkedRadio.value : 'invitae';
+    //console.log("Import type: " + importType);
+
+    var helperEl = this.aiHelperSection || $('import-llm-helper');
+    if (helperEl) {
+      if (importType === 'invitae') {
+        helperEl.setStyle({ display: 'block' });
+        helperEl.addClassName('highlight-invitae');
+      } else {
+        helperEl.setStyle({ display: 'none' });
+        helperEl.removeClassName('highlight-invitae');
+      }
     }
 
-    var saveExternalID = $$('input[type=checkbox][name="mark-external"]')[0];
-    saveExternalID.disabled = false;
+    var pedOnlyOptions = (container.select) ? container.select('input[type=radio][name="select-options"]') : $$('input[type=radio][name="select-options"]');
+    if (pedOnlyOptions) {
+      for (var i = 0; i < pedOnlyOptions.length; i++) {
+        pedOnlyOptions[i].disabled = (importType !== 'ped');
+      }
+    }
+    var pedAndGedcomOptions = (container.select) ? container.select('input[type=checkbox][name="mark-evaluated"]') : $$('input[type=checkbox][name="mark-evaluated"]');
+    if (pedAndGedcomOptions && pedAndGedcomOptions.length > 0) {
+      pedAndGedcomOptions[0].disabled = (importType !== 'ped' && importType !== 'gedcom');
+    }
+
+    var saveExternalIDs = (container.select) ? container.select('input[type=checkbox][name="mark-external"]') : $$('input[type=checkbox][name="mark-external"]');
+    if (saveExternalIDs && saveExternalIDs.length > 0) {
+      saveExternalIDs[0].disabled = false;
+    }
   },
 
   /**
@@ -201,6 +350,14 @@ var ImportSelector = Class.create( {
      */
   _onImportStarted: function() {
     var importValue = this.importValue.value;
+    var checkedRadio = $$('input:checked[type=radio][name="select-type"]')[0];
+    var importType = checkedRadio ? checkedRadio.value : '';
+
+    if (importType === 'invitae' && importValue) {
+      importValue = InvitaeConverter.sanitizeInvitaeXML(importValue);
+      this.importValue.value = importValue;
+    }
+
     console.log('Importing:\n' + importValue);
 
     this.hide();
@@ -210,7 +367,6 @@ var ImportSelector = Class.create( {
       return;
     }
 
-    var importType = $$('input:checked[type=radio][name="select-type"]')[0].value;
     console.log('Import type: ' + importType);
 
     var importMark = $$('input[type=checkbox][name="mark-evaluated"]')[0].checked;
@@ -239,6 +395,11 @@ var ImportSelector = Class.create( {
         this.dialog.dialog.setStyle({ display: '' });
       }
       this.dialog.show();
+    }
+    try {
+      this.disableEnableOptions();
+    } catch (err) {
+      console.warn('Error in disableEnableOptions:', err);
     }
   },
 

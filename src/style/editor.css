@@ -1451,6 +1451,120 @@ html,
   margin: 0.2em 0 0.75em 7.5em;
   text-align: left;
 }
+.import-llm-helper {
+  display: block;
+  margin: 0.25em 0 0.9em 7.5em;
+  width: 84%;
+  box-sizing: border-box;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.65em 0.85em;
+  font-size: 0.9em;
+  transition: all 0.2s ease-in-out;
+}
+.import-llm-helper.highlight-invitae {
+  border-color: #3b82f6;
+  background: #f0f7ff;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.12);
+}
+.import-llm-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.35em;
+}
+.import-llm-badge {
+  font-weight: bold;
+  color: #1e3a8a;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  padding: 0.15em 0.55em;
+  border-radius: 12px;
+  font-size: 0.85em;
+  letter-spacing: 0.02em;
+}
+.import-llm-desc {
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.92em;
+}
+.import-llm-tip {
+  color: #475569;
+  font-size: 0.86em;
+  line-height: 1.35em;
+  margin-bottom: 0.55em;
+}
+.import-llm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+}
+.import-llm-actions .llm-btn {
+  font-size: 0.88em;
+  padding: 0.35em 0.75em;
+  cursor: pointer;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.import-llm-actions .llm-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.import-llm-actions .llm-btn-copy {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+.import-llm-actions .llm-btn-copy:hover {
+  background: #1d4ed8;
+  border-color: #1e40af;
+}
+.import-llm-actions .llm-btn.copied {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+.import-llm-quicklinks {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-left: auto;
+  font-size: 0.85em;
+}
+.import-llm-quicklinks .quicklinks-label {
+  color: #64748b;
+  font-weight: 600;
+  margin-right: 0.2em;
+}
+.import-llm-quicklinks .llm-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.2em 0.55em;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.import-llm-quicklinks .llm-link:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  text-decoration: none;
+}
 /*
 .import-selector {
   overflow: auto;

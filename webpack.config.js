@@ -78,6 +78,26 @@ module.exports = {
   plugins: [
     {
       apply: (compiler) => {
+        const syncLLM = () => {
+          const fs = require('fs');
+          const path = require('path');
+          const mdPath = path.resolve(__dirname, 'LLMInstructions.md');
+          const jsPath = path.resolve(__dirname, 'src', 'script', 'llmInstructionsContent.js');
+          if (fs.existsSync(mdPath)) {
+            const content = fs.readFileSync(mdPath, 'utf8');
+            const jsContent = '/* Auto-generated from LLMInstructions.md - DO NOT EDIT DIRECTLY */\nexport const LLM_INSTRUCTIONS = ' + JSON.stringify(content) + ';\nexport default LLM_INSTRUCTIONS;\n';
+            if (!fs.existsSync(jsPath) || fs.readFileSync(jsPath, 'utf8') !== jsContent) {
+              fs.writeFileSync(jsPath, jsContent, 'utf8');
+              console.log('\n[SyncLLMInstructions] Synced LLMInstructions.md -> src/script/llmInstructionsContent.js');
+            }
+          }
+        };
+        compiler.hooks.beforeRun.tap('SyncLLMInstructions', syncLLM);
+        compiler.hooks.watchRun.tap('SyncLLMInstructions', (comp, callback) => {
+          syncLLM();
+          if (typeof callback === 'function') callback();
+        });
+
         compiler.hooks.afterEmit.tap('AutoCopyMinJsPlugin', (compilation) => {
           const fs = require('fs');
           const path = require('path');
@@ -94,6 +114,12 @@ module.exports = {
             for (const file of fs.readdirSync(distAssets)) {
               fs.copyFileSync(path.join(distAssets, file), path.join(targetAssets, file));
             }
+          }
+          // Also copy LLMInstructions.md to dist
+          const mdSource = path.resolve(__dirname, 'LLMInstructions.md');
+          const mdDist = path.resolve(__dirname, 'dist', 'LLMInstructions.md');
+          if (fs.existsSync(mdSource)) {
+            fs.copyFileSync(mdSource, mdDist);
           }
         });
       }

@@ -134,12 +134,60 @@ InvitaeConverter._resolveOntologyName = function (value, kind) {
 // ===========================================================================================
 
 /**
+ * Sanitizes and repairs Invitae/Progeny XML input text:
+ * 1. Strips markdown code block fences (```xml ... ``` or ``` ...) and surrounding commentary.
+ * 2. Cleans undefined attribute strings (e.g. value="undefined" -> value="",
+ *    display="undefined" -> display="imperial" for weight/height, display="" for others).
+ *
+ * @param {String} inputText
+ * @returns {String} Cleaned XML string
+ */
+InvitaeConverter.sanitizeInvitaeXML = function (inputText) {
+  if (!inputText || typeof inputText !== 'string') {
+    return inputText;
+  }
+
+  var cleaned = inputText.trim();
+
+  // 1. Strip leading and trailing markdown code block fences (e.g. ```xml ... ``` or ``` ...)
+  cleaned = cleaned.replace(/^```[a-zA-Z0-9_-]*\s*\r?\n?/, '');
+  cleaned = cleaned.replace(/\r?\n?```\s*$/, '');
+  cleaned = cleaned.trim();
+
+  // If there's conversational commentary before/after the XML, isolate from <?xml or <tree to </tree>
+  var xmlStart = cleaned.search(/<\?xml|<tree\b/i);
+  if (xmlStart > 0) {
+    cleaned = cleaned.substring(xmlStart);
+  }
+  var treeEnd = cleaned.match(/<\/tree>/i);
+  if (treeEnd && treeEnd.index !== undefined) {
+    cleaned = cleaned.substring(0, treeEnd.index + '</tree>'.length);
+  }
+  cleaned = cleaned.trim();
+
+  // 2. Sanitize "undefined" strings in attributes:
+  // For weight and height display attribute: use "imperial"
+  cleaned = cleaned.replace(/(<(?:weight|height)\b[^>]*?\bdisplay=)["']undefined["']/gi, '$1"imperial"');
+  // For any other display="undefined"
+  cleaned = cleaned.replace(/\bdisplay=["']undefined["']/gi, 'display=""');
+  // For value="undefined"
+  cleaned = cleaned.replace(/\bvalue=["']undefined["']/gi, 'value=""');
+  // For any other attribute="undefined"
+  cleaned = cleaned.replace(/(\s+[a-zA-Z0-9_:-]+=)["']undefined["']/g, '$1""');
+
+  return cleaned;
+};
+
+/**
  * Parses Invitae/Progeny XML text and creates a BaseGraph.
  *
  * @param {String} inputText  The raw XML string
  * @returns {BaseGraph}
  */
 InvitaeConverter.initFromInvitaeXML = function (inputText) {
+  // Pre-process & sanitize raw XML string
+  inputText = InvitaeConverter.sanitizeInvitaeXML(inputText);
+
   var parser = new DOMParser();
   var xmlDoc = parser.parseFromString(inputText, 'text/xml');
 
@@ -158,6 +206,98 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
 
   if (indiElements.length === 0) {
     throw 'Unable to import pedigree: no individuals found in XML';
+  }
+
+  // Pre-pass DOM sanitization for any remaining "undefined" attributes inside <indi>
+  for (var i = 0; i < indiElements.length; i++) {
+    var indiEl = indiElements[i];
+    var allDescendants = indiEl.querySelectorAll('*');
+    for (var d = 0; d < allDescendants.length; d++) {
+      var childEl = allDescendants[d];
+      var tagName = childEl.tagName ? childEl.tagName.toLowerCase() : '';
+      if (childEl.hasAttribute('display') && childEl.getAttribute('display') === 'undefined') {
+        childEl.setAttribute('display', (tagName === 'weight' || tagName === 'height') ? 'imperial' : '');
+      }
+      if (childEl.hasAttribute('value') && childEl.getAttribute('value') === 'undefined') {
+        childEl.setAttribute('value', '');
+      }
+    }
+    for (var a = 0; a < indiEl.attributes.length; a++) {
+      if (indiEl.attributes[a].value === 'undefined') {
+        indiEl.attributes[a].value = '';
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Pre-pass: Identify dummy childless/infertile nodes & auto-sync reciprocal <siblings>
+  // -------------------------------------------------------------------
+  var dummyMap = {}; // Tracks childInvitaeId -> statusType (childless/infertile)
+  var indiById = {};
+  for (var i = 0; i < indiElements.length; i++) {
+    var indi = indiElements[i];
+    var indiId = indi.getAttribute('id');
+    if (indiId) {
+      indiById[indiId] = indi;
+    }
+
+    // Identify dummy childless/infertile nodes
+    var statusVal = InvitaeConverter._getChildAttr(indi, 'status', 'value');
+    var fName = InvitaeConverter._getChildAttr(indi, 'first_name', 'value');
+    var lName = InvitaeConverter._getChildAttr(indi, 'last_name', 'value');
+    var isDummyChildless = (indiId && indiId.indexOf('d') === 0 && (statusVal === '7' || statusVal === '6')) ||
+      ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === ''));
+    if (isDummyChildless) {
+      dummyMap[indiId] = (statusVal === '7') ? 'childless' : 'infertile';
+    }
+  }
+
+  // Auto-Sync Reciprocal <siblings> from <fam><children>:
+  // Ensure that all real <child> elements sharing a <fam> have reciprocal <sibling id="..." type="0"/> entries
+  for (var f = 0; f < famElements.length; f++) {
+    var fam = famElements[f];
+    var childrenEl = fam.querySelector(':scope > children');
+    if (!childrenEl) continue;
+    var childEls = childrenEl.querySelectorAll(':scope > child');
+    var realChildIds = [];
+    for (var c = 0; c < childEls.length; c++) {
+      var cId = childEls[c].getAttribute('id');
+      if (cId && !dummyMap[cId] && indiById[cId]) {
+        realChildIds.push(cId);
+      }
+    }
+
+    for (var i = 0; i < realChildIds.length; i++) {
+      var childIdA = realChildIds[i];
+      var indiA = indiById[childIdA];
+      var siblingsElA = indiA.querySelector(':scope > siblings');
+      if (!siblingsElA) {
+        siblingsElA = xmlDoc.createElement('siblings');
+        indiA.appendChild(siblingsElA);
+      }
+
+      for (var j = 0; j < realChildIds.length; j++) {
+        if (i === j) continue;
+        var childIdB = realChildIds[j];
+        var indiB = indiById[childIdB];
+        var existingSibAtoB = siblingsElA.querySelector(':scope > sibling[id="' + childIdB + '"]');
+
+        if (!existingSibAtoB) {
+          // Check if B already declared A as a twin (type 1 or 2)
+          var siblingsElB = indiB ? indiB.querySelector(':scope > siblings') : null;
+          var existingSibBtoA = siblingsElB ? siblingsElB.querySelector(':scope > sibling[id="' + childIdA + '"]') : null;
+          var sibType = '0';
+          if (existingSibBtoA && (existingSibBtoA.getAttribute('type') === '1' || existingSibBtoA.getAttribute('type') === '2')) {
+            sibType = existingSibBtoA.getAttribute('type');
+          }
+
+          var newSib = xmlDoc.createElement('sibling');
+          newSib.setAttribute('id', childIdB);
+          newSib.setAttribute('type', sibType);
+          siblingsElA.appendChild(newSib);
+        }
+      }
+    }
   }
 
   var newG = new BaseGraph();
@@ -192,19 +332,11 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   }
 
   // Parse all individuals
-  var dummyMap = {}; // Tracks childInvitaeId -> statusType (childless/infertile)
   for (var i = 0; i < indiElements.length; i++) {
     var indi = indiElements[i];
     var indiId = indi.getAttribute('id');
 
-    // Identify dummy childless/infertile nodes
-    var statusVal = InvitaeConverter._getChildAttr(indi, 'status', 'value');
-    var fName = InvitaeConverter._getChildAttr(indi, 'first_name', 'value');
-    var lName = InvitaeConverter._getChildAttr(indi, 'last_name', 'value');
-    var isDummyChildless = (indiId.indexOf('d') === 0 && (statusVal === '7' || statusVal === '6')) ||
-      ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === ''));
-    if (isDummyChildless) {
-      dummyMap[indiId] = (statusVal === '7') ? 'childless' : 'infertile';
+    if (dummyMap[indiId]) {
       continue;
     }
 
