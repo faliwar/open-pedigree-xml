@@ -588,13 +588,26 @@ DynamicPositionedGraph.prototype = {
         var parents = this.DG.GG.getInEdges(parentRel);
         var realParents = [];
         for (var p = 0; p < parents.length; p++) {
-          if (!this.isVirtualParent(parents[p])) {
+          if (!this.isVirtualParent(parents[p]) && !removedList.hasOwnProperty(parents[p])) {
             realParents.push(parents[p]);
           }
         }
-        // Only remove relationship if it's NOT a couple (realParents.length < 2) AND v is the only child
-        if (realParents.length < 2 && this.DG.GG.getOutEdges(chhub).length == 1) {
-          removedList[ parentRel ] = true;
+        var children = this.DG.GG.getOutEdges(chhub);
+        var remainingRealChildren = [];
+        for (var c = 0; c < children.length; c++) {
+          if (!removedList.hasOwnProperty(children[c]) && !this.isVirtualDummyChild(children[c])) {
+            remainingRealChildren.push(children[c]);
+          }
+        }
+
+        if (realParents.length >= 2) {
+          // Keep couple relationship
+        } else if (realParents.length == 1 && remainingRealChildren.length > 0) {
+          // Keep rel (single-parent relationship)
+        } else if (realParents.length == 0 && remainingRealChildren.length > 1) {
+          // Keep rel (parentless sibling hub)
+        } else {
+          removedList[parentRel] = true;
         }
       }
 
@@ -633,7 +646,15 @@ DynamicPositionedGraph.prototype = {
     for (var node in removedList) {
       if (removedList.hasOwnProperty(node) && this.isRelationship(node)) {
         var chhubId = this.DG.GG.getOutEdges(node)[0];
-        removedList[chhubId] = true;
+        if (chhubId !== undefined) {
+          removedList[chhubId] = true;
+        }
+        var relParents = this.DG.GG.getInEdges(node);
+        for (var p = 0; p < relParents.length; p++) {
+          if (this.isVirtualParent(relParents[p])) {
+            removedList[relParents[p]] = true;
+          }
+        }
       }
     }
 
@@ -1479,17 +1500,64 @@ DynamicPositionedGraph.prototype = {
     var moved = [];
     var newNodes = [];
 
+    // Check: Any relationship not in nodeList that will have < 2 children for a parentless hub
+    // or 0 children for a single-parent relationship: mark it for removal
+    var checkedParentRels = {};
+    for (var i = 0; i < nodeList.length; i++) {
+      var item = nodeList[i];
+      if (this.isPerson(item) && this.DG.GG.getInEdges(item).length > 0) {
+        var chHub = this.DG.GG.getInEdges(item)[0];
+        var parentRel = this.DG.GG.getInEdges(chHub)[0];
+        if (!checkedParentRels[parentRel] && !arrayContains(nodeList, parentRel)) {
+          checkedParentRels[parentRel] = true;
+          var chChildren = this.DG.GG.getOutEdges(chHub);
+          var remainingRealChildren = [];
+          for (var c = 0; c < chChildren.length; c++) {
+            if (!arrayContains(nodeList, chChildren[c]) && !this.isVirtualDummyChild(chChildren[c])) {
+              remainingRealChildren.push(chChildren[c]);
+            }
+          }
+          if (this.isParentlessRelationship(parentRel) && remainingRealChildren.length < 2) {
+            nodeList.push(parentRel);
+            if (!arrayContains(removed, parentRel)) {
+              removed.push(parentRel);
+            }
+          } else if (this.isSingleParentRelationship(parentRel) && remainingRealChildren.length === 0) {
+            nodeList.push(parentRel);
+            if (!arrayContains(removed, parentRel)) {
+              removed.push(parentRel);
+            }
+          }
+        }
+      }
+    }
+
     for (var i = 0; i < nodeList.length; i++) {
       if (this.isRelationship(nodeList[i])) {
         // also add its childhub
         var chHub = this.DG.GG.getOutEdges(nodeList[i])[0];
-        nodeList.push(chHub);
+        if (chHub !== undefined && !arrayContains(nodeList, chHub)) {
+          nodeList.push(chHub);
+        }
+
+        // also add its virtual parents
+        var parents = this.DG.GG.getInEdges(nodeList[i]);
+        for (var p = 0; p < parents.length; p++) {
+          if (this.isVirtualParent(parents[p])) {
+            if (!arrayContains(nodeList, parents[p])) {
+              nodeList.push(parents[p]);
+            }
+            if (!arrayContains(removed, parents[p])) {
+              removed.push(parents[p]);
+            }
+          }
+        }
 
         // also add its long multi-rank edges
         var pathToParents = this.getPathToParents(nodeList[i]);
         for (var p = 0; p < pathToParents.length; p++) {
           for (var j = 0; j < pathToParents[p].length; j++) {
-            if (this.DG.GG.isVirtual(pathToParents[p][j])) {
+            if (this.DG.GG.isVirtual(pathToParents[p][j]) && !arrayContains(nodeList, pathToParents[p][j])) {
               nodeList.push(pathToParents[p][j]);
             }
           }
@@ -1516,7 +1584,7 @@ DynamicPositionedGraph.prototype = {
                 break;
               }
             }
-            if (allChildrenBeingRemoved) {
+            if (allChildrenBeingRemoved && !this.isParentlessRelationship(rel) && !this.isSingleParentRelationship(rel)) {
               var dummyProps = { 'gender': 'U', 'comments': '', 'isVirtualDummyChild': true, 'isPlaceholder': true };
               var insertRank = this.DG.ranks[chHub] + 1;
               var insertOrder = this._findBestInsertPosition(insertRank, chHub);

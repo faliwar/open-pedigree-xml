@@ -161,6 +161,9 @@ var AbstractPersonVisuals = Class.create(AbstractNodeVisuals, {
     if (this.marked) {
       return;
     }
+    if (this.getNode && this.getNode().isVirtual && this.getNode().isVirtual()) {
+      return;
+    }
     this.marked = this._genderShape.glow({width: 11, fill: true, opacity: 0.6, color: '#ee8d00'});
   },
 

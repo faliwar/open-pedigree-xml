@@ -446,6 +446,10 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     }
 
     var isParentless = positionedGraph.isParentlessRelationship(id);
+    if (isParentless && children.length < 2) {
+      this._childhubConnection = editor.getPaper().setFinish();
+      return;
+    }
 
     var leftmostX  = this.getX();
     var rightmostX = this.getX();

@@ -73,9 +73,18 @@ var Controller = Class.create({
       }
     };
 
-    // if there is only one node or this removal is done as part of an undo/redo action
+    // Check if any collateral real people will be removed (real people other than the deleted node itself)
+    var collateralRealPeople = 0;
+    for (var i = 0; i < disconnectedList.length; i++) {
+      var nid = disconnectedList[i];
+      if (nid != nodeID && editor.getGraph().isPerson(nid) && !editor.getGraph().isVirtualParent(nid) && !editor.getGraph().isVirtualDummyChild(nid)) {
+        collateralRealPeople++;
+      }
+    }
+
+    // if there are no collateral real people or this removal is done as part of an undo/redo action
     // => just remove without asking any questions or highlighting any nodes
-    if (disconnectedList.length <= 1 || event.memo.hasOwnProperty('noUndoRedo')) {
+    if (collateralRealPeople === 0 || event.memo.hasOwnProperty('noUndoRedo')) {
       removeSelected();
       return;
     }
@@ -84,13 +93,19 @@ var Controller = Class.create({
     editor.getView().unmarkAll();
     for (var i = 0; i < disconnectedList.length; i++) {
       var nextHighlight = disconnectedList[i];
-      editor.getView().getNode(nextHighlight).getGraphics().markPermanently();
+      var node = editor.getView().getNode(nextHighlight);
+      if (node && (!node.isVirtual || !node.isVirtual())) {
+        node.getGraphics().markPermanently();
+      }
     }
 
     var unhighlightSelected = function() {
       for (var i = 0; i < disconnectedList.length; i++) {
         var nextHighlight = disconnectedList[i];
-        editor.getView().getNode(nextHighlight).getGraphics().unmark();
+        var node = editor.getView().getNode(nextHighlight);
+        if (node && (!node.isVirtual || !node.isVirtual())) {
+          node.getGraphics().unmark();
+        }
       }
     };
 
