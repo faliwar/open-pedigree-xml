@@ -809,6 +809,7 @@ var PedigreeEditor = Class.create({
         'label' : 'Heredity options',
         'name' : 'childlessSelect',
         'values' : [{'actual': 'none', displayed: 'None'},{'actual': 'childless', displayed: 'Childless'},{'actual': 'infertile', displayed: 'Infertile'}],
+        'default' : 'none',
         'type' : 'select',
         'tab': 'Personal',
         'function' : 'setChildlessStatus'
@@ -983,6 +984,7 @@ var PedigreeEditor = Class.create({
         'label' : 'Heredity options',
         'name' : 'childlessSelect',
         'values' : [{'actual': 'none', displayed: 'None'},{'actual': 'childless', displayed: 'Childless'},{'actual': 'infertile', displayed: 'Infertile'}],
+        'default' : 'none',
         'type' : 'select',
         'function' : 'setChildlessStatus'
       },

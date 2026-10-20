@@ -714,6 +714,7 @@ DynamicPositionedGraph.prototype = {
     var ranksBefore      = this.DG.ranks.slice(0);
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
+    var consangrBefore   = this.DG.consangr ? Object.assign({}, this.DG.consangr) : {};
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
 
     if (!properties) {
@@ -769,7 +770,7 @@ DynamicPositionedGraph.prototype = {
     timer.printSinceLast('=== AddChild runtime: ');
     this._debugPrintAll('after');
 
-    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
     var relationshipId = this.DG.GG.getInEdges(childhubId)[0];
     if (!arrayContains(movedNodes,relationshipId)) {
       movedNodes.push(relationshipId);
@@ -798,6 +799,7 @@ DynamicPositionedGraph.prototype = {
     var ranksBefore      = this.DG.ranks.slice(0);
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
+    var consangrBefore   = this.DG.consangr ? Object.assign({}, this.DG.consangr) : {};
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
 
     if (isParentlessHub) {
@@ -831,7 +833,7 @@ DynamicPositionedGraph.prototype = {
       this._heuristics.improvePositioning(ranksBefore, rankYBefore);
       this.updateAncestors();
 
-      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
       if (!arrayContains(movedNodes, parentRel)) {
         movedNodes.push(parentRel);
       }
@@ -853,7 +855,7 @@ DynamicPositionedGraph.prototype = {
       this._heuristics.improvePositioning(ranksBefore, rankYBefore);
       this.updateAncestors();
 
-      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+      var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
       if (!arrayContains(movedNodes, parentRel)) {
         movedNodes.push(parentRel);
       }
@@ -905,7 +907,7 @@ DynamicPositionedGraph.prototype = {
     } else {
       animateNodes = [personId];
     }
-    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
     var newNodes   = [newRelationshipId, newParent1Id, newParent2Id];
     return {'new': newNodes, 'moved': movedNodes, 'highlight': [personId], 'animate': animateNodes};
   },
@@ -922,6 +924,7 @@ DynamicPositionedGraph.prototype = {
     var ranksBefore      = this.DG.ranks.slice(0);
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
+    var consangrBefore   = this.DG.consangr ? Object.assign({}, this.DG.consangr) : {};
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
 
     if (!childProperties) {
@@ -962,7 +965,7 @@ DynamicPositionedGraph.prototype = {
     timer.printSinceLast('=== NewParentlessSibling runtime: ');
     this._debugPrintAll('after');
 
-    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
     return {'new': newNodes, 'moved': movedNodes, 'highlight': [newSiblingId]};
   },
 
@@ -971,6 +974,7 @@ DynamicPositionedGraph.prototype = {
     var ranksBefore      = this.DG.ranks.slice(0);
     var vertLevelsBefore = this.DG.vertLevel.copy();
     var rankYBefore      = this.DG.rankY.slice(0);
+    var consangrBefore   = this.DG.consangr ? Object.assign({}, this.DG.consangr) : {};
     var numNodesBefore   = this.DG.GG.getMaxRealVertexId();
 
     var insertChildhubRank = this.DG.ranks[sibling1] - 1;
@@ -991,7 +995,7 @@ DynamicPositionedGraph.prototype = {
     this._heuristics.improvePositioning(ranksBefore, rankYBefore);
     this.updateAncestors();
 
-    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore );
+    var movedNodes = this._findMovedNodes( numNodesBefore, positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore, consangrBefore );
     return {'new': [newRelationshipId, virtualParentId], 'moved': movedNodes, 'highlight': [sibling1, sibling2]};
   },
 
@@ -2111,7 +2115,7 @@ DynamicPositionedGraph.prototype = {
         }
         // or it is a relationship with a long edge - redraw just in case since long edges may have complicated curves around other nodes
         if (this.DG.GG.type[i] == BaseGraph.TYPE.RELATIONSHIP) {
-          if (consangrBefore && !consangrBefore.hasOwnProperty(i) && this.DG.consangr.hasOwnProperty(i)) {
+          if (consangrBefore && (consangrBefore.hasOwnProperty(i) !== this.DG.consangr.hasOwnProperty(i))) {
             result[i] = true;
             continue;
           }

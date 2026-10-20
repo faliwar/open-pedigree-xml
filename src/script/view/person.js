@@ -1176,6 +1176,8 @@ var Person = Class.create(AbstractPerson, {
       }
       if(info.childlessStatus && this.getChildlessStatus() != info.childlessStatus) {
         this.setChildlessStatus(info.childlessStatus);
+      } else if (!info.childlessStatus && this.getChildlessStatus()) {
+        this.setChildlessStatus(null);
       }
       if(info.hasOwnProperty('twinGroup') && this._twinGroup != info.twinGroup) {
         this.setTwinGroup(info.twinGroup);

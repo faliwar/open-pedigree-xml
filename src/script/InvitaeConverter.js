@@ -19,6 +19,81 @@ var InvitaeConverter = function () {};
 
 InvitaeConverter.prototype = {};
 
+InvitaeConverter.PREF_COLORS = [
+  '#CC0000', '#4575B4', '#E8A735', '#7B68A0', '#2E8B57',
+  '#D4856A', '#5F9EA0', '#8B6C42', '#C75B8E', '#6B8E8E'
+];
+
+InvitaeConverter._findClosestPaletteIndex = function (hex) {
+  if (!hex || typeof hex !== 'string') return -1;
+  var m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (!m) return -1;
+  var r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+  var bestIdx = -1;
+  var bestDist = Infinity;
+  for (var i = 0; i < InvitaeConverter.PREF_COLORS.length; i++) {
+    var pm = InvitaeConverter.PREF_COLORS[i].match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    if (pm) {
+      var pr = parseInt(pm[1], 16), pg = parseInt(pm[2], 16), pb = parseInt(pm[3], 16);
+      var dist = Math.pow(r - pr, 2) + Math.pow(g - pg, 2) + Math.pow(b - pb, 2);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+      }
+    }
+  }
+  return bestIdx;
+};
+
+InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, disorderIndexMap) {
+  var hexColor = null;
+  try {
+    if (typeof editor !== 'undefined' && editor && editor.getDisorderLegend) {
+      var legend = editor.getDisorderLegend();
+      if (legend) {
+        var candidates = [disorderKey, disorderName];
+        for (var i = 0; i < candidates.length; i++) {
+          if (!candidates[i]) continue;
+          if (legend.getObjectColor) {
+            var c = legend.getObjectColor(candidates[i]);
+            if (c && c !== '#ff0000' && c !== '#ffffff') {
+              hexColor = c;
+              break;
+            }
+          }
+          if (legend._objectColors && legend._objectColors.hasOwnProperty(candidates[i])) {
+            hexColor = legend._objectColors[candidates[i]];
+            break;
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  if (hexColor) {
+    hexColor = hexColor.toUpperCase();
+    var idx = InvitaeConverter.PREF_COLORS.indexOf(hexColor);
+    if (idx >= 0) {
+      return String(idx);
+    }
+    var closestIdx = InvitaeConverter._findClosestPaletteIndex(hexColor);
+    if (closestIdx >= 0) {
+      return String(closestIdx);
+    }
+  }
+
+  var key = disorderName || disorderKey;
+  if (!disorderIndexMap.hasOwnProperty(key)) {
+    var usedIndices = Object.values(disorderIndexMap).map(function (v) { return parseInt(v, 10); });
+    var nextIdx = 0;
+    while (usedIndices.indexOf(nextIdx) !== -1 && nextIdx < InvitaeConverter.PREF_COLORS.length) {
+      nextIdx++;
+    }
+    disorderIndexMap[key] = String(nextIdx % InvitaeConverter.PREF_COLORS.length);
+  }
+  return disorderIndexMap[key];
+};
+
 /**
  * Returns the human-readable name for a MONDO/HP code if it has been resolved by the
  * editor legends; otherwise returns the value unchanged (free text, or name not loaded yet).
@@ -126,7 +201,9 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var statusVal = InvitaeConverter._getChildAttr(indi, 'status', 'value');
     var fName = InvitaeConverter._getChildAttr(indi, 'first_name', 'value');
     var lName = InvitaeConverter._getChildAttr(indi, 'last_name', 'value');
-    if ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === '')) {
+    var isDummyChildless = (indiId.indexOf('d') === 0 && (statusVal === '7' || statusVal === '6')) ||
+      ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === ''));
+    if (isDummyChildless) {
       dummyMap[indiId] = (statusVal === '7') ? 'childless' : 'infertile';
       continue;
     }
@@ -514,22 +591,34 @@ InvitaeConverter._parseIndividual = function (indiEl) {
       var condEl = condEls[c];
       var condTitle = condEl.getAttribute('title') || condEl.getAttribute('code');
       var condStatus = condEl.getAttribute('status');
+      var colorAttr = condEl.getAttribute('color');
 
-      if (condStatus === 'affected') {
-        if (!properties.disorders) {
-          properties.disorders = [];
-        }
-        properties.disorders.push(condTitle);
-        properties.carrierStatus = 'affected';
-      } else if (condStatus === 'carrier') {
-        properties.carrierStatus = 'carrier';
-        // Also track the condition name even for carriers
-        if (!properties.disorders) {
-          properties.disorders = [];
-        }
-        properties.disorders.push(condTitle);
+      if (!properties.disorders) {
+        properties.disorders = [];
       }
-      // "unknown" status → no action needed
+      properties.disorders.push(condTitle);
+
+      if (condStatus === 'carrier') {
+        properties.carrierStatus = 'carrier';
+      } else {
+        properties.carrierStatus = 'affected';
+      }
+
+      // Preserve condition color in legend cache if specified
+      if (colorAttr !== null && colorAttr !== '') {
+        var cIdx = parseInt(colorAttr, 10);
+        if (!isNaN(cIdx) && cIdx >= 0 && cIdx < InvitaeConverter.PREF_COLORS.length) {
+          var assignedHex = InvitaeConverter.PREF_COLORS[cIdx];
+          try {
+            if (typeof editor !== 'undefined' && editor && editor.getDisorderLegend) {
+              var dl = editor.getDisorderLegend();
+              if (dl && dl._objectColors) {
+                dl._objectColors[condTitle] = assignedHex;
+              }
+            }
+          } catch (e) {}
+        }
+      }
     }
   }
 
@@ -621,13 +710,14 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
 
   // --- Settings ---
   xml += '<settings>';
+  xml += '<risk_assessment value="0"/>';
   xml += '<risk_analysis value="0"/>';
   xml += '<risk_analysis_for_family value="0"/>';
   xml += '</settings>';
 
   // --- Build individual and family data ---
   var idToInvitaeId = {};
-  var families = [];
+  var maxIndiId = -1;
 
   // Assign Invitae IDs (use the graph node index as the ID)
   for (var i = 0; i <= pedigree.GG.getMaxRealVertexId(); i++) {
@@ -638,9 +728,18 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       continue;
     }
     idToInvitaeId[i] = String(i);
+    if (i > maxIndiId) {
+      maxIndiId = i;
+    }
   }
 
-  // Build individuals
+  // Next available ID for dummy childless individuals must be an integer (Progeny/Invitae requires numeric indi IDs)
+  var nextDummyIndiId = maxIndiId + 1;
+  var dummyIndis = '';
+  var singlePersonChildless = [];
+  var relChildlessMap = {};
+  var disorderIndexMap = {};
+
   for (var i = 0; i <= pedigree.GG.getMaxRealVertexId(); i++) {
     if (!pedigree.GG.isPerson(i)) {
       continue;
@@ -650,8 +749,30 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     }
 
     var props = pedigree.GG.properties[i];
-    xml += InvitaeConverter._buildIndiElement(i, props, pedigree, privacySetting, idToInvitaeId);
+    xml += InvitaeConverter._buildIndiElement(i, props, pedigree, privacySetting, idToInvitaeId, disorderIndexMap);
+
+    if (props && (props.childlessStatus === 'childless' || props.childlessStatus === 'infertile')) {
+      var dId = String(nextDummyIndiId++);
+      var sVal = (props.childlessStatus === 'childless') ? '7' : '6';
+      dummyIndis += '<indi id="' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+      singlePersonChildless.push({ parentId: idToInvitaeId[i], gender: props.gender, dummyChildId: dId });
+    }
   }
+
+  // Pre-process relationships to catch any dummy indis we need to declare
+  for (var i = 0; i <= pedigree.GG.getMaxRealVertexId(); i++) {
+    if (pedigree.GG.isRelationship(i)) {
+      var relProps = pedigree.GG.properties[i] || {};
+      if (relProps.childlessStatus === 'childless' || relProps.childlessStatus === 'infertile') {
+        var dId = String(nextDummyIndiId++);
+        var sVal = (relProps.childlessStatus === 'childless') ? '7' : '6';
+        dummyIndis += '<indi id="' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+        relChildlessMap[i] = dId;
+      }
+    }
+  }
+
+  xml += dummyIndis;
 
   // Build families from relationships
   var famIndex = 0;
@@ -723,12 +844,12 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       }
     }
 
-    if (!hasParents && validChildren.length === 0) {
+    if (!hasParents && validChildren.length === 0 && !relChildlessMap[i]) {
       continue;
     }
 
     // link=1 seems to indicate a secondary link/cross-branch marriage, not twins. Default to 0.
-    xml += '<fam id="f' + famIndex + '" ex="' + (relProps.broken ? '1' : '0') + '" consanguinity="' + (relProps.consangr ? '1' : '0') + '" link="0">';
+    xml += '<fam id="f' + famIndex + '" ex="' + (relProps.broken ? '1' : '0') + '" consanguinity="' + consanguinity + '" link="0">';
 
     if (maleId !== null && idToInvitaeId[maleId] !== undefined) {
       xml += '<male id="' + idToInvitaeId[maleId] + '"/>';
@@ -737,8 +858,11 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       xml += '<female id="' + idToInvitaeId[femaleId] + '"/>';
     }
 
-    if (validChildren.length > 0) {
+    if (validChildren.length > 0 || relChildlessMap[i]) {
       xml += '<children>';
+      if (relChildlessMap[i]) {
+        xml += '<child id="' + relChildlessMap[i] + '"/>';
+      }
       for (var c = 0; c < validChildren.length; c++) {
         xml += '<child id="' + idToInvitaeId[validChildren[c]] + '"/>';
       }
@@ -746,6 +870,14 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     }
 
     xml += '</fam>';
+    famIndex++;
+  }
+
+  // Single-person dummy families (must follow f<int> naming convention)
+  for (var sp = 0; sp < singlePersonChildless.length; sp++) {
+    var spEntry = singlePersonChildless[sp];
+    var pTag = (spEntry.gender === 'F') ? 'female' : 'male';
+    xml += '<fam id="f' + famIndex + '" ex="0" consanguinity="0" link="0"><' + pTag + ' id="' + spEntry.parentId + '"/><children><child id="' + spEntry.dummyChildId + '"/></children></fam>';
     famIndex++;
   }
 
@@ -757,7 +889,7 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
  * Builds a single <indi> XML element.
  * @private
  */
-InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacySetting, idToInvitaeId) {
+InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacySetting, idToInvitaeId, disorderIndexMap) {
   var invitaeId = idToInvitaeId[nodeId];
   var mrn = (privacySetting === 'all' && props.externalID) ? props.externalID : '';
 
@@ -917,10 +1049,11 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
       if (props.carrierStatus === 'carrier') {
         condStatus = 'carrier';
       }
+      var condColor = InvitaeConverter._getDisorderColorIndex(props.disorders[d], disorderName, disorderIndexMap || {});
       xml += '<condition code="' + InvitaeConverter._escapeXml(disorderName) + '"';
       xml += ' title="' + InvitaeConverter._escapeXml(disorderName) + '"';
       xml += ' shortenTitle="' + InvitaeConverter._escapeXml(disorderName) + '"';
-      xml += ' type="" onset="" atdiag="" note="" color="9" visible="1" ontology="All"';
+      xml += ' type="" onset="" atdiag="" note="" color="' + condColor + '" visible="1" ontology="All"';
       xml += ' status="' + condStatus + '">';
       xml += '<note value=""/>';
       xml += '</condition>';

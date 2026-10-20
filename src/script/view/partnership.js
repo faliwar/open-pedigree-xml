@@ -166,6 +166,8 @@ var Partnership = Class.create(AbstractNode, {
     if($super(info)) {
       if(info.childlessStatus && info.childlessStatus != this.getChildlessStatus()) {
         this.setChildlessStatus(info.childlessStatus);
+      } else if (!info.childlessStatus && this.getChildlessStatus()) {
+        this.setChildlessStatus(null);
       }
       if (info.consangr && info.consangr != this.getConsanguinity()) {
         this.setConsanguinity(info.consangr);

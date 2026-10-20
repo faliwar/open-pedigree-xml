@@ -27,8 +27,26 @@
   <script type="text/javascript" src="public/vendor/phenotips/Widgets.js"></script>
   <script type="text/javascript" src="public/vendor/phenotips/DateTimePicker.js"></script>
 
-  <!-- Open Pedigree bundle -->
-  <script type="text/javascript" src="pedigree.min.js?v=30"></script>
+  <!-- Open Pedigree bundle with centralized versioning -->
+  <script type="text/javascript">
+    (function() {
+      var version = '';
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'version.json?t=' + Date.now(), false);
+        xhr.send(null);
+        if (xhr.status === 200 || xhr.status === 0) {
+          var data = JSON.parse(xhr.responseText);
+          if (data && data.version) {
+            version = '?v=' + encodeURIComponent(String(data.version).trim());
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to load version.json, loading default asset:', e);
+      }
+      document.write('<script type="text/javascript" src="pedigree.min.js' + version + '"><\/script>');
+    })();
+  </script>
 
 </head>
 

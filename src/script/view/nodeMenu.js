@@ -1041,6 +1041,10 @@ var NodeMenu = Class.create({
       }
     },
     'select' : function (container, value) {
+      var select = container.down('select');
+      if (select) {
+        select.value = value;
+      }
       var target = container.down('select option[value="' + value + '"]');
       if (target) {
         target.selected = 'selected';

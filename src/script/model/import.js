@@ -1029,7 +1029,8 @@ PedigreeImport.JSONToInternalPropertyMapping = {
   'numpersons':      'numPersons',
   'lostcontact':     'lostContact',
   'birthdateapprox': 'dobApprox',
-  'ageinput':        'ageInput'
+  'ageinput':        'ageInput',
+  'childlessstatus': 'childlessStatus'
 };
 
 
