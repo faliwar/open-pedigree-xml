@@ -53,11 +53,11 @@ var ImportSelector = Class.create( {
 
     var aiHeader = new Element('div', {'class': 'import-llm-header'});
     var aiBadge = new Element('span', {'class': 'import-llm-badge'}).update('<i class="fas fa-robot"></i> AI / LLM Assistant');
-    var aiDesc = new Element('span', {'class': 'import-llm-desc'}).update('Generate Pedigree XML from Clinical Notes');
+    var aiDesc = new Element('span', {'class': 'import-llm-desc'}).update('Generate pedigree XML from clinical notes');
     aiHeader.insert(aiBadge).insert(aiDesc);
 
     var aiTip = new Element('div', {'class': 'import-llm-tip'}).update(
-      'Copy instructions and run them with your clinical notes in your institution\'s HIPAA/GDPR-compliant AI (or ensure data is de-identified), then paste the generated XML above.'
+      'Use these instructions with de-identified notes in an institution-approved AI, then paste the XML above.'
     );
 
     var aiActions = new Element('div', {'class': 'import-llm-actions'});

@@ -1,6 +1,7 @@
 import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 import Raphael from 'pedigree/raphael';
 import DriveBackend from '../DriveBackend';
+import { translate } from '../i18n';
 
 /**
  * Workspace contains the Raphael canvas, the zoom/pan controls and the menu bar
@@ -392,16 +393,16 @@ var Workspace = Class.create({
     if (editor.isUnsupportedBrowser()) {
       submenus = [{
         name : 'input',
-        title: 'Info',
+        title: translate('Info'),
         items: [
-          { key : 'readonlymessage', label : 'Unsuported browser mode', icon : 'exclamation-triangle'}
+          { key : 'readonlymessage', label : translate('Unsuported browser mode'), icon : 'exclamation-triangle'}
         ]
       }, {
         name : 'output',
-        title: 'Output',
+        title: translate('Output'),
         items: [
-          { key : 'export',    label : 'Export', icon : 'file-export'},
-          { key : 'close',     label : 'Close', icon : 'times'}
+          { key : 'export',    label : translate('Export'), icon : 'file-export'},
+          { key : 'close',     label : translate('Close'), icon : 'times'}
         ]
       }];
     } else {
@@ -412,41 +413,41 @@ var Workspace = Class.create({
           name : 'drive',
           title: 'Google Drive',
           items: [
-            { key : 'open-drive', label : 'Open XML', icon : 'folder-open'},
-            { key : 'save-drive', label : 'Save XML', icon : 'save'},
-            { key : 'rename-drive', label : 'Rename XML', icon : 'edit'}
+            { key : 'open-drive', label : translate('Open XML'), icon : 'folder-open'},
+            { key : 'save-drive', label : translate('Save XML'), icon : 'save'},
+            { key : 'rename-drive', label : translate('Rename XML'), icon : 'edit'}
           ]
         });
       }
 
       submenus = submenus.concat([{
         name : 'input',
-        title: 'Load',
+        title: translate('Load'),
         items: [
-          { key : 'templates', label : 'Templates', icon : 'copy'},
-          { key : 'import',    label : 'Import', icon : 'file-import'}
+          { key : 'templates', label : translate('Templates'), icon : 'copy'},
+          { key : 'import',    label : translate('Import'), icon : 'file-import'}
         ]
       }, {
         name : 'edit',
-        title: 'Edit',
+        title: translate('Edit'),
         items: [
-          { key : 'undo',     label : 'Undo', icon : 'undo'},
-          { key : 'redo',     label : 'Redo', icon : 'redo'},
-          { key : 'relayout', label : 'Re-layout', icon : 'sitemap'},
-            { key : 'labels',   label : 'Labels',     icon : 'tags'}
+          { key : 'undo',     label : translate('Undo'), icon : 'undo'},
+          { key : 'redo',     label : translate('Redo'), icon : 'redo'},
+          { key : 'relayout', label : translate('Re-layout'), icon : 'sitemap'},
+            { key : 'labels',   label : translate('Labels'),     icon : 'tags'}
         ]
       }, {
         name : 'reset',
-        title: 'Reset',
+        title: translate('Reset'),
         items: [
-          { key : 'clear',  label : 'Clear all', icon : 'times-circle'}
+          { key : 'clear',  label : translate('Clear all'), icon : 'times-circle'}
         ]
       }, {
         name : 'output',
-        title: 'Output',
+        title: translate('Output'),
         items: [
-          { key : 'export',    label : 'Export', icon : 'file-export'},
-          { key : 'close',     label : 'Close', icon : 'times'}
+          { key : 'export',    label : translate('Export'), icon : 'file-export'},
+          { key : 'close',     label : translate('Close'), icon : 'times'}
         ]
       }]);
     }
@@ -469,10 +470,14 @@ var Workspace = Class.create({
     submenus.each(_createSubmenu);
 
     actions.insert(new Element('div', {'class': 'powered-by'})
-      .insert('Powered by ')
-      .insert(new Element('a', {'href': 'https://phenotips.com/'})
-        .update('PhenoTips')
-        .insert(new Element('sup').update('&reg;'))));
+      .insert(new Element('span', {'class': 'powered-by-desktop'})
+        .insert('Powered by ')
+        .insert(new Element('a', {'href': 'https://phenotips.com/'})
+          .update('PhenoTips')
+          .insert(new Element('sup').update('&reg;'))))
+      .insert(new Element('span', {'class': 'powered-by-mobile'})
+        .insert(new Element('span', {'class': 'powered-by-current'}).update('Maintained by Fabiano Poswar'))
+        .insert(new Element('span', {'class': 'powered-by-origin'}).update('Powered by PhenoTips®'))));
 
     this._setupMobileMenu(menu, mobileBar, actions);
   },
@@ -486,7 +491,7 @@ var Workspace = Class.create({
    */
   _setupMobileMenu: function(menu, mobileBar, actions) {
     var _createBarButton = function(cls, icon, title) {
-      var btn = new Element('button', {'type': 'button', 'class': 'mobile-bar-button ' + cls, 'title': title, 'aria-label': title});
+      var btn = new Element('button', {'type': 'button', 'class': 'mobile-bar-button ' + cls, 'title': translate(title), 'aria-label': translate(title)});
       btn.insert(new Element('span', {'class': 'fa fa-fw fa-' + icon}));
       mobileBar.insert(btn);
       return btn;
@@ -505,7 +510,7 @@ var Workspace = Class.create({
       });
     });
 
-    var toggle = new Element('button', {'type': 'button', 'class': 'mobile-bar-button menu-toggle', 'title': 'Menu', 'aria-label': 'Menu'});
+    var toggle = new Element('button', {'type': 'button', 'class': 'mobile-bar-button menu-toggle', 'title': translate('Menu'), 'aria-label': translate('Menu')});
     toggle.insert(new Element('span', {'class': 'fa fa-fw fa-bars icon-open'}));
     toggle.insert(new Element('span', {'class': 'fa fa-fw fa-times icon-close'}));
     toggle.writeAttribute({'aria-expanded': 'false', 'aria-controls': 'editor-menu-actions'});

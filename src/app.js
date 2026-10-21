@@ -1,5 +1,6 @@
 import PedigreeEditor from './script/pedigree';
 import DriveBackend from './script/DriveBackend';
+import { getLanguage, installNativeDialogTranslations, observeTranslations } from './script/i18n';
 
 import '@fortawesome/fontawesome-free/js/fontawesome'
 import '@fortawesome/fontawesome-free/js/solid'
@@ -15,7 +16,12 @@ import './style/editor.css';
 
 var editor;
 
+// Keep assistive technology and browser-provided controls in sync with the UI locale.
+document.documentElement.setAttribute('lang', getLanguage());
+installNativeDialogTranslations();
+
 document.observe('dom:loaded',function() {
+  observeTranslations(document.body);
   function initializeEditor(patientDataUrl) {
     var driveIdMatch = patientDataUrl ? patientDataUrl.match(/[-\w]{25,}/) : null;
 
