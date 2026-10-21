@@ -91,6 +91,7 @@ This version of Open Pedigree X is optimized to run as a web app or sidebar with
 The best way to deploy it is by separating the HTML and JS files in your Apps Script project.
 
 1. Build the optimized bundle locally by running `npm install` and `npm run build`.
+   The build also updates `version.json` from the generated bundle hash. For the regular static app, deploy `index.html`, `pedigree.min.js`, and `version.json` together; no manual version bump or `index.html` edit is needed. For Apps Script, paste the newly built bundle into `pedigree-js.html` after each build.
 2. In your Google Apps Script editor, create an `index.html` file using the `include` pattern:
 ```html
 <!DOCTYPE html>

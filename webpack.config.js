@@ -101,11 +101,23 @@ module.exports = {
         compiler.hooks.afterEmit.tap('AutoCopyMinJsPlugin', (compilation) => {
           const fs = require('fs');
           const path = require('path');
+          const crypto = require('crypto');
           const distFile = path.resolve(__dirname, 'dist', 'pedigree.min.js');
           const targetFile = path.resolve(__dirname, 'pedigree.min.js');
           if (fs.existsSync(distFile)) {
             fs.copyFileSync(distFile, targetFile);
             console.log('\n[AutoCopyMinJsPlugin] Successfully copied dist/pedigree.min.js -> ./pedigree.min.js');
+
+            // Keep the static entry point's cache-busting manifest in sync with the
+            // bundle. The URL in index.html changes automatically on every new build.
+            const bundleHash = crypto.createHash('sha256')
+              .update(fs.readFileSync(distFile))
+              .digest('hex')
+              .slice(0, 12);
+            const versionJson = JSON.stringify({ version: bundleHash }, null, 2) + '\n';
+            fs.writeFileSync(path.resolve(__dirname, 'version.json'), versionJson, 'utf8');
+            fs.writeFileSync(path.resolve(__dirname, 'dist', 'version.json'), versionJson, 'utf8');
+            console.log('\n[AutoCopyMinJsPlugin] Updated version.json -> ' + bundleHash);
           }
           const distAssets = path.resolve(__dirname, 'dist', 'assets');
           const targetAssets = path.resolve(__dirname, 'assets');

@@ -31,7 +31,8 @@
   <!-- Open Pedigree bundle with centralized versioning -->
   <script type="text/javascript">
     (function() {
-      var version = '';
+      // If the manifest is unavailable, still avoid a stale cached bundle.
+      var version = '?v=' + Date.now();
       try {
         var xhr = new XMLHttpRequest();
         xhr.open('GET', 'version.json?t=' + Date.now(), false);
@@ -43,7 +44,7 @@
           }
         }
       } catch (e) {
-        console.warn('Unable to load version.json, loading default asset:', e);
+        console.warn('Unable to load version.json, using a timestamp cache key:', e);
       }
       document.write('<script type="text/javascript" src="pedigree.min.js' + version + '"><\/script>');
     })();
