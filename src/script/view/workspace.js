@@ -49,9 +49,12 @@ var Workspace = Class.create({
     var start = function(x, y, evt) {
       if (evt && (evt.type === 'touchstart' || (evt.touches && evt.touches.length > 0))) return;
       if (editor && editor.isAnyMenuVisible && editor.isAnyMenuVisible()) {
+        me.background.isDragged = false;
         return;
       }
       me.background.isDragged = false;
+      if (!isFinite(me.viewBoxX)) me.viewBoxX = 0;
+      if (!isFinite(me.viewBoxY)) me.viewBoxY = 0;
       me.background.ox = me.viewBoxX;
       me.background.oy = me.viewBoxY;
       me.background.attr({cursor: 'move'});
@@ -59,25 +62,44 @@ var Workspace = Class.create({
     var move = function(dx, dy, x, y, evt) {
       if (evt && (evt.type === 'touchmove' || (evt.touches && evt.touches.length > 0))) return;
       if (me._isPinching) return;
+      if (me.background.ox === undefined || !isFinite(me.background.ox) || !isFinite(dx) || !isFinite(dy)) {
+        return;
+      }
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         me.background.isDragged = true;
         AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
       }
-      var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+      var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
       var w = Math.max(10, (me.width || 800) / zoom);
       var h = Math.max(10, (me.height || 600) / zoom);
-      var deltax = me.viewBoxX - dx / zoom;
-      var deltay = me.viewBoxY - dy / zoom;
+      var baseOx = isFinite(me.background.ox) ? me.background.ox : (isFinite(me.viewBoxX) ? me.viewBoxX : 0);
+      var baseOy = isFinite(me.background.oy) ? me.background.oy : (isFinite(me.viewBoxY) ? me.viewBoxY : 0);
+      var deltax = baseOx - dx / zoom;
+      var deltay = baseOy - dy / zoom;
 
-      me.getPaper().setViewBox(deltax, deltay, w, h);
-      me.background.ox = deltax;
-      me.background.oy = deltay;
-      me.background.attr({x: deltax, y: deltay, width: w, height: h });
+      if (isFinite(deltax) && isFinite(deltay) && isFinite(w) && isFinite(h)) {
+        me.getPaper().setViewBox(deltax, deltay, w, h);
+        me.background.curOx = deltax;
+        me.background.curOy = deltay;
+        me.background.attr({x: deltax, y: deltay, width: w, height: h });
+      }
     };
     var end = function(evt) {
       if (evt && (evt.type === 'touchend' || (evt.touches && evt.touches.length > 0))) return;
-      me.viewBoxX = me.background.ox;
-      me.viewBoxY = me.background.oy;
+      if (me.background.curOx !== undefined && isFinite(me.background.curOx)) {
+        me.viewBoxX = me.background.curOx;
+      } else if (me.background.ox !== undefined && isFinite(me.background.ox)) {
+        me.viewBoxX = me.background.ox;
+      }
+      if (me.background.curOy !== undefined && isFinite(me.background.curOy)) {
+        me.viewBoxY = me.background.curOy;
+      } else if (me.background.oy !== undefined && isFinite(me.background.oy)) {
+        me.viewBoxY = me.background.oy;
+      }
+      if (!isFinite(me.viewBoxX)) me.viewBoxX = 0;
+      if (!isFinite(me.viewBoxY)) me.viewBoxY = 0;
+      delete me.background.curOx;
+      delete me.background.curOy;
       me.background.attr({cursor: 'default'});
       AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
     };
@@ -111,30 +133,36 @@ var Workspace = Class.create({
         return;
       }
       if (e.touches.length === 2) {
-        isPinching = true;
-        isPanning = false;
-        me._isPinching = true;
-
         var t1 = e.touches[0];
         var t2 = e.touches[1];
-        pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        pinchStartZoom = me.zoomCoefficient || 1;
+        if (t1 && t2) {
+          isPinching = true;
+          isPanning = false;
+          me._isPinching = true;
 
-        var midClientX = (t1.clientX + t2.clientX) / 2;
-        var midClientY = (t1.clientY + t2.clientY) / 2;
-        var midDiv = me.viewportToDiv(midClientX, midClientY);
-        pinchAnchorCanvas = me.divToCanvas(midDiv.x, midDiv.y);
+          pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          pinchStartZoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
 
-        e.preventDefault();
-        e.stopPropagation();
+          var midClientX = (t1.clientX + t2.clientX) / 2;
+          var midClientY = (t1.clientY + t2.clientY) / 2;
+          var midDiv = me.viewportToDiv(midClientX, midClientY);
+          pinchAnchorCanvas = me.divToCanvas(midDiv.x, midDiv.y);
+
+          e.preventDefault();
+          e.stopPropagation();
+        }
       } else if (e.touches.length === 1) {
         isPinching = false;
         me._isPinching = false;
         if (isBackgroundTarget(e.target)) {
           isPanning = true;
           isPanMoved = false;
-          panStartTouch = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-          panStartViewBox = { x: me.viewBoxX, y: me.viewBoxY };
+          var t0 = e.touches[0];
+          panStartTouch = { clientX: t0.clientX, clientY: t0.clientY };
+          panStartViewBox = {
+            x: (isFinite(me.viewBoxX) ? me.viewBoxX : 0),
+            y: (isFinite(me.viewBoxY) ? me.viewBoxY : 0)
+          };
         } else {
           isPanning = false;
         }
@@ -148,10 +176,12 @@ var Workspace = Class.create({
 
         var t1 = e.touches[0];
         var t2 = e.touches[1];
+        if (!t1 || !t2) return;
         var currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        if (pinchStartDist > 0) {
+        if (pinchStartDist > 0 && isFinite(currentDist) && isFinite(pinchStartDist)) {
           var scale = currentDist / pinchStartDist;
           var newZoom = Math.min(1.25, Math.max(0.15, pinchStartZoom * scale));
+          newZoom = Math.round(newZoom * 100) / 100;
 
           var currentMidClientX = (t1.clientX + t2.clientX) / 2;
           var currentMidClientY = (t1.clientY + t2.clientY) / 2;
@@ -160,32 +190,41 @@ var Workspace = Class.create({
           var newW = Math.max(10, (me.width || 800) / newZoom);
           var newH = Math.max(10, (me.height || 600) / newZoom);
 
-          me.viewBoxX = pinchAnchorCanvas.x - curMidDiv.x / newZoom;
-          me.viewBoxY = pinchAnchorCanvas.y - curMidDiv.y / newZoom;
-          me.zoomCoefficient = newZoom;
+          var newX = pinchAnchorCanvas.x - curMidDiv.x / newZoom;
+          var newY = pinchAnchorCanvas.y - curMidDiv.y / newZoom;
 
-          me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, newW, newH);
-          me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: newW, height: newH});
-          me.syncSliderToZoom(newZoom);
+          if (isFinite(newX) && isFinite(newY) && isFinite(newW) && isFinite(newH)) {
+            me.viewBoxX = newX;
+            me.viewBoxY = newY;
+            me.zoomCoefficient = newZoom;
+
+            me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, newW, newH);
+            me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: newW, height: newH});
+            me.syncSliderToZoom(newZoom);
+          }
         }
       } else if (isPanning && e.touches.length === 1) {
         e.preventDefault();
-        var dx = e.touches[0].clientX - panStartTouch.clientX;
-        var dy = e.touches[0].clientY - panStartTouch.clientY;
+        var t0 = e.touches[0];
+        if (!t0) return;
+        var dx = t0.clientX - panStartTouch.clientX;
+        var dy = t0.clientY - panStartTouch.clientY;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           isPanMoved = true;
           AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
         }
-        var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+        var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
         var w = Math.max(10, (me.width || 800) / zoom);
         var h = Math.max(10, (me.height || 600) / zoom);
         var curX = panStartViewBox.x - dx / zoom;
         var curY = panStartViewBox.y - dy / zoom;
 
-        me.getPaper().setViewBox(curX, curY, w, h);
-        me.background.attr({x: curX, y: curY, width: w, height: h});
-        me.viewBoxX = curX;
-        me.viewBoxY = curY;
+        if (isFinite(curX) && isFinite(curY) && isFinite(w) && isFinite(h)) {
+          me.getPaper().setViewBox(curX, curY, w, h);
+          me.background.attr({x: curX, y: curY, width: w, height: h});
+          me.viewBoxX = curX;
+          me.viewBoxY = curY;
+        }
       }
     };
 
@@ -199,8 +238,12 @@ var Workspace = Class.create({
           me._isPinching = false;
           isPanning = true;
           isPanMoved = true;
-          panStartTouch = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-          panStartViewBox = { x: me.viewBoxX, y: me.viewBoxY };
+          var t0 = e.touches[0];
+          panStartTouch = { clientX: t0.clientX, clientY: t0.clientY };
+          panStartViewBox = {
+            x: (isFinite(me.viewBoxX) ? me.viewBoxX : 0),
+            y: (isFinite(me.viewBoxY) ? me.viewBoxY : 0)
+          };
         } else if (e.touches.length === 0) {
           isPinching = false;
           me._isPinching = false;
@@ -210,26 +253,30 @@ var Workspace = Class.create({
         if (e.touches.length === 0) {
           isPanning = false;
           AbstractHoverbox.unpinAll && AbstractHoverbox.unpinAll(true);
-          // Double-tap on empty background: zoom in one step around the tap (or reset when maxed out)
+          // Double-tap on empty background: zoom in one step around the tap (only if not panned)
           var tap = e.changedTouches && e.changedTouches[0];
-          if (tap && e.type === 'touchend') {
+          if (!isPanMoved && tap && e.type === 'touchend') {
             var now = Date.now();
             if (lastTap && now - lastTap.time < 300 &&
                 Math.hypot(tap.clientX - lastTap.x, tap.clientY - lastTap.y) < 30) {
               lastTap = null;
-              var curZoom = me.zoomCoefficient || 1;
+              var curZoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
               var targetZoom = curZoom >= 1.25 - 0.001 ? 0.5 : Math.min(1.25, curZoom + 0.15);
               targetZoom = Math.round(targetZoom * 100) / 100;
               var tapDiv = me.viewportToDiv(tap.clientX, tap.clientY);
               var tapCanvas = me.divToCanvas(tapDiv.x, tapDiv.y);
-              me.viewBoxX = tapCanvas.x - tapDiv.x / targetZoom;
-              me.viewBoxY = tapCanvas.y - tapDiv.y / targetZoom;
-              me.zoomCoefficient = targetZoom;
+              var targetX = tapCanvas.x - tapDiv.x / targetZoom;
+              var targetY = tapCanvas.y - tapDiv.y / targetZoom;
               var tw = Math.max(10, (me.width || 800) / targetZoom);
               var th = Math.max(10, (me.height || 600) / targetZoom);
-              me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, tw, th);
-              me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: tw, height: th});
-              me.syncSliderToZoom(targetZoom);
+              if (isFinite(targetX) && isFinite(targetY) && isFinite(tw) && isFinite(th)) {
+                me.viewBoxX = targetX;
+                me.viewBoxY = targetY;
+                me.zoomCoefficient = targetZoom;
+                me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, tw, th);
+                me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: tw, height: th});
+                me.syncSliderToZoom(targetZoom);
+              }
             } else {
               lastTap = {time: now, x: tap.clientX, y: tap.clientY};
             }
@@ -515,7 +562,13 @@ var Workspace = Class.create({
   /**
    * Converts zoom coefficient to slider value ratio [0, 1]
    */
+  /**
+   * Converts zoom coefficient to slider value ratio [0, 1]
+   */
   zoomToSliderValue: function(zoom) {
+    if (typeof zoom !== 'number' || !isFinite(zoom) || zoom <= 0) {
+      zoom = 1;
+    }
     if (zoom >= 0.25) {
       return Math.max(0, Math.min(0.9, (1.25 - zoom) * 0.9));
     } else {
@@ -527,11 +580,19 @@ var Workspace = Class.create({
    * Converts slider value ratio [0, 1] to zoom coefficient
    */
   sliderValueToZoom: function(val) {
-    if (val <= 0.9) {
-      return 1.25 - (val / 0.9);
-    } else {
-      return 1.15 - val;
+    if (typeof val !== 'number' || !isFinite(val)) {
+      return 1;
     }
+    var zoom;
+    if (val <= 0.9) {
+      zoom = 1.25 - (val / 0.9);
+    } else {
+      zoom = 1.15 - val;
+    }
+    if (!isFinite(zoom)) {
+      return 1;
+    }
+    return Math.min(1.25, Math.max(0.15, zoom));
   },
 
   /**
@@ -566,6 +627,9 @@ var Workspace = Class.create({
    * @param {Boolean} skipSliderSync Optional flag to skip updating slider handle
    */
   zoom: function(zoomCoefficient, skipSliderSync) {
+    if (typeof zoomCoefficient !== 'number' || !isFinite(zoomCoefficient) || zoomCoefficient <= 0) {
+      zoomCoefficient = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    }
     if (zoomCoefficient < 0.15) {
       zoomCoefficient = 0.15;
     }
@@ -573,16 +637,31 @@ var Workspace = Class.create({
       zoomCoefficient = 1.25;
     }
     zoomCoefficient = Math.round(zoomCoefficient * 100) / 100;
-    var w = Math.max(100, this.width || 800);
-    var h = Math.max(100, this.height || 600);
-    var currentZoom = (this.zoomCoefficient && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var w = Math.max(100, isFinite(this.width) ? this.width : 800);
+    var h = Math.max(100, isFinite(this.height) ? this.height : 600);
+    var currentZoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
     var newWidth  = Math.max(10, w / zoomCoefficient);
     var newHeight = Math.max(10, h / zoomCoefficient);
-    this.viewBoxX = this.viewBoxX + (w / currentZoom - newWidth) / 2;
-    this.viewBoxY = this.viewBoxY + (h / currentZoom - newHeight) / 2;
-    this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
+
+    // Self-healing: if viewBoxX or viewBoxY were ever corrupted to NaN, restore to 0
+    if (!isFinite(this.viewBoxX)) {
+      this.viewBoxX = 0;
+    }
+    if (!isFinite(this.viewBoxY)) {
+      this.viewBoxY = 0;
+    }
+
+    var newX = this.viewBoxX + (w / currentZoom - newWidth) / 2;
+    var newY = this.viewBoxY + (h / currentZoom - newHeight) / 2;
+
+    this.viewBoxX = isFinite(newX) ? newX : 0;
+    this.viewBoxY = isFinite(newY) ? newY : 0;
     this.zoomCoefficient = zoomCoefficient;
-    this.background.attr({x: this.viewBoxX, y: this.viewBoxY, width: newWidth, height: newHeight});
+
+    this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
+    if (this.background) {
+      this.background.attr({x: this.viewBoxX, y: this.viewBoxY, width: newWidth, height: newHeight});
+    }
     if (!skipSliderSync) {
       this.syncSliderToZoom(zoomCoefficient);
     }
@@ -871,9 +950,12 @@ var Workspace = Class.create({
      * @return {{x: number, y: number}} Object with coordinates
      */
   canvasToDiv: function(canvasX,canvasY) {
+    var zoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var vx = isFinite(this.viewBoxX) ? this.viewBoxX : 0;
+    var vy = isFinite(this.viewBoxY) ? this.viewBoxY : 0;
     return {
-      x: this.zoomCoefficient * (canvasX - this.viewBoxX),
-      y: this.zoomCoefficient * (canvasY - this.viewBoxY)
+      x: zoom * ((isFinite(canvasX) ? canvasX : 0) - vx),
+      y: zoom * ((isFinite(canvasY) ? canvasY : 0) - vy)
     };
   },
 
@@ -887,9 +969,12 @@ var Workspace = Class.create({
      * @return {{x: number, y: number}} Object with coordinates
      */
   divToCanvas: function(divX,divY) {
+    var zoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var vx = isFinite(this.viewBoxX) ? this.viewBoxX : 0;
+    var vy = isFinite(this.viewBoxY) ? this.viewBoxY : 0;
     return {
-      x: divX/this.zoomCoefficient + this.viewBoxX,
-      y: divY/this.zoomCoefficient + this.viewBoxY
+      x: (isFinite(divX) ? divX : 0)/zoom + vx,
+      y: (isFinite(divY) ? divY : 0)/zoom + vy
     };
   },
 
@@ -903,9 +988,26 @@ var Workspace = Class.create({
      * @return {{x: number, y: number}} Object with coordinates
      */
   viewportToDiv : function (absX, absY) {
+    var left = 0;
+    var top = 62;
+    if (this.canvas) {
+      if (typeof this.canvas.getBoundingClientRect === 'function') {
+        var rect = this.canvas.getBoundingClientRect();
+        left = rect.left;
+        top = rect.top;
+      } else if (typeof this.canvas.cumulativeOffset === 'function') {
+        var off = this.canvas.cumulativeOffset();
+        if (off) {
+          left = off.left || off[0] || 0;
+          top = off.top || off[1] || 0;
+        }
+      }
+    }
+    var safeX = (typeof absX === 'number' && isFinite(absX)) ? absX : 0;
+    var safeY = (typeof absY === 'number' && isFinite(absY)) ? absY : 0;
     return {
-      x : + absX - this.canvas.cumulativeOffset().left,
-      y : absY - this.canvas.cumulativeOffset().top
+      x : safeX - left,
+      y : safeY - top
     };
   },
 
@@ -917,6 +1019,11 @@ var Workspace = Class.create({
      * @param {Number} y The y coordinate relative to the Raphael canvas
      */
   panTo: function(x, y, instant) {
+    if (!isFinite(x)) x = 0;
+    if (!isFinite(y)) y = 0;
+    if (!isFinite(this.viewBoxX)) this.viewBoxX = 0;
+    if (!isFinite(this.viewBoxY)) this.viewBoxY = 0;
+
     var me = this,
       oX = this.viewBoxX,
       oY = this.viewBoxY,
@@ -933,7 +1040,14 @@ var Workspace = Class.create({
     var xStep = xDisplacement/frames,
       yStep = yDisplacement/frames;
 
-    if (xStep == 0 && yStep == 0) {
+    if (!isFinite(xStep) || !isFinite(yStep) || (xStep === 0 && yStep === 0)) {
+      me.viewBoxX = x;
+      me.viewBoxY = y;
+      var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+      var w = Math.max(10, (me.width || 800) / zoom);
+      var h = Math.max(10, (me.height || 600) / zoom);
+      me.getPaper().setViewBox(x, y, w, h);
+      me.background && me.background.attr({x: x, y: y, width: w, height: h });
       return;
     }
 
@@ -942,13 +1056,15 @@ var Workspace = Class.create({
     (function draw() {
       setTimeout(function() {
         if(progress++ < frames) {
-          var zoom = (me.zoomCoefficient && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
+          var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
           var w = Math.max(10, (me.width || 800) / zoom);
           var h = Math.max(10, (me.height || 600) / zoom);
-          me.viewBoxX += xStep;
-          me.viewBoxY += yStep;
+          var nextX = me.viewBoxX + xStep;
+          var nextY = me.viewBoxY + yStep;
+          me.viewBoxX = isFinite(nextX) ? nextX : x;
+          me.viewBoxY = isFinite(nextY) ? nextY : y;
           me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, w, h);
-          me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: w, height: h });
+          me.background && me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: w, height: h });
           draw();
         }
       }, 1000 * numSeconds / frames);
@@ -962,7 +1078,11 @@ var Workspace = Class.create({
      * @param {Number} deltaX The move size
      */
   panByX: function(deltaX, instant) {
-    this.panTo(this.viewBoxX + Math.floor(deltaX/this.zoomCoefficient), this.viewBoxY, instant);
+    if (!isFinite(deltaX)) deltaX = 0;
+    var zoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var vx = isFinite(this.viewBoxX) ? this.viewBoxX : 0;
+    var vy = isFinite(this.viewBoxY) ? this.viewBoxY : 0;
+    this.panTo(vx + Math.floor(deltaX/zoom), vy, instant);
   },
 
   /**
@@ -985,9 +1105,12 @@ var Workspace = Class.create({
     this.width = Math.max(100, viewportWidth);
     this.height = Math.max(100, calculatedHeight);
 
-    var zoom = (this.zoomCoefficient && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+    var zoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
     var newWidth = Math.max(10, this.width / zoom);
     var newHeight = Math.max(10, this.height / zoom);
+
+    if (!isFinite(this.viewBoxX)) this.viewBoxX = 0;
+    if (!isFinite(this.viewBoxY)) this.viewBoxY = 0;
 
     this.getPaper().setSize(this.width, this.height);
     this.getPaper().setViewBox(this.viewBoxX, this.viewBoxY, newWidth, newHeight);
@@ -1018,17 +1141,22 @@ var Workspace = Class.create({
     }
     var targetId = (nodeID !== undefined && editor && editor.getNode && editor.getNode(nodeID)) ? nodeID : probandId;
     var node = (editor && editor.getNode) ? (editor.getNode(targetId) || editor.getNode(0)) : null;
-    if(node) {
+    if(node && typeof node.getX === 'function' && typeof node.getY === 'function') {
       var x = node.getX(),
         y = node.getY();
-      if (!xCenterShift) {
+      if (!isFinite(x) || !isFinite(y)) {
+        this.panTo(0, 0, instant);
+        return;
+      }
+      if (!xCenterShift || !isFinite(xCenterShift)) {
         xCenterShift = 0;
       }
-      if (!yCenterShift) {
+      if (!yCenterShift || !isFinite(yCenterShift)) {
         yCenterShift = 0;
       }
-      var xOffset = this.getWidth()/this.zoomCoefficient;
-      var yOffset = this.getHeight()/this.zoomCoefficient;
+      var zoom = (typeof this.zoomCoefficient === 'number' && isFinite(this.zoomCoefficient) && this.zoomCoefficient > 0) ? this.zoomCoefficient : 1;
+      var xOffset = (this.getWidth() || 800) / zoom;
+      var yOffset = (this.getHeight() || 600) / zoom;
       this.panTo(x - xOffset/2 - xCenterShift, y - yOffset/2 - yCenterShift, instant);
     } else {
       this.panTo(0, 0, instant);
