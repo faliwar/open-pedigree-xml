@@ -47,7 +47,7 @@ var ImportSelector = Class.create( {
     var aiHelperSection = new Element('div', {
       'id': 'import-llm-helper',
       'class': 'import-llm-helper highlight-invitae',
-      'title': 'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+      'title': 'Copy instructions and run them with your clinical notes in your institution\'s HIPAA/GDPR-compliant AI (or ensure data is de-identified), then paste the generated XML above.'
     });
     this.aiHelperSection = aiHelperSection;
 
@@ -57,7 +57,7 @@ var ImportSelector = Class.create( {
     aiHeader.insert(aiBadge).insert(aiDesc);
 
     var aiTip = new Element('div', {'class': 'import-llm-tip'}).update(
-      'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+      'Copy instructions and run them with your clinical notes in your institution\'s HIPAA/GDPR-compliant AI (or ensure data is de-identified), then paste the generated XML above.'
     );
 
     var aiActions = new Element('div', {'class': 'import-llm-actions'});
@@ -66,7 +66,7 @@ var ImportSelector = Class.create( {
     var copyBtn = new Element('button', {
       'type': 'button',
       'class': 'llm-btn llm-btn-copy',
-      'title': 'Step 1: Copy these instructions (or download the .md file), paste them along with your clinical family history into your preferred AI, and paste the generated XML above.'
+      'title': 'Copy instructions to clipboard'
     }).update('<i class="fas fa-copy"></i> Copy LLM Instructions (.md)');
 
     var fallbackCopy = function(text, cb) {
@@ -114,7 +114,7 @@ var ImportSelector = Class.create( {
     var downloadBtn = new Element('button', {
       'type': 'button',
       'class': 'llm-btn',
-      'title': 'Download LLMInstructions.md to attach to an LLM chat'
+      'title': 'Download LLMInstructions.md to attach to your AI chat'
     }).update('<i class="fas fa-download"></i> Download LLMInstructions.md');
 
     downloadBtn.observe('click', function(ev) {
@@ -138,30 +138,7 @@ var ImportSelector = Class.create( {
       }
     });
 
-    // Action 3 — Quick Links to Open LLMs
-    var quickLinks = new Element('div', {'class': 'import-llm-quicklinks'});
-    var qlLabel = new Element('span', {'class': 'quicklinks-label'}).update('Open AI:');
-    quickLinks.insert(qlLabel);
-
-    var llmServices = [
-      { name: 'Gemini', url: 'https://gemini.google.com/' },
-      { name: 'ChatGPT', url: 'https://chatgpt.com/' },
-      { name: 'Claude', url: 'https://claude.ai/' },
-      { name: 'DeepSeek', url: 'https://chat.deepseek.com/' }
-    ];
-
-    llmServices.forEach(function(item) {
-      var link = new Element('a', {
-        'href': item.url,
-        'target': '_blank',
-        'rel': 'noopener noreferrer',
-        'class': 'llm-link',
-        'title': 'Open ' + item.name + ' in a new tab'
-      }).update(item.name + ' <i class="fas fa-external-link-alt" style="font-size: 0.72em;"></i>');
-      quickLinks.insert(link);
-    });
-
-    aiActions.insert(copyBtn).insert(downloadBtn).insert(quickLinks);
+    aiActions.insert(copyBtn).insert(downloadBtn);
     aiHelperSection.insert(aiHeader).insert(aiTip).insert(aiActions);
     mainDiv.insert(aiHelperSection);
 
