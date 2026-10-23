@@ -431,16 +431,23 @@ var Workspace = Class.create({
         name : 'edit',
         title: translate('Edit'),
         items: [
-          { key : 'undo',     label : translate('Undo'), icon : 'undo'},
-          { key : 'redo',     label : translate('Redo'), icon : 'redo'},
-          { key : 'relayout', label : translate('Re-layout'), icon : 'sitemap'},
-            { key : 'labels',   label : translate('Labels'),     icon : 'tags'}
+          { key : 'undo', label : translate('Undo'), icon : 'undo', iconOnly : true},
+          { key : 'redo', label : translate('Redo'), icon : 'redo', iconOnly : true}
         ]
       }, {
-        name : 'reset',
-        title: translate('Reset'),
+        // Less frequent actions live in one dropdown on desktop; on mobile they are listed
+        // as a normal section of the menu sheet.
+        name : 'tools',
+        title: translate('Tools'),
+        dropdown: { key : 'tools-menu', label : translate('Tools'), icon : 'tools' },
         items: [
-          { key : 'clear',  label : translate('Clear all'), icon : 'times-circle'}
+          { key : 'relayout',  label : translate('Re-layout'), icon : 'sitemap'},
+          { key : 'labels',    label : translate('Labels'),    icon : 'tags'},
+          { key : 'history',   label : translate('History'),   icon : 'history'},
+          { key : 'cascade',   label : translate('Cascade testing'), icon : 'project-diagram'},
+          { key : 'shortcuts', label : translate('Keyboard shortcuts'), icon : 'keyboard'},
+          { separator : true },
+          { key : 'clear',     label : translate('Clear all'), icon : 'times-circle'}
         ]
       }, {
         name : 'output',
@@ -454,12 +461,26 @@ var Workspace = Class.create({
     var _createSubmenu = function(data) {
       var submenu = new Element('div', {'class' : data.name + '-actions action-group', 'data-title' : data.title || ''});
       actions.insert(submenu);
+      var container = submenu;
+      if (data.dropdown) {
+        container = _createDropdown(submenu, data.dropdown);
+      }
       data.items.each(function (item) {
-        submenu.insert(_createMenuItem(item));
+        if (item.separator) {
+          container.insert(new Element('div', {'class' : 'menu-dropdown-separator', 'role' : 'separator'}));
+        } else {
+          container.insert(_createMenuItem(item));
+        }
       });
     };
     var _createMenuItem = function(data) {
-      var mi = new Element('span', {'id' : 'action-' + data.key, 'class' : 'menu-item ' + data.key}).insert(new Element('span', {'class' : 'fa fa-' + data.icon})).insert(' ').insert(data.label);
+      var mi = new Element('span', {'id' : 'action-' + data.key, 'class' : 'menu-item ' + data.key + (data.iconOnly ? ' icon-only' : ''), 'title' : data.label})
+        .insert(new Element('span', {'class' : 'fa fa-' + data.icon}))
+        .insert(' ')
+        .insert(new Element('span', {'class' : 'menu-item-label'}).update(data.label));
+      if (data.iconOnly) {
+        mi.writeAttribute('aria-label', data.label);
+      }
       if (data.callback && typeof(this[data.callback]) == 'function') {
         mi.observe('click', function() {
           this[data.callback]();
@@ -467,6 +488,55 @@ var Workspace = Class.create({
       }
       return mi;
     };
+    // A toolbar button that opens a panel of menu items (desktop only; see editor.css)
+    var openDropdowns = [];
+    var _createDropdown = function(submenu, data) {
+      var wrapper = new Element('div', {'class' : 'menu-dropdown'});
+      var toggle = new Element('span', {'id' : 'action-' + data.key, 'class' : 'menu-item menu-dropdown-toggle', 'role' : 'button',
+        'tabindex' : '0', 'aria-haspopup' : 'true', 'aria-expanded' : 'false'})
+        .insert(new Element('span', {'class' : 'fa fa-' + data.icon}))
+        .insert(' ')
+        .insert(new Element('span', {'class' : 'menu-item-label'}).update(data.label))
+        .insert(new Element('span', {'class' : 'fa fa-caret-down menu-dropdown-caret'}));
+      var panel = new Element('div', {'class' : 'menu-dropdown-panel', 'role' : 'menu'});
+      wrapper.insert(toggle).insert(panel);
+      submenu.insert(wrapper);
+
+      var setOpen = function(open) {
+        wrapper[open ? 'addClassName' : 'removeClassName']('is-open');
+        toggle.writeAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      openDropdowns.push(setOpen);
+      toggle.observe('click', function(e) {
+        e.stop();
+        var open = !wrapper.hasClassName('is-open');
+        openDropdowns.each(function(close) { close(false); });
+        setOpen(open);
+      });
+      toggle.observe('keydown', function(e) {
+        if (e.keyCode === 13 || e.keyCode === 32) {
+          e.stop();
+          toggle.click();
+        }
+      });
+      // choosing an item closes the panel (the item's own handler still runs)
+      panel.observe('click', function(e) {
+        if (e.findElement('.menu-item')) {
+          setOpen(false);
+        }
+      });
+      return panel;
+    };
+    document.observe('click', function(e) {
+      if (!e.findElement('.menu-dropdown')) {
+        openDropdowns.each(function(close) { close(false); });
+      }
+    });
+    document.observe('keydown', function(e) {
+      if (e.keyCode === 27) {
+        openDropdowns.each(function(close) { close(false); });
+      }
+    });
     submenus.each(_createSubmenu);
 
     actions.insert(new Element('div', {'class': 'powered-by'})

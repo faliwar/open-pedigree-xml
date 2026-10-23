@@ -111,6 +111,14 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showLabelPrefixes
     );
 
+    var overlay = editor.getOverlay ? editor.getOverlay() : null;
+    var numberingOpt = createOptionRow(
+      'cb-show-numbering',
+      'Standard Nomenclature (I-1, II-3...)',
+      'Number generations with Roman numerals and individuals from left to right, as in clinical pedigree notation.',
+      !!(overlay && overlay.isNumberingVisible())
+    );
+
     var nameCard = new Element('div', { 'class': 'label-option-row label-option-select-row' });
     var nameTextCol = new Element('div', { 'class': 'label-option-text' });
     var nameTitle = new Element('div', { 'class': 'label-option-title' }).update('Name Display Format');
@@ -150,7 +158,13 @@ var LabelOptionsSelector = Class.create({
     optionsList.insert(commentsOpt.row);
     optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
     optionsList.insert(prefixesOpt.row);
+    optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
+    optionsList.insert(numberingOpt.row);
     mainDiv.insert(optionsList);
+
+    numberingOpt.input.observe('change', function() {
+      overlay && overlay.setNumberingVisible(numberingOpt.input.checked);
+    });
 
     var applyCurrentValues = function() {
       _this.saveSettings({

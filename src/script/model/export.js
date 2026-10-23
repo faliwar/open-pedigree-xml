@@ -3,7 +3,7 @@ import SVGtoPDF from 'vendor/pdfkit/svg-to-pdfkit';
 import blobStream from 'vendor/pdfkit/blob-stream';
 import GA4GHFHIRConverter from 'pedigree/GA4GHFHIRConverter';
 import InvitaeConverter from 'pedigree/InvitaeConverter';
-import { romanize } from 'pedigree/model/helpers';
+import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 
 var PedigreeExport = function () {
@@ -112,6 +112,14 @@ PedigreeExport.exportAsInvitae = function(pedigree, privacySetting = 'all'){
 
 // ===============================================================================================
 
+// Removes canvas annotations drawn by PedigreeOverlay (see view/pedigreeOverlay.js)
+function removeOverlay(dom, kind) {
+  var nodes = dom.querySelectorAll('[data-opx-overlay="' + kind + '"]');
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].parentNode && nodes[i].parentNode.removeChild(nodes[i]);
+  }
+}
+
 PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   var image = $('canvas');
   var background = image.getElementsByClassName('panning-background')[0];
@@ -193,6 +201,8 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   }
 
   removeHiddenNodes(dom.getRootNode());
+  // Cascade testing rings are a working aid on screen only; never export them
+  removeOverlay(dom, 'cascade');
   if (privacySetting !== 'all' ){
     removeText(dom, '20px');
   }
@@ -245,53 +255,16 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
   // 2. Generation & Individual Numbering
   if (showNumbers && typeof editor !== 'undefined' && editor && editor.getGraph && editor.getNode) {
     try {
-      var graph = editor.getGraph();
+      // the PDF draws its own numbers in the margin: drop the on-canvas ones to avoid duplicates
+      removeOverlay(dom, 'numbering');
+
       var radius = (PedigreeEditorParameters.attributes && PedigreeEditorParameters.attributes.radius) || 40;
-      var persons = [];
+      // same numbering as the canvas and the cascade list
+      var tiers = computeStandardNumbering(editor).tiers.map(function(tier) {
+        return { avgY: tier.y, roman: tier.roman, persons: tier.persons };
+      });
 
-      var maxId = (graph.DG && graph.DG.GG) ? graph.DG.GG.getMaxRealVertexId() : (graph.getMaxNodeId ? graph.getMaxNodeId() : 0);
-      for (var id = 0; id <= maxId; id++) {
-        if (!graph.isPerson(id) || graph.isPlaceholder(id) || graph.isVirtualDummyChild(id) || graph.isVirtualParent(id)) {
-          continue;
-        }
-        var personNode = editor.getNode(id);
-        if (!personNode || (personNode.isVirtual && personNode.isVirtual())) {
-          continue;
-        }
-        persons.push({
-          id: id,
-          x: personNode.getX(),
-          y: personNode.getY()
-        });
-      }
-
-      if (persons.length > 0) {
-        // Cluster into generation tiers based on Y coordinate (within 50px of each other)
-        persons.sort(function(a, b) { return a.y - b.y; });
-        var tiers = [];
-        for (var pIdx = 0; pIdx < persons.length; pIdx++) {
-          var p = persons[pIdx];
-          var matchedTier = null;
-          for (var t = 0; t < tiers.length; t++) {
-            if (Math.abs(tiers[t].avgY - p.y) < 50) {
-              matchedTier = tiers[t];
-              break;
-            }
-          }
-          if (matchedTier) {
-            matchedTier.persons.push(p);
-            var sumY = 0;
-            for (var m = 0; m < matchedTier.persons.length; m++) {
-              sumY += matchedTier.persons[m].y;
-            }
-            matchedTier.avgY = sumY / matchedTier.persons.length;
-          } else {
-            tiers.push({ avgY: p.y, persons: [p] });
-          }
-        }
-
-        // Sort tiers from top to bottom
-        tiers.sort(function(a, b) { return a.avgY - b.avgY; });
+      if (tiers.length > 0) {
 
         // Get viewBox
         var vbAttr = svgEl.getAttribute('viewBox') || '';
@@ -313,7 +286,7 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
         // Add generation Roman numerals (I, II, III...) on the left margin
         for (var g = 0; g < tiers.length; g++) {
           var tier = tiers[g];
-          var romanStr = romanize(g + 1);
+          var romanStr = tier.roman;
           if (romanStr) {
             var genText = dom.createElementNS(ns, 'text');
             genText.setAttribute('x', String(minX - (padLeft / 2)));

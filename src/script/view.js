@@ -571,6 +571,9 @@ var View = Class.create({
         }
       }
     }
+    if (typeof editor !== 'undefined' && editor && editor.getOverlay && editor.getOverlay()) {
+      editor.getOverlay().scheduleRedraw();
+    }
   },
 
   applyChanges: function( changeSet, markNew ) {
@@ -776,6 +779,11 @@ var View = Class.create({
 
     } catch(err) {
       console.error('applyChanges error:', err);
+    } finally {
+      // keep chart annotations (standard numbering, cascade highlight) in sync with the new layout
+      if (typeof editor !== 'undefined' && editor && editor.getOverlay && editor.getOverlay()) {
+        editor.getOverlay().onGraphChanged(changeSet);
+      }
     }
   }
 });

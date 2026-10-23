@@ -19,6 +19,10 @@ import ActionStack from 'pedigree/undoRedo';
 import VersionUpdater from 'pedigree/versionUpdater';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import DefaultFhirTerminologyHelper from 'pedigree/DefaultFhirTerminologyHelper';
+import PedigreeOverlay from 'pedigree/view/pedigreeOverlay';
+import CascadeTestingDialog from 'pedigree/view/cascadeTestingDialog';
+import ModificationHistory from 'pedigree/view/modificationHistory';
+import KeyboardShortcuts from 'pedigree/view/keyboardShortcuts';
 
 import '../style/editor.css';
 
@@ -70,9 +74,13 @@ var PedigreeEditor = Class.create({
     this._hpoLegend = new HPOLegend();
     this._fhirTerminologyHelper = options.fhirTerminologyHelper || new DefaultFhirTerminologyHelper();
 
+    this._overlay = new PedigreeOverlay();
     this._view = new View();
 
     this._actionStack = new ActionStack();
+    // created before the Controller and the first load, so every change gets described
+    this._history = new ModificationHistory();
+    this._cascadeTestingDialog = new CascadeTestingDialog();
     this._templateSelector = new TemplateSelector();
     this._labelOptionsSelector = new LabelOptionsSelector();
     this._importSelector = new ImportSelector();
@@ -86,6 +94,7 @@ var PedigreeEditor = Class.create({
     this._saveLoadEngine.load(patientDataUrl, this._saveLoadEngine);
 
     this._controller = new Controller();
+    this._keyboardShortcuts = this.isReadOnlyMode() ? null : new KeyboardShortcuts();
 
     
     //attach actions to buttons on the top bar
@@ -105,6 +114,21 @@ var PedigreeEditor = Class.create({
     var labelsButton = $('action-labels');
     labelsButton && labelsButton.on('click', function(event) {
       editor.getLabelOptionsSelector().show();
+    });
+
+    var historyButton = $('action-history');
+    historyButton && historyButton.on('click', function(event) {
+      editor.getHistory().show();
+    });
+
+    var shortcutsButton = $('action-shortcuts');
+    shortcutsButton && shortcutsButton.on('click', function(event) {
+      editor.getKeyboardShortcuts() && editor.getKeyboardShortcuts().show();
+    });
+
+    var cascadeButton = $('action-cascade');
+    cascadeButton && cascadeButton.on('click', function(event) {
+      editor.getCascadeTestingDialog().show();
     });
 
     var clearButton = $('action-clear');
@@ -181,6 +205,7 @@ var PedigreeEditor = Class.create({
     document.observe('pedigree:partnership:newchild',      autosave);
     document.observe('pedigree:sibling:reorder',           autosave);
     document.observe('pedigree:graph:relayout',            autosave);
+    document.observe('pedigree:history:restored',          autosave);
 
     // --- Drag-and-drop file import ---
     this._initDragAndDropImport();
@@ -595,6 +620,38 @@ var PedigreeEditor = Class.create({
 
   getLabelOptionsSelector: function() {
     return this._labelOptionsSelector;
+  },
+
+  /**
+   * @method getOverlay
+   * @return {PedigreeOverlay} chart annotations (standard numbering, cascade highlight)
+   */
+  getOverlay: function() {
+    return this._overlay;
+  },
+
+  /**
+   * @method getHistory
+   * @return {ModificationHistory}
+   */
+  getHistory: function() {
+    return this._history;
+  },
+
+  /**
+   * @method getCascadeTestingDialog
+   * @return {CascadeTestingDialog}
+   */
+  getCascadeTestingDialog: function() {
+    return this._cascadeTestingDialog;
+  },
+
+  /**
+   * @method getKeyboardShortcuts
+   * @return {KeyboardShortcuts|null}
+   */
+  getKeyboardShortcuts: function() {
+    return this._keyboardShortcuts;
   },
 
   /**

@@ -22,6 +22,7 @@ var ActionStack = Class.create({
     if (!nextState) {
       return;
     }
+    this._log('redo', nextState);
 
     if (nextState.eventToGetToThisState) {
       var memo = nextState.eventToGetToThisState.memo;
@@ -33,6 +34,62 @@ var ActionStack = Class.create({
 
     editor.getSaveLoadEngine().createGraphFromSerializedData( nextState.serializedState, true /* do not re-add to undo/redo stack */ );
     this._currentState++;
+  },
+
+  /**
+   * Returns the states in chronological order (oldest first), for the modification history
+   *
+   * @method getStates
+   * @return {Array of State}
+   */
+  getStates: function() {
+    return this._stack.slice(0);
+  },
+
+  /**
+   * Index (in getStates()) of the state the pedigree is currently in, or -1 if none
+   *
+   * @method getCurrentIndex
+   */
+  getCurrentIndex: function() {
+    return this._currentState - 1;
+  },
+
+  /**
+   * Moves the pedigree to the given state, undoing or redoing as many steps as needed
+   *
+   * @method goToState
+   * @param {State} state One of the objects returned by getStates()
+   * @return {Boolean} false when the state is no longer in the stack
+   */
+  goToState: function(state) {
+    var target = this._stack.indexOf(state);
+    if (target < 0) {
+      return false;
+    }
+    var guard = this._stack.length + 1;
+    while (this.getCurrentIndex() > target && guard-- > 0) {
+      this._silent(this.undo);
+    }
+    while (this.getCurrentIndex() < target && guard-- > 0) {
+      this._silent(this.redo);
+    }
+    return this.getCurrentIndex() === target;
+  },
+
+  _silent: function(step) {
+    this._suppressLog = true;
+    try {
+      step.call(this);
+    } finally {
+      this._suppressLog = false;
+    }
+  },
+
+  _log: function(kind, state) {
+    if (!this._suppressLog && state && typeof editor !== 'undefined' && editor.getHistory && editor.getHistory()) {
+      editor.getHistory().onStackEvent(kind, state);
+    }
   },
 
   /**
@@ -48,6 +105,7 @@ var ActionStack = Class.create({
 
     // it may be more efficient to undo the current state instead of full prev state restore
     var currentState = this._getCurrentState();
+    this._log('undo', currentState);
     //console.log("Current state: " + JSON.stringify(currentState));
     if (currentState.eventToUndo) {
       var memo = currentState.eventToUndo.memo;
@@ -100,6 +158,11 @@ var ActionStack = Class.create({
     //}
 
     var state = new State( serializedState, eventToGetToThisState, eventToUndo );
+    var history = (typeof editor !== 'undefined' && editor.getHistory) ? editor.getHistory() : null;
+    if (history) {
+      state.description = history.describeState(eventToGetToThisState);
+      state.author = history.getAuthor();
+    }
 
     // 2. push this new state to the array and increment the current index
 
@@ -112,11 +175,16 @@ var ActionStack = Class.create({
       //console.log("[UNDOREDO] combining state changes");
       currentState.eventToGetToThisState = eventToGetToThisState;
       currentState.serializedState       = serializedState;
+      currentState.timestamp             = state.timestamp;
+      currentState.description           = state.description;
+      currentState.author                = state.author;
+      this._log('update', currentState);
       //this._debug_print_states();
       return;
     }
 
     this._addNewest(state);
+    this._log('change', state);
 
     if (this._size() > this._MAXUNDOSIZE) {
       this._removeOldest();
@@ -233,6 +301,10 @@ var State = Class.create({
     this.serializedState       = serializedState;
     this.eventToGetToThisState = eventToGetToThisState;
     this.eventToUndo           = eventToUndo;
+    // modification history metadata
+    this.timestamp             = new Date();
+    this.description           = '';
+    this.author                = '';
   }
 });
 
