@@ -23,7 +23,7 @@ const translations = {
   'Genetic tests and diagnosis details': 'Testes genéticos e detalhes do diagnóstico',
   'Genetic test results': 'Resultados de testes genéticos', 'Add test result': 'Adicionar resultado de teste',
   'No test results recorded.': 'Nenhum resultado de teste registrado.', 'Diagnosis details': 'Detalhes do diagnóstico',
-  'No disorders recorded. Add them under Disorders in the properties menu.': 'Nenhuma doença registrada. Adicione-as em Doenças no menu de propriedades.',
+  'No disorders recorded. Add them under Disorders in the properties menu.': 'Nenhuma condição registrada. Adicione-as em Condições no menu de propriedades.',
   'Save': 'Salvar', 'Gene': 'Gene', 'Result': 'Resultado', 'Variant (HGVS c.)': 'Variante (HGVS c.)',
   'Protein (HGVS p.)': 'Proteína (HGVS p.)', 'Zygosity': 'Zigosidade', 'Laboratory': 'Laboratório',
   'Report date': 'Data do laudo', 'Comment': 'Comentário', 'Remove': 'Remover',
@@ -188,8 +188,8 @@ const translations = {
   'Download LLMInstructions.md': 'Baixar LLMInstructions.md',
   'Could not copy automatically. Please use the Download button instead.': 'Não foi possível copiar automaticamente. Use o botão Baixar.',
   'Data format:': 'Formato dos dados:', 'PED or LINKAGE (pre- or post- makeped)': 'PED ou LINKAGE (antes ou depois do makeped)',
-  'Treat non-standard phenotype values as new disorders': 'Tratar valores de fenótipo fora do padrão como novos distúrbios',
-  "Mark all patients with known disorder status with 'documented evaluation' mark": "Marcar todos os pacientes com estado do distúrbio conhecido como 'avaliação documentada'",
+  'Treat non-standard phenotype values as new disorders': 'Tratar valores de fenótipo fora do padrão como novas condições',
+  "Mark all patients with known disorder status with 'documented evaluation' mark": "Marcar todos os pacientes com estado da condição conhecido como 'avaliação documentada'",
   "Save individual IDs as given in the input data as 'external ID'": "Salvar os IDs individuais conforme os dados de entrada como 'ID externo'",
   'Options:': 'Opções:', 'Pedigree import': 'Importar heredograma', 'This PDF does not contain embedded Pedigree data.': 'Este PDF não contém dados de heredograma incorporados.',
   'Nothing to import!': 'Não há nada para importar!', 'Label Display Options': 'Opções de exibição dos rótulos',
@@ -200,8 +200,8 @@ const translations = {
   'Please select a pedigree template': 'Selecione um modelo de heredograma', 'Loading list of templates...': 'Carregando lista de modelos...',
   'Loading...': 'Carregando...', 'Your browser does not support all the features required for Pedigree Editor, so pedigree is displayed in read-only mode (and may have quirks).': 'Seu navegador não oferece suporte a todos os recursos necessários para o Editor de Heredogramas. O heredograma será exibido em modo somente leitura e pode apresentar limitações.',
   'All highlighted nodes will be removed. Do you want to proceed?': 'Todos os elementos destacados serão removidos. Deseja continuar?',
-  'This person already has the specified disorder': 'Esta pessoa já tem o distúrbio especificado',
-  "This person doesn't have the specified disorder": 'Esta pessoa não tem o distúrbio especificado',
+  'This person already has the specified disorder': 'Esta pessoa já tem a condição especificada',
+  "This person doesn't have the specified disorder": 'Esta pessoa não tem a condição especificada',
   'This person already has the specified phenotype': 'Esta pessoa já tem o fenótipo especificado',
   'This person doesn\'t have the specified HPO term': 'Esta pessoa não tem o termo HPO especificado',
   'Unsupported file type: ': 'Tipo de arquivo não compatível: ', '\n\nCompatible formats: ': '\n\nFormatos compatíveis: ',
@@ -218,7 +218,7 @@ const translations = {
   , 'No children': 'Sem filhos', 'Multiple': 'Múltiplos', 'Twins': 'Gêmeos', 'Infertile': 'Infértil'
   , 'Mark as childless by choice': 'Marcar como sem filhos por opção', 'Mark as infertile': 'Marcar como infértil'
   , 'Choose which information to display directly in the label box below individuals:': 'Escolha quais informações exibir diretamente no rótulo abaixo das pessoas:'
-  , 'Diagnoses (Disorders)': 'Diagnósticos (distúrbios)'
+  , 'Diagnoses (Disorders)': 'Diagnósticos (condições)'
   , 'Display clinical diagnoses (e.g. Fabry disease, Down syndrome) on affected individuals.': 'Exibir diagnósticos clínicos (por exemplo, doença de Fabry, síndrome de Down) nas pessoas afetadas.'
   , 'Phenotypes (HPO Terms)': 'Fenótipos (termos HPO)'
   , 'Display Human Phenotype Ontology terms (e.g. Microcephaly, Seizures) on individuals.': 'Exibir termos da Ontologia do Fenótipo Humano (por exemplo, microcefalia, convulsões) nas pessoas.'
@@ -254,16 +254,16 @@ const translations = {
   , 'Carrier status': 'Estado de portador', 'Not affected': 'Não afetado', 'Carrier': 'Portador'
   , 'Affected': 'Afetado', 'Pre-symptomatic': 'Pré-sintomático', 'Documented evaluation': 'Avaliação documentada'
   , 'Documented (*)': 'Documentado (*)', 'Positive +': 'Positivo +', 'Negative -': 'Negativo -'
-  , 'Disorders': 'Distúrbios', 'Genes': 'Genes', 'Phenotypic features': 'Características fenotípicas'
+  , 'Disorders': 'Condições', 'Genes': 'Genes', 'Phenotypic features': 'Características fenotípicas'
   , 'Age': 'Idade', 'e.g. 44, 4 mo, 3 wk': 'ex.: 44, 4 meses, 3 semanas'
-  , 'Date of birth': 'Data de nascimento', 'Date of death': 'Data do óbito', 'Individual is': 'A pessoa está'
+  , 'Date of birth': 'Data de nascimento', 'Date of death': 'Data do óbito', 'Individual is': 'O indivíduo está'
   , 'Alive': 'Vivo', 'Stillborn': 'Natimorto', 'Deceased': 'Falecido', 'Miscarriage': 'Aborto espontâneo'
   , 'Unborn': 'Não nascido', 'Aborted': 'Aborto induzido', 'Gestation age': 'Idade gestacional'
   , 'Heredity options': 'Opções reprodutivas', 'None': 'Nenhum', 'Childless': 'Sem filhos', 'Adopted': 'Adotado'
   , 'Monozygotic twin': 'Gêmeo monozigótico', 'Not in contact with proband': 'Sem contato com o probando'
   , 'Proband': 'Probando', 'Placeholder node': 'Pessoa fictícia', 'Comments': 'Comentários'
   , 'Number of persons in this group': 'Número de pessoas neste grupo', 'Identifier(s)': 'Identificador(es)'
-  , 'Known disorders': 'Distúrbios conhecidos', '(common to all individuals in the group)': '(comuns a todas as pessoas do grupo)'
+  , 'Known disorders': 'Condições conhecidas', '(common to all individuals in the group)': '(comuns a todas as pessoas do grupo)'
   , 'All individuals in the group are': 'Todas as pessoas do grupo estão', 'Consanguinity of this relationship': 'Consanguinidade nesta relação'
   , 'Automatic': 'Automático', 'Yes': 'Sim', 'No': 'Não', 'Separated': 'Separados'
   , 'Copy instructions to clipboard': 'Copiar instruções para a área de transferência'
@@ -288,7 +288,7 @@ const translations = {
   , 'GEDCOM': 'GEDCOM', 'BOADICEA': 'BOADICEA', 'GA4GH FHIR(JSON)': 'GA4GH FHIR (JSON)', 'Invitae/Progeny (XML)': 'Invitae/Progeny (XML)'
   , 'Date of birth': 'Data de nascimento', 'Date of death': 'Data do óbito'
   , 'Choose which information to display directly in the label box below individuals:': 'Escolha quais informações exibir diretamente no rótulo abaixo das pessoas:'
-  , 'Diagnoses (Disorders)': 'Diagnósticos (distúrbios)'
+  , 'Diagnoses (Disorders)': 'Diagnósticos (condições)'
   , 'Display clinical diagnoses (e.g. Fabry disease, Down syndrome) on affected individuals.': 'Exibir diagnósticos clínicos (por exemplo, doença de Fabry, síndrome de Down) nas pessoas afetadas.'
   , 'Phenotypes (HPO Terms)': 'Fenótipos (termos HPO)'
   , 'Display Human Phenotype Ontology terms (e.g. Microcephaly, Seizures) on individuals.': 'Exibir termos da Ontologia do Fenótipo Humano (por exemplo, microcefalia, convulsões) nas pessoas.'

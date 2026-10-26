@@ -59,7 +59,7 @@ var TEMPLATES = {
 var FIELDS = {
   setGender: ['sex', 'sexo'], setName: ['name', 'nome'], setFirstName: ['name', 'nome'], setLastName: ['name', 'nome'],
   setExternalID: ['identifier', 'identificador'], setCarrierStatus: ['carrier status', 'status de portador'],
-  setEvaluated: ['evaluation', 'avaliação'], setDisorders: ['disorders', 'doenças'], setGenes: ['candidate genes', 'genes candidatos'],
+  setEvaluated: ['evaluation', 'avaliação'], setDisorders: ['disorders', 'condições'], setGenes: ['candidate genes', 'genes candidatos'],
   setHPO: ['phenotypes', 'fenótipos'], setAgeInput: ['age', 'idade'], setBirthDate: ['date of birth', 'data de nascimento'],
   setDeathDate: ['date of death', 'data de óbito'], setLifeStatus: ['life status', 'status vital'],
   setGestationAge: ['gestation age', 'idade gestacional'], setChildlessStatus: ['heredity options', 'opções de hereditariedade'],
