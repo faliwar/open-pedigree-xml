@@ -192,7 +192,9 @@ var SaveLoadEngine = Class.create( {
     }
 
     if (centerAround0) {
-      editor.getWorkspace().centerAroundNode(0);
+      // appear centred with a short fade, rather than sliding in from the side
+      editor.getWorkspace().centerAroundNode(0, true);
+      editor.getWorkspace().revealCanvas();
     }
 
     if (!noUndo) {
@@ -226,7 +228,8 @@ var SaveLoadEngine = Class.create( {
     }
 
     if (centerAround0) {
-      editor.getWorkspace().centerAroundNode(0);
+      editor.getWorkspace().centerAroundNode(0, true);
+      editor.getWorkspace().revealCanvas();
     }
 
     if (!noUndo) {

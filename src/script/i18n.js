@@ -336,7 +336,13 @@ function translateNode(node) {
   }
   if (node.nodeType !== 1 && node.nodeType !== 9) return;
   if (node.nodeType === 1) {
+    // "value" is visible text only on buttons; on radios, checkboxes, options and text fields it
+    // is data (e.g. "alive", "Left", "Positive test") and must never be translated
+    var valueIsText = node.tagName === 'INPUT' && /^(button|submit|reset)$/i.test(node.getAttribute('type') || '');
     ['title', 'aria-label', 'placeholder', 'value'].forEach(function(attribute) {
+      if (attribute === 'value' && !valueIsText) {
+        return;
+      }
       if (node.hasAttribute(attribute)) {
         var value = node.getAttribute(attribute);
         var translatedValue = translate(value);

@@ -1811,6 +1811,39 @@ html,
   width: 48%;
   float: right;
 }
+/* fields after the two floated date fields must start below them (otherwise the next
+   label's first word, e.g. "A" of "A pessoa está", wraps up between the dates) */
+.menu-box .field-age_at_death,
+.menu-box .field-state,
+.menu-box .field-gestation_age {
+  clear: both;
+}
+
+/* Radio groups as a grid of whole options (long Portuguese labels must not break) */
+.menu-box .field-values-3-columns {
+  -moz-column-count: initial;
+  -webkit-column-count: initial;
+  column-count: initial;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 12px;
+}
+.menu-box .field-gender .field-values-3-columns {
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  column-gap: 14px;
+}
+.menu-box .field-values-3-columns label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 !important;
+  white-space: nowrap;
+}
+.menu-box .field-values-3-columns label input[type=radio] {
+  margin: 0;
+  flex-shrink: 0;
+}
 .menu-box .accepted-suggestions {
   margin: 0px 0px 0.3em !important;
 }
@@ -3432,6 +3465,22 @@ div.suggestItems .hide-button-wrapper {
   .clinical-w-comment,
   .clinical-w-wide {
     grid-column: 1 / -1;
+  }
+}
+
+/* ===== Pedigree appears with a short fade after loading ===== */
+#canvas.canvas-reveal > svg {
+  animation: canvasReveal 0.22s ease-out;
+}
+
+@keyframes canvasReveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #canvas.canvas-reveal > svg {
+    animation: none;
   }
 }
 

@@ -1105,45 +1105,66 @@ var Workspace = Class.create({
       xDisplacement = x - oX,
       yDisplacement = y - oY;
 
-    if (editor.isUnsupportedBrowser()) {
+    var reduceMotion = false;
+    try {
+      reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (e) {}
+    if (editor.isUnsupportedBrowser() || reduceMotion || typeof window.requestAnimationFrame !== 'function') {
       instant = true;
     }
 
-    var numSeconds = instant ? 0 : .4;
-    var frames     = instant ? 1 : 11;
-
-    var xStep = xDisplacement/frames,
-      yStep = yDisplacement/frames;
-
-    if (!isFinite(xStep) || !isFinite(yStep) || (xStep === 0 && yStep === 0)) {
-      me.viewBoxX = x;
-      me.viewBoxY = y;
+    var setView = function(vx, vy) {
       var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
       var w = Math.max(10, (me.width || 800) / zoom);
       var h = Math.max(10, (me.height || 600) / zoom);
-      me.getPaper().setViewBox(x, y, w, h);
-      me.background && me.background.attr({x: x, y: y, width: w, height: h });
+      me.viewBoxX = vx;
+      me.viewBoxY = vy;
+      me.getPaper().setViewBox(vx, vy, w, h);
+      me.background && me.background.attr({x: vx, y: vy, width: w, height: h });
+    };
+
+    // a new pan replaces any pan still running
+    this._panToken = (this._panToken || 0) + 1;
+    var token = this._panToken;
+
+    if (instant || !isFinite(xDisplacement) || !isFinite(yDisplacement) || (xDisplacement === 0 && yDisplacement === 0)) {
+      setView(x, y);
       return;
     }
 
-    var progress = 0;
+    // short ease-out glide (fast start, soft stop) instead of a slow constant-speed slide
+    var duration = 260;
+    var start = null;
+    var step = function(now) {
+      if (token !== me._panToken) {
+        return;
+      }
+      if (start === null) {
+        start = now;
+      }
+      var t = Math.min(1, (now - start) / duration);
+      var eased = 1 - Math.pow(1 - t, 3);
+      setView(oX + xDisplacement * eased, oY + yDisplacement * eased);
+      if (t < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  },
 
-    (function draw() {
-      setTimeout(function() {
-        if(progress++ < frames) {
-          var zoom = (typeof me.zoomCoefficient === 'number' && isFinite(me.zoomCoefficient) && me.zoomCoefficient > 0) ? me.zoomCoefficient : 1;
-          var w = Math.max(10, (me.width || 800) / zoom);
-          var h = Math.max(10, (me.height || 600) / zoom);
-          var nextX = me.viewBoxX + xStep;
-          var nextY = me.viewBoxY + yStep;
-          me.viewBoxX = isFinite(nextX) ? nextX : x;
-          me.viewBoxY = isFinite(nextY) ? nextY : y;
-          me.getPaper().setViewBox(me.viewBoxX, me.viewBoxY, w, h);
-          me.background && me.background.attr({x: me.viewBoxX, y: me.viewBoxY, width: w, height: h });
-          draw();
-        }
-      }, 1000 * numSeconds / frames);
-    })();
+  /**
+   * Fades the drawing in (used after loading a pedigree, instead of sliding it into view)
+   *
+   * @method revealCanvas
+   */
+  revealCanvas: function() {
+    var canvas = this.canvas || $('canvas');
+    if (!canvas) {
+      return;
+    }
+    canvas.removeClassName('canvas-reveal');
+    void canvas.offsetWidth; // restart the animation
+    canvas.addClassName('canvas-reveal');
   },
 
   /**

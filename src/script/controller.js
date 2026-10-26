@@ -44,7 +44,8 @@ var Controller = Class.create({
     var changeSet = editor.getGraph().clearAll();
     editor.getView().applyChanges(changeSet, true);
 
-    editor.getWorkspace().centerAroundNode(0, false);
+    editor.getWorkspace().centerAroundNode(0, true);
+    editor.getWorkspace().revealCanvas();
 
     if (!event.memo.noUndoRedo) {
       editor.getActionStack().addState( event );
