@@ -1,4 +1,7 @@
 import PedigreeExport from 'pedigree/model/export';
+import { exportAsCanRisk } from 'pedigree/model/canRiskExport';
+import { computeStandardNumbering } from 'pedigree/model/nomenclature';
+import { translate } from 'pedigree/i18n';
 
 /**
  * Helper to save a text string as a file download.
@@ -53,6 +56,7 @@ var ExportSelector = Class.create({
     typeListElement.insert(_addTypeOption(false, 'PED', 'ped'));
     typeListElement.insert(_addTypeOption(false, 'GA4GH FHIR', 'GA4GH'));
     typeListElement.insert(_addTypeOption(true, 'Invitae/Progeny (XML)', 'invitae'));
+    typeListElement.insert(_addTypeOption(false, 'CanRisk (BOADICEA v4)', 'canrisk'));
     typeListElement.insert(_addTypeOption(false, 'SVG', 'svg'));
     typeListElement.insert(_addTypeOption(false, 'PDF', 'pdf'));
 
@@ -137,9 +141,21 @@ var ExportSelector = Class.create({
     showNumbersRow.insert(showNumbersLabel.wrap('td'));
     configListElementPDF.insert(showNumbersRow);
 
+    // CanRisk: who the risk is calculated for; names are always replaced by I-1, II-3...
+    var configListElementCanRisk = new Element('table', { 'id': 'canriskOptions', 'style': 'display:none' });
+    var crLabel = new Element('label', { 'class': 'export-config-header' }).insert('CanRisk export options:');
+    configListElementCanRisk.insert(crLabel.wrap('td').wrap('tr'));
+    var targetRow = new Element('tr');
+    var targetSelect = new Element('select', { 'name': 'canrisk-target', 'id': 'canrisk-target' });
+    targetRow.insert(new Element('label', { 'class': 'export-subconfig-label' }).insert('Calculate risk for ').insert(targetSelect).wrap('td'));
+    configListElementCanRisk.insert(targetRow);
+    configListElementCanRisk.insert(new Element('label', { 'class': 'export-subconfig-label canrisk-note' })
+      .insert('Names are replaced by generation identifiers (I-1, II-3) and dates by age and year of birth, because the file is uploaded to canrisk.org.')
+      .wrap('td').wrap('tr'));
+
     var promptConfig = new Element('div', { 'class': 'import-section' }).update('Options:');
     var dataSection3 = new Element('div', { 'class': 'import-block' });
-    dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementPDF);
+    dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementCanRisk).insert(configListElementPDF);
     mainDiv.insert(dataSection3);
 
     var buttons = new Element('div', { 'class': 'buttons import-block-bottom' });
@@ -191,13 +207,22 @@ var ExportSelector = Class.create({
     var pedOptionsTable = $('pedOptions');
     var privacyOptionsTable = $('privacyOptions');
     var pdfOptionsTable = $('pdfOptions');
+    var canriskOptionsTable = $('canriskOptions');
 
     if (exportType == 'ped') {
       pedOptionsTable.show();
       privacyOptionsTable.hide();
     } else {
       pedOptionsTable.hide();
-      privacyOptionsTable.show();
+      privacyOptionsTable[exportType == 'canrisk' ? 'hide' : 'show']();
+    }
+    if (canriskOptionsTable) {
+      if (exportType == 'canrisk') {
+        ExportSelector.fillCanRiskTargets();
+        canriskOptionsTable.show();
+      } else {
+        canriskOptionsTable.hide();
+      }
     }
     var copyButton = $$('input[name="copy"]')[0];
     if (exportType == 'pdf') {
@@ -247,6 +272,25 @@ var ExportSelector = Class.create({
           window.alert("GA4GH Export Error: " + err.message + "\n" + err.stack);
           console.error("GA4GH Export Error", err);
         }
+      } else if (exportType == 'canrisk') {
+        var targetSel = $('canrisk-target');
+        var targetId = targetSel && targetSel.value !== '' ? parseInt(targetSel.value, 10) : null;
+        var result;
+        try {
+          result = exportAsCanRisk({ targetId: targetId });
+        } catch (err) {
+          window.alert(translate('CanRisk export failed: ') + translate(String(err)));
+          return;
+        }
+        if (isCopy) {
+          navigator.clipboard.writeText(result.text);
+        } else {
+          downloadTextFile(result.text, 'canrisk-pedigree.txt');
+        }
+        if (result.warnings.length) {
+          window.alert(translate('CanRisk file created with the following notes:') + '\n\n• ' +
+            result.warnings.map(function(w) { return translate(w); }).join('\n• '));
+        }
       } else if (exportType == 'invitae') {
         var exportString = PedigreeExport.exportAsInvitae(editor.getGraph().DG, privacySetting);
         var fileName = 'open-pedigree-invitae.xml';
@@ -281,6 +325,7 @@ var ExportSelector = Class.create({
      * @method show
      */
   show: function () {
+    ExportSelector.fillCanRiskTargets();
     if (this.dialog) {
       if (this.dialog.dialog) {
         this.dialog.dialog.removeClassName('hidden');
@@ -305,5 +350,33 @@ var ExportSelector = Class.create({
     }
   }
 });
+
+// People who can be the CanRisk target, listed as "II-3 · Name"; the proband is preselected
+ExportSelector.fillCanRiskTargets = function() {
+  var select = $('canrisk-target');
+  if (!select || typeof editor === 'undefined') {
+    return;
+  }
+  var graph = editor.getGraph();
+  var numbering = computeStandardNumbering(editor);
+  var proband = graph.getProbandId();
+  var previous = select.value;
+  var ids = Object.keys(numbering.byId).map(function(k) { return parseInt(k, 10); });
+  ids.sort(function(a, b) {
+    var na = numbering.byId[a], nb = numbering.byId[b];
+    return (na.generation - nb.generation) || (na.index - nb.index);
+  });
+  select.update('');
+  ids.forEach(function(id) {
+    var node = editor.getNode(id);
+    var name = (node && node.getName && node.getName()) || '';
+    var opt = new Element('option', { 'value': id }).update((numbering.byId[id].label + (name ? ' · ' + name : '')).escapeHTML());
+    if ((previous !== '' && String(id) === previous) || (previous === '' && id === proband)) opt.selected = true;
+    select.insert(opt);
+  });
+  if (previous === '' || !ids.some(function(id) { return String(id) === previous; })) {
+    select.value = String(proband);
+  }
+};
 
 export default ExportSelector;

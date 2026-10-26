@@ -1,6 +1,7 @@
 import BaseGraph from 'pedigree/model/baseGraph';
 import RelationshipTracker from 'pedigree/model/relationshipTracker';
 import OntologyLookup from 'pedigree/ontologyLookup';
+import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toInvitaeAge, needsClassificationAttribute } from 'pedigree/model/clinicalData';
 
 /**
  * InvitaeConverter handles import and export of pedigrees in the Invitae/Progeny
@@ -667,14 +668,10 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     }
   }
 
-  // Age at death
+  // Age at death (its own field; exact dates are not available in this format)
   var ageAtDeath = InvitaeConverter._getChildAttr(indiEl, 'age_at_death', 'value');
   if (ageAtDeath && ageAtDeath !== '' && ageAtDeath !== 'undefined') {
-    // Store as comment since we can't derive exact date
-    if (!properties.comments) {
-      properties.comments = '';
-    }
-    properties.comments += (properties.comments ? '\n' : '') + 'Age at death: ' + ageAtDeath;
+    properties.ageAtDeath = ageAtDeath;
   }
 
   // Cause of death
@@ -730,6 +727,28 @@ InvitaeConverter._parseIndividual = function (indiEl) {
       }
       properties.disorders.push(condTitle);
 
+      // Diagnosis details: basis of diagnosis, ages, note and detail fields (e.g. cancer
+      // laterality, histology, receptors), plus the Progeny code/short title for round trips
+      var noteChild = condEl.querySelector(':scope > note');
+      var detail = {
+        type: condEl.getAttribute('type') || '',
+        onset: condEl.getAttribute('onset') || '',
+        atdiag: condEl.getAttribute('atdiag') || '',
+        note: (noteChild && noteChild.getAttribute('value')) || condEl.getAttribute('note') || '',
+        fields: [],
+        code: condEl.getAttribute('code') || '',
+        shortTitle: condEl.getAttribute('shortenTitle') || '',
+        status: condStatus || ''
+      };
+      var fieldEls = condEl.querySelectorAll(':scope > field');
+      for (var fi = 0; fi < fieldEls.length; fi++) {
+        detail.fields.push({ name: fieldEls[fi].getAttribute('name') || '', value: fieldEls[fi].getAttribute('value') || '' });
+      }
+      if (!properties.disorderDetails) {
+        properties.disorderDetails = {};
+      }
+      properties.disorderDetails[condTitle] = detail;
+
       if (condStatus === 'carrier') {
         properties.carrierStatus = 'carrier';
       } else {
@@ -754,6 +773,47 @@ InvitaeConverter._parseIndividual = function (indiEl) {
     }
   }
 
+  // Genetic tests: <condition_tests><test name="brca1" value="1" title="BRCA1" company=""/>
+  // value 0 = unknown, 1 = positive, 2 = negative, 3 = declined testing. Extra attributes written by this editor
+  // (variant, protein, zygosity, classification, date, comment) are read back when present.
+  var testEls = indiEl.querySelectorAll(':scope > condition_tests > test');
+  for (var ti = 0; ti < testEls.length; ti++) {
+    var tEl = testEls[ti];
+    var tName = tEl.getAttribute('name') || '';
+    var gene = tEl.getAttribute('title') || tName;
+    if (!gene) {
+      continue;
+    }
+    var tValue = tEl.getAttribute('value') || '';
+    if (!properties.geneticTests) {
+      properties.geneticTests = [];
+    }
+    properties.geneticTests.push({
+      gene: gene,
+      variant: tEl.getAttribute('variant') || '',
+      protein: tEl.getAttribute('protein') || '',
+      zygosity: tEl.getAttribute('zygosity') || '',
+      testType: tEl.getAttribute('testType') || '',
+      classification: tEl.getAttribute('classification') || fromInvitaeValue(tValue),
+      lab: tEl.getAttribute('company') || '',
+      date: tEl.getAttribute('date') || '',
+      comment: tEl.getAttribute('comment') || '',
+      invitaeName: tName,
+      invitaeValue: tValue
+    });
+  }
+
+  // Elements not edited here (surgical removals, Gail model answers): kept verbatim
+  ['surgical_removals', 'gail_properties'].forEach(function(tag) {
+    var el = indiEl.querySelector(':scope > ' + tag);
+    if (el && el.children && el.children.length > 0) {
+      if (!properties.invitaeExtra) {
+        properties.invitaeExtra = {};
+      }
+      properties.invitaeExtra[tag] = new XMLSerializer().serializeToString(el);
+    }
+  });
+
   // Notes → Phenotype notes as HPO terms, other notes as comments
   var notesEl = indiEl.querySelector(':scope > notes');
   if (notesEl) {
@@ -769,6 +829,8 @@ InvitaeConverter._parseIndividual = function (indiEl) {
             properties.hpoTerms = [];
           }
           properties.hpoTerms.push(noteValue);
+        } else if (noteType === 'Ethnicity' && /ashkenazi/i.test(noteValue)) {
+          properties.ashkenazi = true;
         } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
@@ -1128,9 +1190,9 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   xml += '<smoker value="3"/>';
   xml += '<obese value="0"/>';
 
-  // Age at death (extract from comments)
-  var ageAtDeath = '';
-  if (props.comments) {
+  // Age at death (own field; older saves kept it as a comment line)
+  var ageAtDeath = props.ageAtDeath || '';
+  if (!ageAtDeath && props.comments) {
     var ageDeathMatch = props.comments.match(/Age at death:\s*(.+)/);
     if (ageDeathMatch) {
       ageAtDeath = ageDeathMatch[1].trim();
@@ -1155,6 +1217,30 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   xml += '<attrib_data/>';
 
+  // Genetic tests (Progeny order: right after attrib_data)
+  var tests = normalizeTests(props.geneticTests);
+  if (tests.length > 0) {
+    xml += '<condition_tests>';
+    for (var t = 0; t < tests.length; t++) {
+      var test = tests[t];
+      var attr = function(name, value) {
+        return ' ' + name + '="' + InvitaeConverter._escapeXml(value || '') + '"';
+      };
+      xml += '<test' + attr('name', test.invitaeName || test.gene.toLowerCase()) + attr('value', toInvitaeValue(test)) +
+        attr('title', test.gene) + attr('company', test.lab);
+      // details Progeny does not define: written only when filled in, read back by this editor
+      if (test.variant) xml += attr('variant', test.variant);
+      if (test.protein) xml += attr('protein', test.protein);
+      if (test.zygosity) xml += attr('zygosity', test.zygosity);
+      if (test.testType) xml += attr('testType', test.testType);
+      if (needsClassificationAttribute(test)) xml += attr('classification', test.classification);
+      if (test.date) xml += attr('date', test.date);
+      if (test.comment && privacySetting !== 'minimal') xml += attr('comment', test.comment);
+      xml += '/>';
+    }
+    xml += '</condition_tests>';
+  }
+
   // Siblings — compute from graph (share same parent relationship)
   var siblings = InvitaeConverter._findSiblings(nodeId, pedigree);
   if (siblings.length > 0) {
@@ -1174,30 +1260,56 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Conditions (disorders)
   if (props.disorders && props.disorders.length > 0) {
+    var allDetails = normalizeDetails(props.disorderDetails);
     xml += '<conditions>';
     for (var d = 0; d < props.disorders.length; d++) {
       var disorderName = InvitaeConverter._resolveOntologyName(props.disorders[d], 'disorder');
+      var detail = allDetails[props.disorders[d]] || allDetails[disorderName] || null;
       var condStatus = 'affected';
       if (props.carrierStatus === 'carrier') {
         condStatus = 'carrier';
       }
+      if (detail && detail.status) {
+        condStatus = detail.status;
+      }
+      var condNote = (detail && privacySetting !== 'minimal') ? detail.note : '';
       var condColor = InvitaeConverter._getDisorderColorIndex(props.disorders[d], disorderName, disorderIndexMap || {});
-      xml += '<condition code="' + InvitaeConverter._escapeXml(disorderName) + '"';
+      // keep Progeny's own code and short title (e.g. code="Invitae80") when the condition came from it
+      xml += '<condition code="' + InvitaeConverter._escapeXml((detail && detail.code) || disorderName) + '"';
       xml += ' title="' + InvitaeConverter._escapeXml(disorderName) + '"';
-      xml += ' shortenTitle="' + InvitaeConverter._escapeXml(disorderName) + '"';
-      xml += ' type="" onset="" atdiag="" note="" color="' + condColor + '" visible="1" ontology="All"';
-      xml += ' status="' + condStatus + '">';
-      xml += '<note value=""/>';
+      xml += ' shortenTitle="' + InvitaeConverter._escapeXml((detail && detail.shortTitle) || disorderName) + '"';
+      xml += ' type="' + InvitaeConverter._escapeXml(detail ? detail.type : '') + '"';
+      xml += ' onset="' + InvitaeConverter._escapeXml(detail ? toInvitaeAge(detail.onset) : '') + '"';
+      xml += ' atdiag="' + InvitaeConverter._escapeXml(detail ? toInvitaeAge(detail.atdiag) : '') + '"';
+      xml += ' note="" color="' + condColor + '" visible="1" ontology="All"';
+      xml += ' status="' + InvitaeConverter._escapeXml(condStatus) + '">';
+      xml += '<note value="' + InvitaeConverter._escapeXml(condNote) + '"/>';
+      if (detail) {
+        detail.fields.forEach(function(f) {
+          xml += '<field value="' + InvitaeConverter._escapeXml(f.value) + '" name="' + InvitaeConverter._escapeXml(f.name) + '"/>';
+        });
+      }
       xml += '</condition>';
     }
     xml += '</conditions>';
   }
 
+  // Elements kept verbatim from an imported file (Progeny order: after conditions)
+  var extra = props.invitaeExtra || {};
+  if (extra.surgical_removals) {
+    xml += extra.surgical_removals;
+  }
+
   // Notes (HPO terms as phenotype notes + approximate DOB note)
   var hasHpoNotes = props.hpoTerms && props.hpoTerms.length > 0;
   var hasDobApproxNote = !!props.dobApprox;
-  if (hasHpoNotes || hasDobApproxNote) {
+  var hasEthnicityNote = !!props.ashkenazi;
+  if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote) {
     xml += '<notes>';
+    if (hasEthnicityNote) {
+      // same shape as Progeny's own ethnicity note
+      xml += '<note id="1" note_id="1" value="Ashkenazi Jewish" string_type="composite" string_title="Ethnicity" string_value="Ashkenazi Jewish"/>';
+    }
     var noteIdx = 12;
     if (hasHpoNotes) {
       for (var h = 0; h < props.hpoTerms.length; h++) {
@@ -1217,7 +1329,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     xml += '</notes>';
   }
 
-  xml += '<gail_properties/>';
+  xml += extra.gail_properties || '<gail_properties/>';
 
   xml += '</indi>';
 

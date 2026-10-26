@@ -23,6 +23,7 @@ import PedigreeOverlay from 'pedigree/view/pedigreeOverlay';
 import CascadeTestingDialog from 'pedigree/view/cascadeTestingDialog';
 import ModificationHistory from 'pedigree/view/modificationHistory';
 import KeyboardShortcuts from 'pedigree/view/keyboardShortcuts';
+import ClinicalDetailsDialog from 'pedigree/view/clinicalDetailsDialog';
 
 import '../style/editor.css';
 
@@ -81,6 +82,7 @@ var PedigreeEditor = Class.create({
     // created before the Controller and the first load, so every change gets described
     this._history = new ModificationHistory();
     this._cascadeTestingDialog = new CascadeTestingDialog();
+    this._clinicalDetailsDialog = new ClinicalDetailsDialog();
     this._templateSelector = new TemplateSelector();
     this._labelOptionsSelector = new LabelOptionsSelector();
     this._importSelector = new ImportSelector();
@@ -655,6 +657,14 @@ var PedigreeEditor = Class.create({
   },
 
   /**
+   * @method getClinicalDetailsDialog
+   * @return {ClinicalDetailsDialog} editor of genetic tests and diagnosis details
+   */
+  getClinicalDetailsDialog: function() {
+    return this._clinicalDetailsDialog;
+  },
+
+  /**
      * @method getImportSelector
      * @return {ImportSelector}
      */
@@ -798,19 +808,22 @@ var PedigreeEditor = Class.create({
         'tab': 'Clinical',
         'function' : 'setDisorders'
       },
-      {
-        'name' : 'candidate_genes',
-        'label' : 'Genes',
-        'type' : 'gene-picker',
-        'tab': 'Clinical',
-        'function' : 'setGenes'
-      },
+      // The old free "Genes" (candidate genes) field was replaced by structured genetic test
+      // results (clinical_details below); candidate genes from older files are still loaded,
+      // saved, coloured and shown there, and can be converted into test results.
       {
         'name' : 'hpo_positive',
         'label' : 'Phenotypic features',
         'type' : 'hpo-picker',
         'tab': 'Clinical',
         'function' : 'setHPO'
+      },
+      {
+        'name' : 'clinical_details',
+        'label' : 'Genetic tests and diagnosis details',
+        'type' : 'clinical-summary',
+        'tab': 'Clinical',
+        'function' : 'setGeneticTests'
       },
       {
         'name' : 'age_input',
@@ -835,6 +848,14 @@ var PedigreeEditor = Class.create({
         'tab': 'Personal',
         'format' : 'dd/MM/yyyy',
         'function' : 'setDeathDate'
+      },
+      {
+        'name' : 'age_at_death',
+        'label' : 'Age at death',
+        'type' : 'text',
+        'tab': 'Personal',
+        'tip' : 'e.g. 72',
+        'function' : 'setAgeAtDeath'
       },
       {
         'name' : 'state',
@@ -877,6 +898,13 @@ var PedigreeEditor = Class.create({
         'type' : 'checkbox',
         'tab': 'Personal',
         'function' : 'setAdopted'
+      },
+      {
+        'name' : 'ashkenazi',
+        'label' : 'Ashkenazi Jewish ancestry',
+        'type' : 'checkbox',
+        'tab': 'Personal',
+        'function' : 'setAshkenazi'
       },
       {
         'name' : 'monozygotic',

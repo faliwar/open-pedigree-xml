@@ -9,6 +9,7 @@ import ReadOnlyHoverbox from 'pedigree/view/readonlyHoverbox';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { getElementHalfHeight, sector } from 'pedigree/view/graphicHelpers';
 import getAge from 'pedigree/view/ageCalc';
+import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
 
 /**
  * Class for organizing graphics for Person nodes.
@@ -129,6 +130,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this._disordersLabel = null;
     this._hpoLabel = null;
     this._genesLabel = null;
+    this._testsLabel = null;
     //console.log("person visuals end");
     //timer.printSinceLast("Person visuals time");
   },
@@ -497,7 +499,11 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
         }
       }
     } else {
-      if(person.getDeathDate() && person.getBirthDate()) {
+      var ageAtDeath = person.getAgeAtDeath ? person.getAgeAtDeath() : '';
+      if (ageAtDeath && !(person.getDeathDate() && person.getBirthDate() && !person.getDobApprox())) {
+        // age at death as entered ("72" -> "d. 72 yrs"); exact dates win when both are known
+        text = 'd. ' + (/^\d{1,3}$/.test(ageAtDeath) ? ageAtDeath + ' yrs' : ageAtDeath);
+      } else if(person.getDeathDate() && person.getBirthDate()) {
         var age = getAge(person.getBirthDate(), person.getDeathDate());
         if (age.indexOf(' y') !== -1) {
             text = 'd. ' + age.replace(' y', ' yrs');
@@ -834,6 +840,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     }
 
     var names = [];
+    var nameIds = [];
     for (var i = 0; i < disorders.length; i++) {
       var dId = disorders[i];
       var disorder = editor.getDisorderLegend ? editor.getDisorderLegend().getDisorder(dId) : null;
@@ -843,6 +850,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       }
       if (name && names.indexOf(name) === -1) {
         names.push(name);
+        nameIds.push(dId);
       }
     }
 
@@ -854,7 +862,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '\u2B22\u00A0' : '';
     var formattedLines = [];
     for (var j = 0; j < names.length; j++) {
-      var line = prefix + names[j];
+      // standard notation: age at diagnosis after the condition, e.g. "Breast cancer dx 51y"
+      var detail = person.getDisorderDetail ? person.getDisorderDetail(nameIds[j]) : null;
+      var line = prefix + names[j] + (detail && detail.atdiag ? ' dx ' + compactAge(detail.atdiag) : '');
       formattedLines.push(this._wrapText(line, 20));
     }
     var text = formattedLines.join('\n');
@@ -940,6 +950,35 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this.drawLabels();
   },
 
+  getTestsLabel: function() {
+    return this._testsLabel;
+  },
+
+  /**
+   * One line per genetic test result, e.g. "BRCA1 c.68_69del P", "MSH2 −".
+   *
+   * @method updateTestsLabel
+   */
+  updateTestsLabel: function() {
+    this._testsLabel && this._testsLabel.remove();
+    this._testsLabel = null;
+
+    var person = this.getNode();
+    var tests = (PedigreeEditorParameters.attributes.showTestsInLabel !== false && person.getGeneticTests) ? person.getGeneticTests() : [];
+    if (tests.length === 0) {
+      this.drawLabels();
+      return;
+    }
+    var prefix = PedigreeEditorParameters.attributes.showLabelPrefixes ? '⧓ ' : '';
+    var text = tests.map(function(t) { return prefix + clinicalTestLabel(t); })
+      .map(function(line) { return this._wrapText(line, 24); }, this)
+      .join('\n');
+    this._testsLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+      .attr(PedigreeEditorParameters.attributes.testLabel || PedigreeEditorParameters.attributes.label);
+    this._testsLabel.alignTop = true;
+    this.drawLabels();
+  },
+
   getLabels: function() {
     var labels = editor.getPaper().set();
     this.getSBLabel() && labels.push(this.getSBLabel());
@@ -949,6 +988,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this.getDisordersLabel() && labels.push(this.getDisordersLabel());
     this.getHPOLabel() && labels.push(this.getHPOLabel());
     this.getGenesLabel() && labels.push(this.getGenesLabel());
+    this.getTestsLabel() && labels.push(this.getTestsLabel());
     this.getCommentsLabel() && labels.push(this.getCommentsLabel());
     return labels;
   },

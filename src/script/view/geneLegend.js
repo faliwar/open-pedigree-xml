@@ -12,11 +12,46 @@ import Person from 'pedigree/view/person';
 var GeneLegend = Class.create( Legend, {
 
   initialize: function($super) {
-    $super('Candidate Genes');
+    // genes with a positive test result, plus candidate genes from older files
+    $super('Genes');
+    this._enabled = true;
   },
 
   _getPrefix: function(id) {
     return 'gene';
+  },
+
+  /**
+   * Turns colouring by gene on or off ("Colour individuals by gene" in the Labels dialog).
+   * When off, the legend is hidden and person symbols get no gene colours.
+   *
+   * @method setEnabled
+   */
+  setEnabled: function(enabled) {
+    this._enabled = !!enabled;
+    this._applyVisibility();
+  },
+
+  isEnabled: function() {
+    return this._enabled;
+  },
+
+  _applyVisibility: function() {
+    if (this._enabled && Object.keys(this._affectedNodes).length > 0) {
+      this._legendBox.show();
+    } else {
+      this._legendBox.hide();
+    }
+  },
+
+  addCase: function($super, id, name, nodeID) {
+    $super(id, name, nodeID);
+    this._applyVisibility();
+  },
+
+  removeCase: function($super, id, nodeID) {
+    $super(id, nodeID);
+    this._applyVisibility();
   },
 
   /**

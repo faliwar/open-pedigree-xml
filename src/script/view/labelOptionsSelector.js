@@ -22,6 +22,11 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showGenesInLabel = !!saved.showGenes; // false by default
       PedigreeEditorParameters.attributes.showCommentsInLabel = saved.showComments !== undefined ? !!saved.showComments : true; // true by default
       PedigreeEditorParameters.attributes.showLabelPrefixes = !!saved.showPrefixes; // false by default
+      PedigreeEditorParameters.attributes.showTestsInLabel = saved.showTests !== undefined ? !!saved.showTests : true; // true by default
+      PedigreeEditorParameters.attributes.colorByGene = saved.colorByGene !== undefined ? !!saved.colorByGene : true; // true by default
+      if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
+        editor.getGeneLegend().setEnabled(PedigreeEditorParameters.attributes.colorByGene);
+      }
     } catch (e) {
       // localStorage may not be available
     }
@@ -34,6 +39,16 @@ var LabelOptionsSelector = Class.create({
     PedigreeEditorParameters.attributes.showGenesInLabel = !!settings.showGenes;
     PedigreeEditorParameters.attributes.showCommentsInLabel = settings.showComments !== undefined ? !!settings.showComments : true;
     PedigreeEditorParameters.attributes.showLabelPrefixes = !!settings.showPrefixes;
+    PedigreeEditorParameters.attributes.showTestsInLabel = settings.showTests !== undefined ? !!settings.showTests : true;
+    var colorByGene = settings.colorByGene !== undefined ? !!settings.colorByGene : true;
+    var colorChanged = colorByGene !== (PedigreeEditorParameters.attributes.colorByGene !== false);
+    PedigreeEditorParameters.attributes.colorByGene = colorByGene;
+    if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
+      editor.getGeneLegend().setEnabled(colorByGene);
+      if (colorChanged && editor.getView && editor.getView().updateAllNodeColors) {
+        editor.getView().updateAllNodeColors();
+      }
+    }
 
     try {
       localStorage.setItem('openpedigree_label_options_v2', JSON.stringify(settings));
@@ -49,84 +64,58 @@ var LabelOptionsSelector = Class.create({
 
     var mainDiv = new Element('div', { 'class': 'label-options-dialog-content' });
 
-    var intro = new Element('p', { 'class': 'label-options-intro' }).update(
-      'Choose which information to display directly in the label box below individuals:'
-    );
-    mainDiv.insert(intro);
-
-    var optionsList = new Element('div', { 'class': 'label-options-list' });
+    // Compact layout: short labels in two columns; the longer explanations are tooltips
+    var optionsList = new Element('div', { 'class': 'label-options-list label-options-compact' });
 
     var createOptionRow = function(id, title, desc, checked) {
-      var row = new Element('label', { 'class': 'label-option-row', 'for': id });
+      var row = new Element('label', { 'class': 'label-option-chip', 'for': id, 'title': desc });
       var cb = new Element('input', {
         'type': 'checkbox',
         'id': id,
         'class': 'label-option-checkbox'
       });
       cb.checked = checked;
-
-      var textCol = new Element('div', { 'class': 'label-option-text' });
-      var titleEl = new Element('div', { 'class': 'label-option-title' }).update(title);
-      var descEl = new Element('div', { 'class': 'label-option-desc' }).update(desc);
-      textCol.insert(titleEl);
-      textCol.insert(descEl);
-
       row.insert(cb);
-      row.insert(textCol);
+      row.insert(new Element('span', { 'class': 'label-option-title' }).update(title));
       return { row: row, input: cb };
     };
 
-    var disordersOpt = createOptionRow(
-      'cb-show-disorders',
-      'Diagnoses (Disorders)',
+    var disordersOpt = createOptionRow('cb-show-disorders', 'Diagnoses',
       'Display clinical diagnoses (e.g. Fabry disease, Down syndrome) on affected individuals.',
-      PedigreeEditorParameters.attributes.showDisordersInLabel === true
-    );
+      PedigreeEditorParameters.attributes.showDisordersInLabel === true);
 
-    var hpoOpt = createOptionRow(
-      'cb-show-hpo',
-      'Phenotypes (HPO Terms)',
+    var hpoOpt = createOptionRow('cb-show-hpo', 'Phenotypes (HPO)',
       'Display Human Phenotype Ontology terms (e.g. Microcephaly, Seizures) on individuals.',
-      PedigreeEditorParameters.attributes.showHPOInLabel
-    );
+      PedigreeEditorParameters.attributes.showHPOInLabel);
 
-        var genesOpt = createOptionRow(
-      'cb-show-genes',
-      'Candidate Genes',
-      'Display candidate genes (e.g. GLA, BRCA1) on individuals.',
-      PedigreeEditorParameters.attributes.showGenesInLabel
-    );
+    var testsOpt = createOptionRow('cb-show-tests', 'Genetic tests',
+      'Display each test result (e.g. BRCA1 c.68_69del P, MSH2 −) on tested individuals.',
+      PedigreeEditorParameters.attributes.showTestsInLabel !== false);
 
-    var commentsOpt = createOptionRow(
-      'cb-show-comments',
-      'Comments (Notes)',
+    var commentsOpt = createOptionRow('cb-show-comments', 'Comments',
       'Display free-text clinical notes or testing status (e.g. untested) on individuals.',
-      PedigreeEditorParameters.attributes.showCommentsInLabel !== false
-    );
+      PedigreeEditorParameters.attributes.showCommentsInLabel !== false);
 
-    var prefixesOpt = createOptionRow(
-      'cb-show-prefixes',
-      'Include Category Indicators',
-      'Prefix entries with compact visual indicators (\u2B22 Diagnosis, \u25C8 Phenotype, \u29D3 Gene, \uD83D\uDDCE\uFE0E Comment) for clarity.',
-      PedigreeEditorParameters.attributes.showLabelPrefixes
-    );
+    var genesOpt = createOptionRow('cb-show-genes', 'Candidate genes (old files)',
+      'Display candidate genes recorded by earlier versions, before structured test results.',
+      PedigreeEditorParameters.attributes.showGenesInLabel);
+
+    var prefixesOpt = createOptionRow('cb-show-prefixes', 'Category symbols',
+      'Prefix entries with compact visual indicators (⬢ Diagnosis, ◈ Phenotype, ⧓ Gene, 🗎︎ Comment) for clarity.',
+      PedigreeEditorParameters.attributes.showLabelPrefixes);
+
+    var colorGeneOpt = createOptionRow('cb-color-by-gene', 'Colour by gene',
+      'Fill the symbol of people with a positive test (and candidate genes from older files) with the gene colour, and show the gene legend.',
+      PedigreeEditorParameters.attributes.colorByGene !== false);
 
     var overlay = editor.getOverlay ? editor.getOverlay() : null;
-    var numberingOpt = createOptionRow(
-      'cb-show-numbering',
-      'Standard Nomenclature (I-1, II-3...)',
+    var numberingOpt = createOptionRow('cb-show-numbering', 'Numbering (I-1, II-3)',
       'Number generations with Roman numerals and individuals from left to right, as in clinical pedigree notation.',
-      !!(overlay && overlay.isNumberingVisible())
-    );
+      !!(overlay && overlay.isNumberingVisible()));
 
-    var nameCard = new Element('div', { 'class': 'label-option-row label-option-select-row' });
-    var nameTextCol = new Element('div', { 'class': 'label-option-text' });
-    var nameTitle = new Element('div', { 'class': 'label-option-title' }).update('Name Display Format');
-    var nameDesc = new Element('div', { 'class': 'label-option-desc' }).update(
-      "Choose how much of each individual's name to display on the pedigree chart."
-    );
-    nameTextCol.insert(nameTitle);
-    nameTextCol.insert(nameDesc);
+    var nameCard = new Element('label', { 'class': 'label-option-name-row', 'for': 'select-name-format',
+      'title': "Choose how much of each individual's name to display on the pedigree chart." });
+    var nameTitle = new Element('span', { 'class': 'label-option-section' }).update('Name');
 
     var nameSelect = new Element('select', {
       'id': 'select-name-format',
@@ -147,19 +136,21 @@ var LabelOptionsSelector = Class.create({
       nameSelect.insert(optEl);
     });
 
-    nameCard.insert(nameTextCol);
+    nameCard.insert(nameTitle);
     nameCard.insert(nameSelect);
 
+    var section = function(title, rows) {
+      var box = new Element('div', { 'class': 'label-options-group' });
+      box.insert(new Element('div', { 'class': 'label-option-section' }).update(title));
+      var grid = new Element('div', { 'class': 'label-options-grid' });
+      rows.forEach(function(r) { grid.insert(r.row); });
+      box.insert(grid);
+      return box;
+    };
+
     optionsList.insert(nameCard);
-    optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
-    optionsList.insert(disordersOpt.row);
-    optionsList.insert(hpoOpt.row);
-    optionsList.insert(genesOpt.row);
-    optionsList.insert(commentsOpt.row);
-    optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
-    optionsList.insert(prefixesOpt.row);
-    optionsList.insert(new Element('hr', { 'class': 'label-options-divider' }));
-    optionsList.insert(numberingOpt.row);
+    optionsList.insert(section('Show under each person', [disordersOpt, hpoOpt, testsOpt, commentsOpt, genesOpt, prefixesOpt]));
+    optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt]));
     mainDiv.insert(optionsList);
 
     numberingOpt.input.observe('change', function() {
@@ -173,7 +164,9 @@ var LabelOptionsSelector = Class.create({
         showHPO: hpoOpt.input.checked,
         showGenes: genesOpt.input.checked,
         showComments: commentsOpt.input.checked,
-        showPrefixes: prefixesOpt.input.checked
+        showPrefixes: prefixesOpt.input.checked,
+        showTests: testsOpt.input.checked,
+        colorByGene: colorGeneOpt.input.checked
       });
     };
 
@@ -182,6 +175,8 @@ var LabelOptionsSelector = Class.create({
     hpoOpt.input.observe('change', applyCurrentValues);
     genesOpt.input.observe('change', applyCurrentValues);
     commentsOpt.input.observe('change', applyCurrentValues);
+    testsOpt.input.observe('change', applyCurrentValues);
+    colorGeneOpt.input.observe('change', applyCurrentValues);
     prefixesOpt.input.observe('change', applyCurrentValues);
 
     var buttons = new Element('div', { 'class': 'buttons label-options-buttons' });

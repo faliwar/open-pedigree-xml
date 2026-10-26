@@ -55,6 +55,17 @@ This repository (`open-pedigree-xml`) is an enhanced fork of the original Open P
 * **Carrier & Genetic Marker Support**: Added support for `+` and `-` allele and marker notation.
 * **Configurable Node Labels**: Custom display options to toggle and reorder visible node metadata (names, DOB, age, phenotypes, genotypes).
 
+### 🧪 Genetic Tests & Diagnosis Details
+* **Structured genetic test results** per person (Clinical tab → *Genetic tests and diagnosis details*, or key `G`): gene, variant (HGVS c. and p.), zygosity, ACMG classification (or negative / pending), laboratory, report date and comment, shown as a line under the person (e.g. `BRCA1 c.68_69del P`, `MSH2 −`; toggle in Labels). The gene box searches HGNC symbols (MyGene.info). Genes with a positive result go to the gene legend and colour the person. Tests of the familial gene are used as evidence in cascade testing.
+* **Replaces the former free "Genes" field**: candidate genes from older files are still loaded, coloured, shown and exported, and can be converted into test results with one click.
+* **Diagnosis details** for each condition: basis of diagnosis, age at onset, age at diagnosis (shown as `dx 51y` next to the condition), note and detail fields; cancers get suggested fields (laterality, histology, ER/PR/HER2/CK5/6/CK14 for breast, grade, stage) and any other field can be added.
+* **Invitae/Progeny XML compatibility**: tests are read from and written to `<condition_tests>` (`value` 0 = unknown, 1 = positive, 2 = negative, 3 = declined testing; a VUS, which Progeny has no code for, is written as 0 with `classification="VUS"`), diagnosis details to the `type`/`onset`/`atdiag` attributes and `<field>` children of `<condition>`; Progeny condition codes, `<surgical_removals>` and `<gail_properties>` are preserved on import/export.
+
+### 🎗️ CanRisk / BOADICEA Export
+* **Export → CanRisk (BOADICEA v4)** writes a [CanRisk v4 pedigree file](https://canrisk.atlassian.net/wiki/spaces/FAQS/pages/2749661185) for upload at canrisk.org: breast (first and contralateral), ovarian, prostate and pancreatic cancers with age at diagnosis (or AU), BRCA1/BRCA2/PALB2/ATM/CHEK2/BARD1/RAD51D/RAD51C/BRIP1 and HOXB13 results with test type, breast tumour pathology (ER/PR/HER2/CK14/CK5/6), Ashkenazi ancestry, identical twins, age and year of birth. You choose the person the risk is calculated for.
+* Names are replaced by generation identifiers (I-1, II-3); missing parents are added as dummy founders; people CanRisk cannot take (unknown sex, pregnancies, groups) and cancers outside its models are listed in a note after export. Optional risk factors (menarche, parity, BMI, PRS…) can be added on the CanRisk website.
+* New fields used by the export: **Ashkenazi Jewish ancestry** and **age at death** (Personal tab), **age at contralateral diagnosis** (breast cancer details) and **test type** (panel/full gene or targeted familial variant). Ashkenazi ancestry maps to Progeny's "Ethnicity" note and age at death to `<age_at_death>`.
+
 ### ⌨️ Keyboard Shortcuts
 * **Fast keyboard editing**: `P` parents, `S` sibling, `C` child, `R` partner, `M`/`F`/`U` sex, `D` deceased, `Enter` properties and `Delete` remove — acting on the person under the mouse (or the proband). Also `Ctrl/⌘+Z` / `Ctrl/⌘+Y` undo/redo, `+`/`−` zoom, arrow keys to pan, `0` to center, single keys to open dialogs, and `?` for the full list (Edit → Shortcuts). Shortcuts pause while typing in a field or when a dialog is open.
 

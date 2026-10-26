@@ -513,7 +513,7 @@ PedigreeImport.initFromBOADICEA = function(inputText, saveIDAsExternalID) {
 
     var ashkenazi = parts[18];
     if (ashkenazi != '0') {
-      properties['ethnicities'] = ['Ashkenazi Jews'];
+      properties['ashkenazi'] = true;
     }
 
     var proband = (parts[2] == 1);

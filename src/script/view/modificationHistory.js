@@ -59,7 +59,7 @@ var TEMPLATES = {
 var FIELDS = {
   setGender: ['sex', 'sexo'], setName: ['name', 'nome'], setFirstName: ['name', 'nome'], setLastName: ['name', 'nome'],
   setExternalID: ['identifier', 'identificador'], setCarrierStatus: ['carrier status', 'status de portador'],
-  setEvaluated: ['evaluation', 'avaliação'], setDisorders: ['disorders', 'doenças'], setGenes: ['genes', 'genes'],
+  setEvaluated: ['evaluation', 'avaliação'], setDisorders: ['disorders', 'doenças'], setGenes: ['candidate genes', 'genes candidatos'],
   setHPO: ['phenotypes', 'fenótipos'], setAgeInput: ['age', 'idade'], setBirthDate: ['date of birth', 'data de nascimento'],
   setDeathDate: ['date of death', 'data de óbito'], setLifeStatus: ['life status', 'status vital'],
   setGestationAge: ['gestation age', 'idade gestacional'], setChildlessStatus: ['heredity options', 'opções de hereditariedade'],
@@ -67,11 +67,14 @@ var FIELDS = {
   setLostContact: ['contact with proband', 'contato com o probando'], setProband: ['proband', 'probando'],
   makePlaceholder: ['placeholder', 'marcador'], setComments: ['comments', 'comentários'],
   setConsanguinity: ['consanguinity', 'consanguinidade'], setBrokenStatus: ['separation', 'separação'],
-  setNumPersons: ['group size', 'tamanho do grupo'], setDobApprox: ['approximate date of birth', 'data de nascimento aproximada']
+  setNumPersons: ['group size', 'tamanho do grupo'], setDobApprox: ['approximate date of birth', 'data de nascimento aproximada'],
+  setGeneticTests: ['genetic test results', 'resultados de testes genéticos'],
+  setAshkenazi: ['Ashkenazi ancestry', 'ascendência asquenaze'], setAgeAtDeath: ['age at death', 'idade no óbito'],
+  setDisorderDetails: ['diagnosis details', 'detalhes do diagnóstico']
 };
 
 // Values that would leak free text into a short summary are not shown (only the field name is)
-var HIDE_VALUE = { setComments: true };
+var HIDE_VALUE = { setComments: true, setDisorderDetails: true };
 
 var EVENTS = [
   'pedigree:graph:clear', 'pedigree:node:remove', 'pedigree:node:setproperty', 'pedigree:node:modify',

@@ -3,6 +3,7 @@ import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
 import getAge from 'pedigree/view/ageCalc';
 import { computeVariantRisks } from 'pedigree/model/inheritance';
+import { testLabel as clinicalTestLabel, testResult as clinicalTestResult } from 'pedigree/model/clinicalData';
 
 var INHERITANCE_OPTIONS = [
   ['AD', 'Autosomal dominant'],
@@ -225,8 +226,9 @@ var CascadeTestingDialog = Class.create({
       if (model.useTests) {
         var ev = node.getEvaluated && node.getEvaluated();
         var cs = node.getCarrierStatus && node.getCarrierStatus();
-        var positive = ev === '+' || cs === 'carrier' || cs === 'presymptomatic';
-        var negative = ev === '-';
+        var structured = this._familialTestResult(node);  // test for the familial gene, if any
+        var positive = structured === 'positive' || (structured === null && (ev === '+' || cs === 'carrier' || cs === 'presymptomatic'));
+        var negative = structured === 'negative' || (structured === null && ev === '-');
         if (positive || negative) {
           for (var t = 0; t < 4; t++) {
             var carries = t > 0;
@@ -319,7 +321,48 @@ var CascadeTestingDialog = Class.create({
     genes.forEach(function(g) {
       info.findings.push(typeof g === 'string' ? g : (g.gene || g.id || ''));
     });
+    var tests = (node.getGeneticTests && node.getGeneticTests()) || [];
+    tests.forEach(function(t) {
+      info.findings.push(clinicalTestLabel(t));
+    });
+    var familial = this._familialTestResult(node);
+    if (familial === 'positive' || familial === 'negative') {
+      info.tested = true;
+    }
+    info.declined = (familial === 'declined');
     return info;
+  },
+
+  /**
+   * Genes of the familial variant: those with a positive structured test in the index person,
+   * narrowed to the gene(s) named in the "familial variant" field when it names any of them.
+   */
+  _familialGenes: function() {
+    var node = this._indexId !== null ? editor.getNode(this._indexId) : null;
+    var tests = (node && node.getGeneticTests) ? node.getGeneticTests() : [];
+    var genes = tests.filter(function(t) { return clinicalTestResult(t) === 'positive'; })
+      .map(function(t) { return t.gene; });
+    var finding = (this._finding || '').toUpperCase();
+    var named = genes.filter(function(g) { return finding.indexOf(g) !== -1; });
+    return named.length ? named : genes;
+  },
+
+  /**
+   * 'positive' | 'negative' for a structured test of the familial gene, 'vus' / 'pending' when
+   * tested without a usable result, or null when the person has no test for that gene.
+   */
+  _familialTestResult: function(node) {
+    var genes = this._familialGenes();
+    if (!genes.length || !node || !node.getGeneticTests) return null;
+    var result = null;
+    node.getGeneticTests().forEach(function(t) {
+      if (genes.indexOf(t.gene) === -1) return;
+      var r = clinicalTestResult(t) || 'pending';
+      // a usable result wins over a VUS, a pending test or a declined one
+      if (r === 'positive' || (r === 'negative' && result !== 'positive') || result === null ||
+          (result !== 'positive' && result !== 'negative' && r === 'declined')) result = r;
+    });
+    return result;
   },
 
   /**
@@ -327,6 +370,7 @@ var CascadeTestingDialog = Class.create({
    */
   _getExclusionReason: function(info) {
     if (info.tested) return translate('Already tested');
+    if (info.declined) return translate('Declined testing');
     if (info.lifeStatus === 'unborn') return translate('Unborn');
     if (info.lifeStatus !== 'alive') return translate('Deceased');
     if (info.lostContact) return translate('Not in contact');

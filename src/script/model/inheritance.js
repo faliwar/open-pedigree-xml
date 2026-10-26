@@ -566,4 +566,4 @@ var peelEvidence = function(mode, order, slotsOf, sexOf, received, prior, likeli
   return { likelihood: bad ? 0 : Math.exp(logLik), posterior: posterior };
 };
 
-export { MODES, computeVariantRisks, isXLinked };
+export { MODES, computeVariantRisks, isXLinked, getParentSlots };

@@ -4,6 +4,7 @@ import AbstractPerson from 'pedigree/view/abstractPerson';
 import PersonVisuals from 'pedigree/view/personVisuals';
 import HPOTerm from 'pedigree/hpoTerm';
 import Disorder from 'pedigree/disorder';
+import { clone, normalizeTests, normalizeDetails, testResult } from 'pedigree/model/clinicalData';
 
 /**
  * Person is a class representing any AbstractPerson that has sufficient information to be
@@ -72,6 +73,16 @@ var Person = Class.create(AbstractPerson, {
     this._disorders = [];
     this._hpo = [];
     this._candidateGenes = [];
+    this._geneticTests = [];
+    this._disorderDetails = {};
+    this._invitaeExtra = null;
+    this._ashkenazi = false;
+    this._ageAtDeath = '';
+    // genes this node is registered under in the gene legend (kept across resets, so that
+    // _syncGeneLegend() can remove stale entries)
+    if (!this._legendGenes) {
+      this._legendGenes = [];
+    }
     this._twinGroup = null;
     this._monozygotic = false;
     this._evaluated = false;
@@ -313,6 +324,35 @@ var Person = Class.create(AbstractPerson, {
       return;
     }
     this._lostContact = lostContact;
+  },
+
+  /**
+   * Ashkenazi Jewish ancestry (used by CanRisk/BOADICEA and kept as Progeny's "Ethnicity" note)
+   *
+   * @method getAshkenazi
+   * @return {Boolean}
+   */
+  getAshkenazi: function() {
+    return !!this._ashkenazi;
+  },
+
+  setAshkenazi: function(value) {
+    this._ashkenazi = !!value;
+  },
+
+  /**
+   * Age at death as entered (e.g. "72" or "72 yrs"), for deceased people without exact dates
+   *
+   * @method getAgeAtDeath
+   * @return {String}
+   */
+  getAgeAtDeath: function() {
+    return this._ageAtDeath || '';
+  },
+
+  setAgeAtDeath: function(value) {
+    this._ageAtDeath = (value === undefined || value === null) ? '' : String(value).trim();
+    this.getGraphics().updateAgeLabel && this.getGraphics().updateAgeLabel();
   },
 
   /**
@@ -687,10 +727,46 @@ var Person = Class.create(AbstractPerson, {
     for (var i = 0; i < this.getDisorders().length; i++) {
       result.push(editor.getDisorderLegend().getObjectColor(this.getDisorders()[i]));
     }
-    for (var i = 0; i < this.getGenes().length; i++) {
-      result.push(editor.getGeneLegend().getObjectColor(this.getGenes()[i]));
+    var geneLegend = editor.getGeneLegend();
+    if (!geneLegend.isEnabled || geneLegend.isEnabled()) { // colouring by gene can be turned off in Labels
+      for (var i = 0; i < this._legendGenes.length; i++) {
+        result.push(geneLegend.getObjectColor(this._legendGenes[i]));
+      }
     }
     return result;
+  },
+
+  /**
+   * Genes shown in the gene legend and colouring for this person: genes with a positive test
+   * result (pathogenic, likely pathogenic or positive), plus candidate genes from older files.
+   *
+   * @method getLegendGenes
+   * @return {Array}
+   */
+  getLegendGenes: function() {
+    var genes = this._candidateGenes.slice(0);
+    this._geneticTests.forEach(function(t) {
+      if (testResult(t) === 'positive' && genes.indexOf(t.gene) === -1) {
+        genes.push(t.gene);
+      }
+    });
+    return genes;
+  },
+
+  // Registers/unregisters this person in the gene legend to match getLegendGenes()
+  _syncGeneLegend: function() {
+    var legend = editor.getGeneLegend();
+    var wanted = this.getLegendGenes();
+    var id = this.getID();
+    this._legendGenes.filter(function(g) { return wanted.indexOf(g) === -1; }).forEach(function(g) {
+      legend.removeCase(g, id);
+    });
+    var current = this._legendGenes;
+    wanted.filter(function(g) { return current.indexOf(g) === -1; }).forEach(function(g) {
+      legend.addCase(g, g, id);
+    });
+    this._legendGenes = wanted;
+    this.getGraphics().updateDisorderShapes();
   },
 
   /**
@@ -868,8 +944,8 @@ var Person = Class.create(AbstractPerson, {
      */
   addGene: function(gene) {
     if (this.getGenes().indexOf(gene) == -1) {
-      editor.getGeneLegend().addCase(gene, gene, this.getID());
       this.getGenes().push(gene);
+      this._syncGeneLegend();
       this.getGraphics().updateGenesLabel && this.getGraphics().updateGenesLabel();
     }
   },
@@ -881,8 +957,8 @@ var Person = Class.create(AbstractPerson, {
      */
   removeGene: function(gene) {
     if (this.getGenes().indexOf(gene) !== -1) {
-      editor.getGeneLegend().removeCase(gene, this.getID());
       this._candidateGenes = this.getGenes().without(gene);
+      this._syncGeneLegend();
       this.getGraphics().updateGenesLabel && this.getGraphics().updateGenesLabel();
     }
   },
@@ -900,7 +976,7 @@ var Person = Class.create(AbstractPerson, {
     for(var i = 0; i < genes.length; i++) {
       this.addGene( genes[i] );
     }
-    this.getGraphics().updateDisorderShapes();
+    this._syncGeneLegend();
     this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
   },
 
@@ -915,6 +991,51 @@ var Person = Class.create(AbstractPerson, {
   },
 
   /**
+   * Structured genetic test results (see model/clinicalData.js). Returns a copy.
+   *
+   * @method getGeneticTests
+   * @return {Array}
+   */
+  getGeneticTests: function() {
+    return clone(this._geneticTests);
+  },
+
+  setGeneticTests: function(tests) {
+    this._geneticTests = normalizeTests(tests);
+    this._syncGeneLegend();
+    this.getGraphics().updateTestsLabel && this.getGraphics().updateTestsLabel();
+  },
+
+  /**
+   * Diagnosis details keyed by disorder name (see model/clinicalData.js). Returns a copy.
+   *
+   * @method getDisorderDetails
+   * @return {Object}
+   */
+  getDisorderDetails: function() {
+    return clone(this._disorderDetails);
+  },
+
+  setDisorderDetails: function(details) {
+    this._disorderDetails = normalizeDetails(details);
+    this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
+  },
+
+  /**
+   * Details for one disorder (by id or name), or null.
+   */
+  getDisorderDetail: function(disorderId) {
+    var name = Disorder.desanitizeID(disorderId);
+    var d = this._disorderDetails[name] || this._disorderDetails[disorderId];
+    return d ? clone(d) : null;
+  },
+
+  // Invitae/Progeny elements this editor does not use, kept verbatim for round trips
+  getInvitaeExtra: function() {
+    return this._invitaeExtra ? clone(this._invitaeExtra) : null;
+  },
+
+  /**
      * Removes the node and its visuals.
      *
      * @method remove
@@ -924,6 +1045,8 @@ var Person = Class.create(AbstractPerson, {
     this.setDisorders([]);  // remove disorders form the legend
     this.setHPO([]);
     this.setGenes([]);
+    this._geneticTests = [];
+    this._syncGeneLegend();
     $super();
   },
 
@@ -1034,6 +1157,7 @@ var Person = Class.create(AbstractPerson, {
       carrier:       {value : this.getCarrierStatus(), disabled: inactiveCarriers},
       disorders:     {value : disorders},
       candidate_genes: {value : this.getGenes()},
+      clinical_details: {value : { tests: this.getGeneticTests(), details: this.getDisorderDetails(), disorders: disorders, candidateGenes: this.getGenes().slice(0) }},
       adopted:       {value : this.isAdopted(), inactive: cantChangeAdopted},
       state:         {value : this.getLifeStatus(), inactive: inactiveStates},
       date_of_death: {value : this.getDeathDate(), inactive: this.isFetus()},
@@ -1045,6 +1169,8 @@ var Person = Class.create(AbstractPerson, {
       evaluated:     {value : this.getEvaluated() },
       hpo_positive:  {value : hpoTerms},
       nocontact:     {value : this.getLostContact(), inactive: inactiveLostContact},
+      ashkenazi:     {value : this.getAshkenazi()},
+      age_at_death:  {value : this.getAgeAtDeath(), inactive: this.getLifeStatus() !== 'deceased'},
       proband:       {value : this.isProband(), inactive: this.isProband() || this.isVirtual()}
     };
   },
@@ -1099,6 +1225,21 @@ var Person = Class.create(AbstractPerson, {
     }
     if (this.getGenes().length > 0) {
       info['candidateGenes'] = this.getGenes();
+    }
+    if (this._geneticTests.length > 0) {
+      info['geneticTests'] = this.getGeneticTests();
+    }
+    if (Object.keys(this._disorderDetails).length > 0) {
+      info['disorderDetails'] = this.getDisorderDetails();
+    }
+    if (this._invitaeExtra) {
+      info['invitaeExtra'] = this.getInvitaeExtra();
+    }
+    if (this._ashkenazi) {
+      info['ashkenazi'] = true;
+    }
+    if (this._ageAtDeath) {
+      info['ageAtDeath'] = this._ageAtDeath;
     }
     if (this._twinGroup !== null) {
       info['twinGroup'] = this._twinGroup;
@@ -1161,6 +1302,31 @@ var Person = Class.create(AbstractPerson, {
       }
       if(info.candidateGenes) {
         this.setGenes(info.candidateGenes);
+      }
+      if (info.geneticTests) {
+        this.setGeneticTests(info.geneticTests);
+      }
+      if (info.disorderDetails) {
+        this.setDisorderDetails(info.disorderDetails);
+      }
+      if (info.invitaeExtra && typeof info.invitaeExtra === 'object') {
+        this._invitaeExtra = clone(info.invitaeExtra);
+      }
+      // older BOADICEA imports stored ancestry as ethnicities: ['Ashkenazi Jews']
+      if (info.ashkenazi || (Array.isArray(info.ethnicities) && info.ethnicities.some(function(e) { return /ashkenazi/i.test(e); }))) {
+        this._ashkenazi = true;
+      }
+      if (info.ageAtDeath) {
+        this._ageAtDeath = String(info.ageAtDeath);
+      } else if (this.getComments && /^Age at death:\s*(.+)$/m.test(this.getComments() || '')) {
+        // older Invitae/Progeny imports kept the age at death as a line in the comments: move it
+        var m = this.getComments().match(/^Age at death:\s*(.+)$/m);
+        this._ageAtDeath = m[1].trim();
+        this._comments = this.getComments().replace(/^Age at death:.*(\r?\n)?/m, '').trim();
+        this.getGraphics().updateCommentsLabel && this.getGraphics().updateCommentsLabel();
+      }
+      if (this._ageAtDeath) {
+        this.getGraphics().updateAgeLabel && this.getGraphics().updateAgeLabel();
       }
       if(info.hasOwnProperty('isAdopted') && this.isAdopted() != info.isAdopted) {
         this.setAdopted(info.isAdopted);

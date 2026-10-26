@@ -3,6 +3,8 @@ import HPOTerm from 'pedigree/hpoTerm';
 import Helpers from 'pedigree/model/helpers';
 import GraphicHelpers from 'pedigree/view/graphicHelpers';
 import AgeCalc from 'pedigree/view/ageCalc';
+import { translate } from 'pedigree/i18n';
+import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
 
 /**
  * NodeMenu is a UI Element containing options for AbstractNode elements
@@ -819,6 +821,24 @@ var NodeMenu = Class.create({
       var input = new Element('input', {type: 'hidden', name: data.name, value: ''});
       result.update(input);
       return result;
+    },
+    // Read-only summary of genetic tests and diagnosis details, edited in its own dialog
+    'clinical-summary' : function (data) {
+      var result = this._generateEmptyField(data);
+      var _this = this;
+      var summary = new Element('div', {'class' : 'clinical-summary'});
+      var edit = new Element('button', {'type' : 'button', 'class' : 'clinical-summary-edit'}).update(translate('Edit…'));
+      edit.observe('click', function(e) {
+        e.stop();
+        var target = _this.targetNode;
+        if (!target) {
+          return;
+        }
+        _this.hide();
+        editor.getClinicalDetailsDialog().show(target);
+      });
+      result.inputsContainer.insert(summary).insert(edit);
+      return result;
     }
   },
 
@@ -1055,6 +1075,37 @@ var NodeMenu = Class.create({
       if (target) {
         target.value = value;
       }
+    },
+    'clinical-summary' : function (container, value) {
+      var box = container.down('.clinical-summary');
+      if (!box) {
+        return;
+      }
+      box.update('');
+      var tests = (value && value.tests) || [];
+      var details = (value && value.details) || {};
+      var lines = tests.map(function(t) { return clinicalTestLabel(t); });
+      var candidates = (value && value.candidateGenes) || [];
+      if (candidates.length) {
+        lines.push(translate('Candidate genes (older files):') + ' ' + candidates.join(', '));
+      }
+      Object.keys(details).forEach(function(name) {
+        var d = details[name];
+        var bits = [];
+        if (d.atdiag) bits.push('dx ' + compactAge(d.atdiag));
+        (d.fields || []).forEach(function(f) {
+          if (!f.value) return;
+          // laterality and histology read fine on their own; receptors, grade etc. need their name
+          var bare = /^(breast|laterality|histology)$/i.test(f.name);
+          bits.push(bare ? translate(f.value) : translate(f.name) + ': ' + translate(f.value));
+        });
+        if (bits.length) lines.push(name + ': ' + bits.join(', '));
+      });
+      if (!lines.length) {
+        box.insert(new Element('span', {'class' : 'clinical-summary-empty'}).update(translate('None recorded')));
+      } else {
+        lines.forEach(function(l) { box.insert(new Element('div').update(l.escapeHTML())); });
+      }
     }
   },
 
@@ -1113,6 +1164,9 @@ var NodeMenu = Class.create({
     },
     'hidden' : function (container, inactive) {
       this._toggleFieldVisibility(container, inactive);
+    },
+    'clinical-summary' : function (container, inactive) {
+      this._toggleFieldVisibility(container, inactive);
     }
   },
 
@@ -1164,6 +1218,8 @@ var NodeMenu = Class.create({
     },
     'hidden' : function (container, inactive) {
       // FIXME: Not implemented
+    },
+    'clinical-summary' : function (container, disabled) {
     }
   }
 });

@@ -556,6 +556,18 @@ var View = Class.create({
     return result;
   },
 
+  // Redraws the colour sectors of every person (e.g. after turning colouring by gene on/off)
+  updateAllNodeColors: function() {
+    for (var id in this._nodeMap) {
+      if (this._nodeMap.hasOwnProperty(id)) {
+        var node = this._nodeMap[id];
+        if (node && node.getType && node.getType() == 'Person' && node.getGraphics() && node.getGraphics().updateDisorderShapes) {
+          node.getGraphics().updateDisorderShapes();
+        }
+      }
+    }
+  },
+
   updateAllLabels: function() {
     for (var id in this._nodeMap) {
       if (this._nodeMap.hasOwnProperty(id)) {
@@ -566,6 +578,7 @@ var View = Class.create({
           if (g.updateDisordersLabel) g.updateDisordersLabel();
           if (g.updateHPOLabel) g.updateHPOLabel();
           if (g.updateGenesLabel) g.updateGenesLabel();
+          if (g.updateTestsLabel) g.updateTestsLabel();
           if (g.updateCommentsLabel) g.updateCommentsLabel();
           if (g.drawLabels) g.drawLabels();
         }

@@ -20,6 +20,7 @@ var SHORTCUT_GROUPS = [
       ['R', 'Add a partner (with a child)'],
       ['M / F / U', 'Set sex: male / female / unknown'],
       ['D', 'Toggle deceased'],
+      ['G', 'Genetic tests and diagnosis details'],
       ['Enter', 'Open properties'],
       ['Delete', 'Remove person']
     ]
@@ -181,7 +182,7 @@ var KeyboardShortcuts = Class.create({
     var personActions = {
       p: this._addParents, s: this._addSibling, c: this._addChild, r: this._addPartner,
       m: this._setSex.bind(this, 'M'), f: this._setSex.bind(this, 'F'), u: this._setSex.bind(this, 'U'),
-      d: this._toggleDeceased, Enter: this._openMenu, Delete: this._remove, Backspace: this._remove
+      d: this._toggleDeceased, g: this._openClinical, Enter: this._openMenu, Delete: this._remove, Backspace: this._remove
     };
     var action = personActions[lower] || personActions[key];
     if (action) {
@@ -330,6 +331,13 @@ var KeyboardShortcuts = Class.create({
     }
     document.fire('pedigree:node:setproperty', { nodeID: node.getID(), properties: { setLifeStatus: next } });
     this.toast(this._label(node) + ': ' + translate(next === 'deceased' ? 'deceased' : 'alive'));
+  },
+
+  _openClinical: function() {
+    var node = this._getTarget();
+    if (!this._personOnly(node)) return;
+    this._closeMenus();
+    editor.getClinicalDetailsDialog().show(node);
   },
 
   _openMenu: function() {
