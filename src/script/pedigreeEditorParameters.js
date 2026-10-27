@@ -54,6 +54,7 @@ PedigreeEditorParameters.attributes = {
   showHPOInLabel: false,
   showGenesInLabel: false,
   showTestsInLabel: true,
+  showAncestryInLabel: false,
   colorByGene: true,
   showCommentsInLabel: true,
   showLabelPrefixes: false,

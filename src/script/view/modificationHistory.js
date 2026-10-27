@@ -69,7 +69,7 @@ var FIELDS = {
   setConsanguinity: ['consanguinity', 'consanguinidade'], setBrokenStatus: ['separation', 'separação'],
   setNumPersons: ['group size', 'tamanho do grupo'], setDobApprox: ['approximate date of birth', 'data de nascimento aproximada'],
   setGeneticTests: ['genetic test results', 'resultados de testes genéticos'],
-  setAshkenazi: ['Ashkenazi ancestry', 'ascendência asquenaze'], setAgeAtDeath: ['age at death', 'idade no óbito'],
+  setAncestry: ['ancestry', 'ancestralidade'], setAshkenazi: ['Ashkenazi ancestry', 'ascendência asquenaze'], setAgeAtDeath: ['age at death', 'idade no óbito'],
   setDisorderDetails: ['diagnosis details', 'detalhes do diagnóstico']
 };
 
@@ -161,7 +161,8 @@ var ModificationHistory = Class.create({
     if (Array.isArray(value)) {
       if (!value.length) return t('cleared');
       return value.map(function(v) {
-        return (v && typeof v === 'object') ? (v.name || v.gene || v.id || '') : String(v);
+        // plain values (e.g. ancestry groups) are stored in English: show them translated
+        return (v && typeof v === 'object') ? (v.name || v.gene || v.id || '') : translate(String(v));
       }).filter(Boolean).join(', ');
     }
     if (typeof value === 'object') return '';

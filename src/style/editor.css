@@ -3086,18 +3086,32 @@ div.suggestItems .hide-button-wrapper {
 }
 
 /* Floating legend shown on the chart while a cascade is highlighted */
-.cascade-chart-legend {
+/* Floating chart legends (search, cascade) stack at the bottom centre */
+.overlay-legend-stack {
   position: absolute;
   left: 50%;
   bottom: 18px;
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
+.overlay-legend-stack:empty {
+  display: none;
+}
+
+.cascade-chart-legend {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 6px 12px;
-  max-width: calc(100% - 32px);
+  max-width: 100%;
+  pointer-events: auto;
   box-sizing: border-box;
   padding: 7px 10px 7px 14px;
   background: rgba(255, 255, 255, 0.96);
@@ -3468,6 +3482,56 @@ div.suggestItems .hide-button-wrapper {
   }
 }
 
+/* ===== Ancestry picker in the person menu ===== */
+.menu-box .ancestry-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.menu-box .ancestry-chips:empty {
+  display: none;
+}
+
+.menu-box .ancestry-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: #E0F2FE;
+  color: #075985;
+  font-size: 12px;
+}
+
+.menu-box .ancestry-chip-remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #0369A1;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.menu-box .ancestry-chip-remove:hover {
+  background: #BAE6FD;
+}
+
+.menu-box .ancestry-add,
+.menu-box .ancestry-other {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.menu-box .ancestry-other {
+  margin-top: 4px;
+}
+
 /* ===== Pedigree appears with a short fade after loading ===== */
 #canvas.canvas-reveal > svg {
   animation: canvasReveal 0.22s ease-out;
@@ -3731,8 +3795,332 @@ button.history-restore:hover {
   .history-buttons .button {
     width: 100%;
   }
-  .cascade-chart-legend {
+  .overlay-legend-stack {
     bottom: 10px;
+  }
+  .cascade-chart-legend {
     font-size: 11.5px;
+  }
+}
+
+/* =========================================
+ * FIND PEOPLE (search panel)
+ * Floats over the chart, right of the pan/zoom controls, without blocking editing.
+ * ========================================= */
+#canvas [data-opx-dim] {
+  opacity: 0.22;
+}
+
+.search-panel {
+  position: absolute;
+  top: 10px;
+  left: 92px;
+  z-index: 100001;
+  width: 450px;
+  max-width: calc(100% - 108px);
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #FFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  font-size: 13px;
+  color: #1E293B;
+}
+
+.search-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 8px 14px;
+  border-bottom: 1px solid #F1F5F9;
+}
+.search-panel-icon {
+  color: #0284C7;
+}
+.search-panel-title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.search-icon-btn {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748B;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.search-icon-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+}
+
+.search-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+
+.search-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.search-presets-label {
+  color: #64748B;
+  font-size: 12px;
+  margin-right: 2px;
+}
+.search-preset {
+  padding: 3px 9px;
+  border: 1px solid #BAE6FD;
+  border-radius: 999px;
+  background: #F0F9FF;
+  color: #075985;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-preset:hover {
+  background: #E0F2FE;
+  border-color: #7DD3FC;
+}
+
+.search-match {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: #475569;
+}
+
+.search-select,
+.search-input {
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: #FFF;
+  color: #0F172A;
+  font: inherit;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.search-select:focus,
+.search-input:focus {
+  outline: none;
+  border-color: #0284C7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+.search-match-select {
+  width: auto;
+}
+
+.search-filters {
+  display: flex;
+  flex-direction: column;
+}
+.search-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+}
+.search-filter .search-field {
+  flex: 1 1 130px;
+  font-weight: 600;
+}
+.search-filter .search-op {
+  flex: 1 1 110px;
+}
+.search-filter .search-value,
+.search-filter .search-input:not(.search-number) {
+  flex: 1 1 120px;
+}
+.search-filter .search-value2 {
+  flex: 1 1 110px;
+}
+.search-filter .search-number {
+  width: 64px;
+  flex: 0 0 64px;
+}
+.search-filter {
+  position: relative;
+  padding-right: 36px;
+}
+.search-filter .search-remove {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+}
+.search-and {
+  color: #64748B;
+}
+.search-joiner {
+  align-self: flex-start;
+  margin: 3px 0 3px 12px;
+  padding: 0 6px;
+  border-left: 2px solid #CBD5E1;
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.search-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.search-add {
+  padding: 4px 8px;
+  border: 1px dashed #94A3B8;
+  border-radius: 6px;
+  background: #FFF;
+  color: #0369A1;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.search-add:hover {
+  border-color: #0284C7;
+  background: #F0F9FF;
+}
+.search-dim {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.search-results {
+  margin-top: 8px;
+  border-top: 1px solid #F1F5F9;
+  padding-top: 8px;
+}
+.search-count {
+  color: #475569;
+  margin-bottom: 6px;
+}
+.search-count strong {
+  color: #0284C7;
+  font-size: 15px;
+}
+.search-empty {
+  margin: 6px 0;
+  color: #64748B;
+  font-style: italic;
+}
+.search-result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.search-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.search-result:hover,
+.search-result:focus {
+  background: #F0F9FF;
+  outline: none;
+}
+.search-result-id {
+  flex: 0 0 42px;
+  color: #0369A1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.search-result-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.search-result-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result-details {
+  color: #64748B;
+  font-size: 12px;
+}
+
+.search-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid #F1F5F9;
+}
+.search-footer-btn {
+  padding: 5px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: #FFF;
+  color: #334155;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.search-footer-btn:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+}
+
+.search-chart-legend .search-chart-legend-text {
+  font-weight: 600;
+}
+
+@media (max-width: 768px), (max-height: 520px) {
+  .search-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: 62%;
+    border-radius: 14px 14px 0 0;
+  }
+  .search-select,
+  .search-input {
+    height: 36px;
+    font-size: 14px;
   }
 }

@@ -21,6 +21,7 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import DefaultFhirTerminologyHelper from 'pedigree/DefaultFhirTerminologyHelper';
 import PedigreeOverlay from 'pedigree/view/pedigreeOverlay';
 import CascadeTestingDialog from 'pedigree/view/cascadeTestingDialog';
+import SearchPanel from 'pedigree/view/searchPanel';
 import ModificationHistory from 'pedigree/view/modificationHistory';
 import KeyboardShortcuts from 'pedigree/view/keyboardShortcuts';
 import ClinicalDetailsDialog from 'pedigree/view/clinicalDetailsDialog';
@@ -82,6 +83,7 @@ var PedigreeEditor = Class.create({
     // created before the Controller and the first load, so every change gets described
     this._history = new ModificationHistory();
     this._cascadeTestingDialog = new CascadeTestingDialog();
+    this._searchPanel = new SearchPanel();
     this._clinicalDetailsDialog = new ClinicalDetailsDialog();
     this._templateSelector = new TemplateSelector();
     this._labelOptionsSelector = new LabelOptionsSelector();
@@ -131,6 +133,11 @@ var PedigreeEditor = Class.create({
     var cascadeButton = $('action-cascade');
     cascadeButton && cascadeButton.on('click', function(event) {
       editor.getCascadeTestingDialog().show();
+    });
+
+    var searchButton = $('action-search');
+    searchButton && searchButton.on('click', function(event) {
+      editor.getSearchPanel().toggle();
     });
 
     var clearButton = $('action-clear');
@@ -649,6 +656,14 @@ var PedigreeEditor = Class.create({
   },
 
   /**
+   * @method getSearchPanel
+   * @return {SearchPanel} "Find people" panel
+   */
+  getSearchPanel: function() {
+    return this._searchPanel;
+  },
+
+  /**
    * @method getKeyboardShortcuts
    * @return {KeyboardShortcuts|null}
    */
@@ -900,11 +915,11 @@ var PedigreeEditor = Class.create({
         'function' : 'setAdopted'
       },
       {
-        'name' : 'ashkenazi',
-        'label' : 'Ashkenazi Jewish ancestry',
-        'type' : 'checkbox',
+        'name' : 'ancestry',
+        'label' : 'Ancestry',
+        'type' : 'ancestry-picker',
         'tab': 'Personal',
-        'function' : 'setAshkenazi'
+        'function' : 'setAncestry'
       },
       {
         'name' : 'monozygotic',

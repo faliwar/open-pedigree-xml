@@ -203,6 +203,12 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   removeHiddenNodes(dom.getRootNode());
   // Cascade testing rings are a working aid on screen only; never export them
   removeOverlay(dom, 'cascade');
+  removeOverlay(dom, 'search');
+  // people dimmed by a search highlight are exported as usual
+  var dimmed = dom.querySelectorAll('[data-opx-dim]');
+  for (var d = 0; d < dimmed.length; d++) {
+    dimmed[d].removeAttribute('data-opx-dim');
+  }
   if (privacySetting !== 'all' ){
     removeText(dom, '20px');
   }

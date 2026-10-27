@@ -579,6 +579,7 @@ var View = Class.create({
           if (g.updateHPOLabel) g.updateHPOLabel();
           if (g.updateGenesLabel) g.updateGenesLabel();
           if (g.updateTestsLabel) g.updateTestsLabel();
+          if (g.updateAncestryLabel) g.updateAncestryLabel();
           if (g.updateCommentsLabel) g.updateCommentsLabel();
           if (g.drawLabels) g.drawLabels();
         }
@@ -796,6 +797,7 @@ var View = Class.create({
       // keep chart annotations (standard numbering, cascade highlight) in sync with the new layout
       if (typeof editor !== 'undefined' && editor && editor.getOverlay && editor.getOverlay()) {
         editor.getOverlay().onGraphChanged(changeSet);
+        editor.getSearchPanel && editor.getSearchPanel() && editor.getSearchPanel().onGraphChanged(changeSet);
       }
     }
   }

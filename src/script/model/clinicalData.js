@@ -35,6 +35,44 @@ var CLASSIFICATIONS = [
   { code: '',    label: 'Unknown / pending',               short: '?',   result: '' }
 ];
 
+/**
+ * Ancestry choices: the gnomAD genetic ancestry groups plus founder populations that matter for
+ * carrier frequencies and risk models. Stored in English (shown translated); any other text can be
+ * typed. A person can have several (mixed ancestry). CanRisk's Ashkenazi flag is derived from it.
+ */
+var ANCESTRY_OPTIONS = [
+  'African / African American',
+  'Admixed American / Latino',
+  'Amish',
+  'Ashkenazi Jewish',
+  'East Asian',
+  'European (non-Finnish)',
+  'Finnish',
+  'French Canadian',
+  'Indigenous American',
+  'Middle Eastern',
+  'North African',
+  'Pacific Islander',
+  'Sephardic or Mizrahi Jewish',
+  'South Asian',
+  'Southeast Asian'
+];
+
+var normalizeAncestry = function(list) {
+  var out = [];
+  (Array.isArray(list) ? list : (list ? [list] : [])).forEach(function(v) {
+    var s = str(v);
+    // older files (BOADICEA import) used "Ashkenazi Jews"
+    if (/^ashkenazi/i.test(s)) s = 'Ashkenazi Jewish';
+    if (s && out.indexOf(s) === -1) out.push(s);
+  });
+  return out;
+};
+
+var hasAshkenaziAncestry = function(list) {
+  return normalizeAncestry(list).some(function(a) { return /ashkenazi/i.test(a); });
+};
+
 // How the gene was tested (CanRisk/BOADICEA: S = mutation search, T = direct gene test)
 var TEST_TYPES = [
   { code: '', label: 'Panel / full gene (mutation search)' },
@@ -218,6 +256,7 @@ var needsClassificationAttribute = function(test) {
 };
 
 export {
+  ANCESTRY_OPTIONS, normalizeAncestry, hasAshkenaziAncestry,
   CLASSIFICATIONS, ZYGOSITIES, TEST_TYPES, CONTRALATERAL_FIELD, DIAGNOSIS_TYPES, RECEPTOR_VALUES, LATERALITY_VALUES,
   classificationInfo, testResult, normalizeTest, normalizeTests, normalizeDetail, normalizeDetails,
   isEmptyDetail, clone, toInvitaeAge, compactAge, isCancer, suggestedFields, testLabel,

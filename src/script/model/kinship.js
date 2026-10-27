@@ -263,4 +263,4 @@ var findBloodRelatives = function(graph, indexId, maxDegree) {
   return result;
 };
 
-export { findBloodRelatives, describeKinship, relationshipName, isRealPerson };
+export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents };

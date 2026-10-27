@@ -35,14 +35,14 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
 
 ```xml
 <indi id="0" pat="1" MRN="">
-  <marked_by value="3"/>
+  <marked_by value="0"/>
   <first_name value=""/>
   <last_name value=""/>
   <gender value="1"/>
   <status value="0"/>
   <comments value="GBA1:N215S/N215S"/>
   <cause value=""/>
-  <age value="01/01/1990"/>
+  <age value="36 yrs"/>
   <weight display="imperial" value=""/>
   <height display="imperial" value=""/>
   <carrier value="0"/>
@@ -64,14 +64,10 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   </siblings>
   <!-- Optional: Include <conditions> ONLY if the individual has a clinical condition/phenotype -->
   <conditions>
-    <condition code="Gaucher Disease" title="Gaucher Disease" shortenTitle="Gaucher Disease" type="" onset="" atdiag="" note="" color="9" visible="1" ontology="All" status="affected">
+    <condition code="Gaucher Disease" title="Gaucher Disease" shortenTitle="Gaucher Disease" type="" onset="" atdiag="12 yrs" note="" color="9" visible="1" ontology="All" status="affected">
       <note value=""/>
     </condition>
   </conditions>
-  <!-- Optional: Include <notes> ONLY if an approximate DOB or specific system note is required -->
-  <notes>
-    <note id="12" note_id="12" value="approximate DOB" string_type="multiline" string_title="Note" string_value="approximate DOB"/>
-  </notes>
   <gail_properties/>
 </indi>
 ```
@@ -82,10 +78,15 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * `id`: Unique sequential integer (`"0"`, `"1"`, `"2"`, ...). Typically, `id="0"` is assigned to the proband.
   * `pat`: Set `pat="1"` **only** for the primary patient/proband. Set `pat="0"` for all other individuals.
   * `MRN`: Always include `MRN=""` (unless an MRN is explicitly provided).
-* **`<marked_by value="..."/>` (Proband / Consultand / Evaluation Markers):**
-  * `"3"`: Primary Proband / Index Patient (used alongside `pat="1"` on `<indi>`).
-  * `"0"`: Standard family member (not marked).
-  * `"1"` or `"2"`: Secondary markers (e.g., consultand or evaluated family member, if applicable).
+* **`<first_name value="..."/>` and `<last_name value="..."/>` — real names only:**
+  * Fill them **only** with a personal name that appears in the text (e.g., "Ravi" → `<first_name value="Ravi"/>`).
+  * **Never** put a relationship, role or description in a name field: no "Mãe", "Pai", "Tio paterno", "Meio-tio", "Filho", "Filha falecida", "Probando", "Proband", "Index", "Sister 1", "Cousin" etc. The chart already shows how everyone is related, and these words would be printed under the symbol as if they were names.
+  * Without a stated name, leave both empty (`value=""`). This is the normal case for most relatives.
+* **`<marked_by value="..."/>` (Evaluation mark drawn next to the symbol — NOT the proband marker):**
+  * `"0"`: No mark. **Default for everyone, including the proband** (the proband is identified only by `pat="1"`).
+  * `"1"`: Tested positive (`+` on the chart) — only if the text states a positive test result for that person.
+  * `"2"`: Tested negative (`−`) — only if the text states a negative test result for that person.
+  * `"3"`: Documented evaluation (`*`) — only if the text explicitly says the person's records/examination were reviewed. Never use it just because the person is the proband.
 * **`<gender value="..."/>` (CRITICAL MAPPING):**
   * `"0"`: **Male** (Must correspond to `<male id="..."/>` in `<fam>`).
   * `"1"`: **Female** (Must correspond to `<female id="..."/>` in `<fam>`).
@@ -94,14 +95,18 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * `"0"`: Alive.
   * `"1"`: Deceased.
   * `"6"` / `"7"`: Special reproductive/offspring placeholders (e.g., no children by choice / infertility, when applicable; keep standard `<weight display="imperial" value=""/>` and `<comments value=""/>` — **never** output the literal string `"undefined"`).
-* **`<age value="..."/>` and `<age_at_death value="..."/>`:**
-  * In this schema, `<age>` stores the **Date of Birth (DOB)** in `MM/DD/YYYY` format (e.g., `"01/01/1990"`), NOT an integer.
-  * If only a current age is provided (e.g., "7 years old" or "1y5m") and the user wants age represented in the `<age>` field, calculate an approximate DOB from the current reference date in `MM/DD/YYYY` format and **always** append the `<notes>` block indicating an approximate DOB:
-    ```xml
-    <notes><note id="12" note_id="12" value="approximate DOB" string_type="multiline" string_title="Note" string_value="approximate DOB"/></notes>
-    ```
-  * Regardless of whether an approximate DOB is calculated, preserve the exact stated age in `<comments value="..."/>` in a few words (e.g., `"1y5m. Healthy."`), so no precision is lost.
-  * If an individual is deceased (e.g., "died at 29 years"), set `<status value="1"/>`, record `"29"` (or the exact text) in `<age_at_death value="29"/>`, and leave `<age value=""/>` empty unless a birth date is known.
+* **`<age value="..."/>` (current age of living individuals) — ALWAYS fill it when an age is stated:**
+  * Write the stated current age directly, in English units, and **do not calculate a date**: the app converts it into an approximate date of birth on import and shows it on the chart as `~40 yrs`.
+    * 2 years or older: `"N yrs"` (e.g., "40 anos" → `<age value="40 yrs"/>`; "7 years old" → `<age value="7 yrs"/>`).
+    * Under 2 years: whole months, `"N mo"` (e.g., "1y5m" / "1 ano e 5 meses" → `<age value="17 mo"/>`; "8 meses" → `<age value="8 mo"/>`).
+    * Under 2 months: whole weeks, `"N wk"` (e.g., "15 dias" → `<age value="2 wk"/>`).
+    * Only one number and one unit per value (never `"1 yrs 5 mo"`). Round approximate ages ("about 40", "~40", "quarentão") to the number and keep `"40 yrs"`.
+  * Use `MM/DD/YYYY` in `<age>` **only** when an exact date of birth is given in the text (e.g., "born 03/15/1990").
+  * Never repeat the age in `<comments>`: it is already displayed from `<age>`.
+  * Leave `<age value=""/>` empty when no age is stated (never guess one).
+* **`<age_at_death value="..."/>` and `<cause value="..."/>` (deceased individuals):**
+  * Set `<status value="1"/>` and write the age at death in `<age_at_death>`: a bare number for years (`"29"`, shown as `d. 29 yrs`), or a short value with unit for young children (`"3 mo"`, `"2 days"`). Leave `<age value=""/>` empty unless an exact date of birth is known.
+  * Put a stated cause of death in `<cause value="..."/>` (e.g., `"Pneumonia"`), not in `<comments>`. Copy it as written; do not add editorial marks such as "(sic)".
 * **`<carrier value="..."/>`:**
   * `"0"`: Not a carrier / unknown (default).
   * `"1"`: Obligate or confirmed carrier (asymptomatic/heterozygous carrier).
@@ -126,7 +131,9 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
       </condition>
     </conditions>
     ```
-  * Keep `code`, `title`, and `shortenTitle` concise (e.g., `"Gaucher Disease"`, `"Parkinson disease"`, `"Ataxic syndrome with myoclonus"`), and place detailed clinical chronology, genotypes, or symptom progression inside `<comments value="..."/>`.
+  * Keep `code`, `title`, and `shortenTitle` concise (e.g., `"Gaucher Disease"`, `"Parkinson disease"`, `"Ataxic syndrome with myoclonus"`).
+  * Ages tied to a condition go in its attributes, written like `<age>` (`"N yrs"`, `"N mo"`): `onset` = age at symptom onset, `atdiag` = age at diagnosis (e.g., "breast cancer at 45" → `atdiag="45 yrs"`). They are displayed on the chart (e.g., `dx 45y`).
+  * The condition names are displayed on the chart: **never repeat them in `<comments>`**. Use `<comments>` only for chronology that the attributes cannot hold (e.g., several symptoms at different ages), genotypes, or qualifiers.
 
 ### 4. Family Element (`<fam>`) Structure
 Each parental union or connected single-parent offspring group is represented by a `<fam>` element with sequential IDs (`id="f0"`, `id="f1"`, `id="f2"`, ...).
@@ -186,10 +193,11 @@ Each parental union or connected single-parent offspring group is represented by
    * Explicitly reported facts;
    * Necessary and logically certain genealogical inferences (e.g., in romance languages, "filho"/"irmão"/"primo" grammatically defines male sex, and "filha"/"irmã"/"prima" defines female sex);
    * Unknown or ambiguous information.
-3. **Unknown vs. Unaffected:** Leave unknown fields empty (`value=""`). Do not label an unknown individual as "healthy" or assign a guessed age. Only mark someone as healthy/asymptomatic if explicitly stated.
+3. **Unknown vs. Unaffected:** Leave unknown fields empty (`value=""`) and never assign a guessed age. An unaffected person ("healthy", "hígido", "saudável", "sano", "normal") is represented simply by having **no `<conditions>`**: do not write any of these words anywhere in the XML.
 4. **Age vs. Age at Onset vs. Age at Death:**
-   * "Died at 29 years" means deceased (`<status value="1"/>`) with age at death = 29; it does **not** mean current age is 29.
-   * "Symptom onset at 15 years" is clinical chronology (record in `<comments>` or `onset`), not current age.
+   * "40 anos" for a living person → `<age value="40 yrs"/>`.
+   * "Died at 29 years" means deceased (`<status value="1"/>`) with `<age_at_death value="29"/>`; it does **not** mean current age is 29.
+   * "Symptom onset at 15 years" is clinical chronology (`onset="15 yrs"` on the condition), not current age.
 5. **Phenotype vs. Etiological Diagnosis:**
    * Preserve clinical descriptions accurately in the language provided by the user. Do not convert a descriptive syndrome (e.g., "ataxic syndrome with myoclonus") into a confirmed molecular/etiological diagnosis.
    * Do not guess OMIM, HPO, or MONDO codes. Use `ontology="All"` and plain text titles as shown in the schema.
@@ -197,7 +205,7 @@ Each parental union or connected single-parent offspring group is represented by
    * Preserve linguistic uncertainty ("probable", "suspected", "approximately").
 6. **Entity Consolidation:** Do not create duplicate `<indi>` elements for the same person mentioned in different parts of the text.
 7. **Proband Identification:**
-   * The proband is the index individual undergoing clinical evaluation (`pat="1"`, `<marked_by value="3"/>`), not necessarily the first person mentioned or the most severely affected relative.
+   * The proband is the index individual undergoing clinical evaluation (`pat="1"`; `<marked_by value="0"/>` unless a test result is stated), not necessarily the first person mentioned or the most severely affected relative.
    * If the proband is not clearly identifiable from the text, **do not guess silently**—ask the user to confirm before finalizing the XML.
 8. **Kinship & Consanguinity Interpretation:**
    * **Siblings:** Share `<children>` within the same `<fam>` block AND must have reciprocal `<sibling id="X" type="0"/>` entries under `<siblings>` in each sibling's `<indi>` block. Never represent a sibling relationship as parent-child.
@@ -210,12 +218,25 @@ Each parental union or connected single-parent offspring group is represented by
 
 `<comments>` is for **clinical details that no other field can store**. Keep it minimal and in the user's input language.
 
-* **Write only:** the exact stated age (a few words, e.g., `"40y"` or `"40 anos"`), symptom chronology/onset, genotype, or a clinical qualifier from the text ("probable", "approximately").
-* **Do not write:** the person's relationship to the proband (the diagram already shows it), place of origin, the word "proband/probanda", anything already stored in `<status>`, `<age_at_death>` or `<conditions>`, statements that data are "not reported", or explanations of how the pedigree was built.
-* **Leave `<comments value=""/>` empty** when there is nothing clinical to add (the proband without extra data, placeholders, relatives whose only information is the condition already listed).
-* "Healthy" (e.g., `"40y. Healthy."` or `"40 anos. Hígido."`) is written only when the text explicitly says so, never as filler.
+* **Write only:** symptom chronology that the condition's `onset`/`atdiag` cannot hold, genotype, or a clinical qualifier from the text ("probable", "suspected").
+* **Never write:**
+  * ages of any kind (current age → `<age>`, age at death → `<age_at_death>`, onset/diagnosis → condition attributes);
+  * "healthy", "hígido(a)", "saudável", "sano", "normal" or similar — unaffected people simply have no `<conditions>`;
+  * the names of conditions already listed in `<conditions>`, or the cause of death (→ `<cause>`);
+  * the person's relationship to the proband (the diagram already shows it), place of origin, the word "proband/probanda";
+  * statements that data are "not reported", or explanations of how the pedigree was built.
+* **Leave `<comments value=""/>` empty** whenever there is nothing left after these rules — this is the normal case for most relatives.
 * Notes about assumptions, unknown data, or placeholders go to the **message below the XML**, not into the XML code.
 * Use a single short sentence or fragments; maximum about 150 characters per `<comments>`.
+
+| Stated in the history | Wrong | Right |
+|---|---|---|
+| "Irmão, 28 anos, hígido" | `<age value=""/>`, `<comments value="28 anos. Hígido."/>` | `<age value="28 yrs"/>`, `<comments value=""/>` |
+| "Filho, 1 ano e 5 meses" | `<comments value="1a5m"/>` | `<age value="17 mo"/>` |
+| "Tia, 45 anos, câncer de mama aos 40" | `<comments value="45 anos. Câncer de mama aos 40."/>` | `<age value="45 yrs"/>`, condition "Câncer de mama" with `atdiag="40 yrs"`, `<comments value=""/>` |
+| "Tio, trombose e deficiência intelectual" | conditions + `<comments value="Trombose, deficiência intelectual."/>` | the two conditions, `<comments value=""/>` |
+| "Tio paterno, 28 anos" (no name given) | `<first_name value="Tio paterno"/>` | `<first_name value=""/>`, `<age value="28 yrs"/>` |
+| "Irmã faleceu com 2 dias de vida por pneumonia" | `<comments value="Cause of death: pneumonia (sic)"/>` | `<status value="1"/>`, `<age_at_death value="2 days"/>`, `<cause value="Pneumonia"/>` |
 
 ---
 
@@ -243,8 +264,8 @@ Open Pedigree imports **a single connected graph only**. If any `<indi>` (or gro
 ### Step 1 — Internal Family Extraction
 Before writing XML, mentally map (or draft when asking clarifying questions) a structured inventory of all individuals containing:
 * Internal ID (`0`, `1`, `2`, ...)
-* Name or label (if provided)
-* Relationship to the proband
+* Personal name, only if stated in the text (this is what goes into `<first_name>`)
+* Relationship to the proband (for your reasoning only — it is **never** written into the XML)
 * Biological sex (`0` = Male, `1` = Female, `2` = Unknown)
 * Current age / DOB or Age at death
 * Vital status (`0` = Alive, `1` = Deceased)
@@ -271,11 +292,11 @@ Ask these concisely **only** when needed to connect a described relative (Connec
 ### Step 4 — Pre-Delivery Validation Checklist
 Verify all of the following before outputting the XML:
 1. The XML is well-formed and all tags are properly closed.
-2. Every `<indi id="..."/>` is a unique integer, and only the proband has `pat="1"` and `<marked_by value="3"/>`.
+2. Every `<indi id="..."/>` is a unique integer, and only the proband has `pat="1"`. `<first_name>`/`<last_name>` contain only personal names stated in the text — never relationship words ("Mãe", "Tio paterno", "Probando", "Filho"...); otherwise they are empty. `<marked_by>` is `"0"` for everyone (proband included) unless a test result or documented evaluation is stated for that person.
 3. Gender codes match `<fam>` roles (`gender="0"` for `<male>`, `gender="1"` for `<female>`).
 4. Every ID referenced in `<fam><male>`, `<fam><female>`, `<fam><children><child>`, and `<indi><siblings><sibling>` points to an existing `<indi>`.
 5. Sibling lists in `<indi><siblings>` are 100% reciprocal and match the `<children>` lists in `<fam>`.
-6. Vital status (`status="1"` for deceased), age at death, age of onset, and current age are properly separated.
+6. Vital status (`status="1"` for deceased), age at death, age of onset, and current age are properly separated: every stated current age is in `<age>` (`"N yrs"` / `"N mo"` / `"N wk"`), and **no `<comments>` contains an age, a condition name already in `<conditions>`, or words like "healthy"/"hígido"**.
 7. **Connectivity (most common cause of import failure):** starting at the proband (id 0) and walking through every `<fam>` (parents ↔ children, both directions, and partner links), **every `<indi>` is reached**. Verify each `<indi>` id and the `<fam>` it belongs to; if any id is reached by no path, add placeholders or fix links before delivering.
 8. No `<fam>` lacks both `<male>` and `<female>`; every `<fam>` with a single parent has that parent also present in another `<fam>` (connected).
 9. Every placeholder has empty `<comments>` and no clinical data, and every placeholder and assumption is listed in the final notes below the XML (not inside the file).
@@ -300,9 +321,9 @@ Verify all of the following before outputting the XML:
 * *Male cousin, deceased at 29 years, presented with ataxia, myoclonus, epilepsy, and cognitive decline.*
 
 **Expected Mapping:**
-* **Index Patient (`id="0"`):** Confirmed proband (`pat="1"`, `<marked_by value="3"/>`), female (`<gender value="1"/>`), alive (`<status value="0"/>`).
-* **Son 1 & Son 2:** Sons of the proband (`<gender value="0"/>`, `<status value="0"/>`), connected via a `<fam>` block where the proband is `<female id="0"/>` (no male partner invented unless specified). Reciprocal `<siblings>` tags on both. Ages (`1y5m. Healthy.` and `7y. Healthy.`) recorded in `<comments>` (and/or approximate DOB in `<age>` with the `approximate DOB` `<note>`). No `<conditions>` block since they are healthy.
-* **Sister:** Sister of the proband (`<gender value="1"/>`), deceased (`<status value="1"/>`, `<age_at_death value="29"/>`). Shares the parental `<fam>` block with the proband and has reciprocal `<siblings>` tags. Includes `<conditions>` with `title="Ataxic syndrome with myoclonus"` and `<comments value="Tremor at 15y, falls at 20-24y, myoclonus and sialorrhea at 24y."/>` (the age at death is already in `<age_at_death>` and is not repeated).
+* **Index Patient (`id="0"`):** Confirmed proband (`pat="1"`, `<marked_by value="0"/>`), female (`<gender value="1"/>`), alive (`<status value="0"/>`).
+* **Son 1 & Son 2:** Sons of the proband (`<gender value="0"/>`, `<status value="0"/>`), connected via a `<fam>` block where the proband is `<female id="0"/>` (no male partner invented unless specified). Reciprocal `<siblings>` tags on both. Ages in `<age>`: `<age value="17 mo"/>` (1y5m) and `<age value="7 yrs"/>`. No `<conditions>` block (they are healthy) and empty `<comments value=""/>` — "healthy" is not written.
+* **Sister:** Sister of the proband (`<gender value="1"/>`), deceased (`<status value="1"/>`, `<age_at_death value="29"/>`). Shares the parental `<fam>` block with the proband and has reciprocal `<siblings>` tags. Includes `<conditions>` with `title="Ataxic syndrome with myoclonus"` and `onset="15 yrs"`, and `<comments value="Tremor at 15y, falls at 20-24y, myoclonus and sialorrhea at 24y."/>` (several symptoms at different ages do not fit in `onset`; the age at death is already in `<age_at_death>` and is not repeated).
 * **Proband & Sister's Parents:** A `<fam>` block with `consanguinity="1"` linking an anonymous father (`<gender value="0"/>`) and mother (`<gender value="1"/>`) to the proband and her sister. If the grandfathers ("the grandfathers were brothers") are represented, two male individuals (`<gender value="0"/>`) are linked as siblings in an ancestral `<fam>` block (with placeholder great-grandparents so that the `<fam>` block has parents).
 * **Male Cousin:** Male (`<gender value="0"/>`), deceased (`<status value="1"/>`, `<age_at_death value="29"/>`), with `<conditions>` listing the phenotype (ataxia, myoclonus, epilepsy, cognitive decline) and empty `<comments>`. Because the connecting aunt/uncle is not stated, ask which side (maternal or paternal) he belongs to; if unanswered, attach him to the proband's parents' generation through placeholder grandparents and a placeholder parent, and list this assumption below the XML. He must **not** remain isolated.
 

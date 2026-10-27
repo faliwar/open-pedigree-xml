@@ -24,6 +24,7 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showLabelPrefixes = !!saved.showPrefixes; // false by default
       PedigreeEditorParameters.attributes.showTestsInLabel = saved.showTests !== undefined ? !!saved.showTests : true; // true by default
       PedigreeEditorParameters.attributes.colorByGene = saved.colorByGene !== undefined ? !!saved.colorByGene : true; // true by default
+      PedigreeEditorParameters.attributes.showAncestryInLabel = !!saved.showAncestry; // false by default
       if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
         editor.getGeneLegend().setEnabled(PedigreeEditorParameters.attributes.colorByGene);
       }
@@ -40,6 +41,7 @@ var LabelOptionsSelector = Class.create({
     PedigreeEditorParameters.attributes.showCommentsInLabel = settings.showComments !== undefined ? !!settings.showComments : true;
     PedigreeEditorParameters.attributes.showLabelPrefixes = !!settings.showPrefixes;
     PedigreeEditorParameters.attributes.showTestsInLabel = settings.showTests !== undefined ? !!settings.showTests : true;
+    PedigreeEditorParameters.attributes.showAncestryInLabel = !!settings.showAncestry;
     var colorByGene = settings.colorByGene !== undefined ? !!settings.colorByGene : true;
     var colorChanged = colorByGene !== (PedigreeEditorParameters.attributes.colorByGene !== false);
     PedigreeEditorParameters.attributes.colorByGene = colorByGene;
@@ -96,6 +98,10 @@ var LabelOptionsSelector = Class.create({
       'Display free-text clinical notes or testing status (e.g. untested) on individuals.',
       PedigreeEditorParameters.attributes.showCommentsInLabel !== false);
 
+    var ancestryOpt = createOptionRow('cb-show-ancestry', 'Ancestry',
+      'Display the recorded ancestry (e.g. Ashkenazi Jewish, East Asian) under each person.',
+      PedigreeEditorParameters.attributes.showAncestryInLabel === true);
+
     var genesOpt = createOptionRow('cb-show-genes', 'Candidate genes (old files)',
       'Display candidate genes recorded by earlier versions, before structured test results.',
       PedigreeEditorParameters.attributes.showGenesInLabel);
@@ -149,7 +155,7 @@ var LabelOptionsSelector = Class.create({
     };
 
     optionsList.insert(nameCard);
-    optionsList.insert(section('Show under each person', [disordersOpt, hpoOpt, testsOpt, commentsOpt, genesOpt, prefixesOpt]));
+    optionsList.insert(section('Show under each person', [disordersOpt, hpoOpt, testsOpt, ancestryOpt, commentsOpt, prefixesOpt, genesOpt]));
     optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt]));
     mainDiv.insert(optionsList);
 
@@ -166,6 +172,7 @@ var LabelOptionsSelector = Class.create({
         showComments: commentsOpt.input.checked,
         showPrefixes: prefixesOpt.input.checked,
         showTests: testsOpt.input.checked,
+        showAncestry: ancestryOpt.input.checked,
         colorByGene: colorGeneOpt.input.checked
       });
     };
@@ -176,6 +183,7 @@ var LabelOptionsSelector = Class.create({
     genesOpt.input.observe('change', applyCurrentValues);
     commentsOpt.input.observe('change', applyCurrentValues);
     testsOpt.input.observe('change', applyCurrentValues);
+    ancestryOpt.input.observe('change', applyCurrentValues);
     colorGeneOpt.input.observe('change', applyCurrentValues);
     prefixesOpt.input.observe('change', applyCurrentValues);
 

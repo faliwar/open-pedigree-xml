@@ -50,6 +50,7 @@ var SHORTCUT_GROUPS = [
       ['L', 'Labels'],
       ['H', 'Modification history'],
       ['K', 'Cascade testing'],
+      ['/ / ' + MOD + '+F', 'Find people'],
       ['?', 'Keyboard shortcuts']
     ]
   }
@@ -65,6 +66,7 @@ var TOOLBAR_HINTS = {
   'action-labels': 'L',
   'action-history': 'H',
   'action-cascade': 'K',
+  'action-search': '/',
   'action-shortcuts': '?'
 };
 
@@ -138,6 +140,7 @@ var KeyboardShortcuts = Class.create({
     if (mod) {
       if (lower === 'z' && !e.shiftKey) return this._run(e, function() { document.fire('pedigree:undo'); });
       if ((lower === 'z' && e.shiftKey) || lower === 'y') return this._run(e, function() { document.fire('pedigree:redo'); });
+      if (lower === 'f' && !e.shiftKey) return this._run(e, function() { this._closeMenus(); editor.getSearchPanel().show(); });
       return; // leave all other browser shortcuts alone
     }
     if (e.ctrlKey || e.metaKey) return;
@@ -165,6 +168,7 @@ var KeyboardShortcuts = Class.create({
     if (key === '?' || (e.shiftKey && (e.code === 'Slash' || e.code === 'IntlRo'))) {
       return this._run(e, this.show.bind(this));
     }
+    if (key === '/') return this._run(e, function() { this._closeMenus(); editor.getSearchPanel().show(); });
     if (key === '0') return this._run(e, function() { editor.getWorkspace().centerAroundNode(editor.getGraph().getProbandId()); });
 
     var openers = {

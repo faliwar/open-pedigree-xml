@@ -4,7 +4,7 @@ import Helpers from 'pedigree/model/helpers';
 import GraphicHelpers from 'pedigree/view/graphicHelpers';
 import AgeCalc from 'pedigree/view/ageCalc';
 import { translate } from 'pedigree/i18n';
-import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
+import { testLabel as clinicalTestLabel, compactAge, ANCESTRY_OPTIONS } from 'pedigree/model/clinicalData';
 
 /**
  * NodeMenu is a UI Element containing options for AbstractNode elements
@@ -822,6 +822,59 @@ var NodeMenu = Class.create({
       result.update(input);
       return result;
     },
+    // Ancestry: chips for the chosen groups, a list to add more, "Other..." for free text
+    'ancestry-picker' : function (data) {
+      var result = this._generateEmptyField(data);
+      var _this = this;
+      var chips = new Element('div', {'class' : 'ancestry-chips'});
+      var select = new Element('select', {'class' : 'ancestry-add'});
+      var other = new Element('input', {'type' : 'text', 'class' : 'ancestry-other', 'placeholder' : translate('Type and press Enter')});
+      other.hide();
+      var commit = function(list) {
+        var target = _this.targetNode;
+        if (!target) {
+          return;
+        }
+        document.fire('pedigree:node:setproperty', { 'nodeID': target.getID(), 'properties': { 'setAncestry': list } });
+      };
+      var current = function() {
+        return (_this.targetNode && _this.targetNode.getAncestry) ? _this.targetNode.getAncestry() : [];
+      };
+      select.observe('change', function() {
+        var v = select.value;
+        select.selectedIndex = 0;
+        if (v === '__other') {
+          other.show();
+          other.focus();
+        } else if (v) {
+          commit(current().concat([v]));
+        }
+      });
+      var addOther = function() {
+        var v = other.value.trim();
+        other.value = '';
+        other.hide();
+        if (v) {
+          commit(current().concat([v]));
+        }
+      };
+      other.observe('keydown', function(e) {
+        if (e.keyCode === 13) {
+          e.stop();
+          addOther();
+        } else if (e.keyCode === 27) {
+          e.stop();
+          other.value = '';
+          other.hide();
+        }
+      });
+      other.observe('blur', addOther);
+      chips._onRemove = function(value) {
+        commit(current().filter(function(a) { return a !== value; }));
+      };
+      result.inputsContainer.insert(chips).insert(select).insert(other);
+      return result;
+    },
     // Read-only summary of genetic tests and diagnosis details, edited in its own dialog
     'clinical-summary' : function (data) {
       var result = this._generateEmptyField(data);
@@ -1076,6 +1129,34 @@ var NodeMenu = Class.create({
         target.value = value;
       }
     },
+    'ancestry-picker' : function (container, values) {
+      var chips = container.down('.ancestry-chips');
+      var select = container.down('select.ancestry-add');
+      if (!chips || !select) {
+        return;
+      }
+      values = values || [];
+      chips.update('');
+      values.forEach(function(v) {
+        var chip = new Element('span', {'class' : 'ancestry-chip'}).insert(new Element('span').update(translate(v).escapeHTML()));
+        var x = new Element('button', {'type' : 'button', 'class' : 'ancestry-chip-remove', 'title' : translate('Remove'), 'aria-label' : translate('Remove')}).update('&times;');
+        x.observe('click', function(e) {
+          e.stop();
+          chips._onRemove && chips._onRemove(v);
+        });
+        chip.insert(x);
+        chips.insert(chip);
+      });
+      // option values stay in English (stored in files); labels are translated
+      select.update('');
+      select.insert(new Element('option', {'value' : ''}).update(translate(values.length ? 'Add another ancestry…' : 'Add ancestry…')));
+      ANCESTRY_OPTIONS.forEach(function(o) {
+        if (values.indexOf(o) === -1) {
+          select.insert(new Element('option', {'value' : o}).update(translate(o).escapeHTML()));
+        }
+      });
+      select.insert(new Element('option', {'value' : '__other'}).update(translate('Other (type)…')));
+    },
     'clinical-summary' : function (container, value) {
       var box = container.down('.clinical-summary');
       if (!box) {
@@ -1167,6 +1248,9 @@ var NodeMenu = Class.create({
     },
     'clinical-summary' : function (container, inactive) {
       this._toggleFieldVisibility(container, inactive);
+    },
+    'ancestry-picker' : function (container, inactive) {
+      this._toggleFieldVisibility(container, inactive);
     }
   },
 
@@ -1220,6 +1304,8 @@ var NodeMenu = Class.create({
       // FIXME: Not implemented
     },
     'clinical-summary' : function (container, disabled) {
+    },
+    'ancestry-picker' : function (container, disabled) {
     }
   }
 });

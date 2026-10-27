@@ -5,7 +5,8 @@ import { translate } from 'pedigree/i18n';
 /**
  * PedigreeOverlay draws non-interactive annotations on top of the pedigree canvas:
  *  - standard nomenclature (generation Roman numerals and per-person "II-3" numbers);
- *  - cascade testing highlights (rings around the index person and at-risk relatives).
+ *  - cascade testing highlights (rings around the index person and at-risk relatives);
+ *  - search highlights (rings around the people found, others faded).
  *
  * Every element it draws is tagged with a `data-opx-overlay` attribute so exports can
  * keep or drop it, and ignores pointer events so it never gets in the way of editing.
@@ -19,6 +20,8 @@ var PedigreeOverlay = Class.create({
     this._elements = [];
     this._showNumbering = false;
     this._cascade = null;          // { indexId, colorById: {id: color} }
+    this._search = null;           // { ids, dimOthers, summary }
+    this._searchLegend = null;
     this._redrawTimer = null;
     this._legend = null;
     this._loadSettings();
@@ -70,6 +73,28 @@ var PedigreeOverlay = Class.create({
   },
 
   /**
+   * Highlights the people found by a search: a ring around each one and, optionally, the
+   * other people faded. `summary` is the text of the floating legend.
+   */
+  setSearchHighlight: function(ids, options) {
+    options = options || {};
+    this._search = { ids: (ids || []).slice(), dimOthers: options.dimOthers !== false, summary: options.summary || '' };
+    this._showSearchLegend();
+    this.redraw();
+  },
+
+  clearSearchHighlight: function() {
+    if (!this._search) return;
+    this._search = null;
+    this._hideSearchLegend();
+    this.redraw();
+  },
+
+  hasSearchHighlight: function() {
+    return !!this._search;
+  },
+
+  /**
    * Called after the graph structure changed. Node ids are renumbered when a node is
    * removed, so an existing cascade highlight would point at the wrong people: drop it.
    */
@@ -97,6 +122,64 @@ var PedigreeOverlay = Class.create({
       try { el.remove(); } catch (e) {}
     });
     this._elements = [];
+    this._undim();
+  },
+
+  _undim: function() {
+    var dimmed = document.querySelectorAll('#canvas [data-opx-dim]');
+    for (var i = 0; i < dimmed.length; i++) {
+      dimmed[i].removeAttribute('data-opx-dim');
+    }
+  },
+
+  // Fades everyone not found by the search (the CSS rule only applies on screen, not in exports)
+  _dimOthers: function(found) {
+    var graph = editor.getGraph();
+    var dim = function(el) {
+      if (!el) return;
+      if (el.forEach && !el.node) {
+        el.forEach(dim);
+      } else if (el.node) {
+        el.node.setAttribute('data-opx-dim', '1');
+      }
+    };
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (found[id] || !graph.isPerson(id)) continue;
+      var node = editor.getNode(id);
+      var g = node && node.getGraphics && node.getGraphics();
+      if (!g) continue;
+      try {
+        dim(g.getShapes());
+        g.getLabels && dim(g.getLabels());
+        g.getCarrierGraphics && dim(g.getCarrierGraphics());
+        g.getEvaluationGraphics && dim(g.getEvaluationGraphics());
+        g._idLabel && dim(g._idLabel);
+      } catch (e) {}
+    }
+  },
+
+  _drawSearch: function() {
+    var paper = editor.getPaper();
+    var radius = PedigreeEditorParameters.attributes.radius || 40;
+    var background = editor.getWorkspace && editor.getWorkspace().background;
+    var found = {};
+    var _this = this;
+    this._search.ids.forEach(function(id) {
+      found[id] = true;
+      var node = editor.getNode(id);
+      if (!node || !node.getX) return;
+      var ring = paper.circle(node.getX(), node.getY(), radius * 1.48).attr({
+        'stroke': '#0284C7',
+        'stroke-width': 5,
+        'fill': '#38BDF8',
+        'fill-opacity': 0.16
+      });
+      if (background) ring.insertAfter(background);
+      _this._tag(ring, 'search');
+    });
+    if (this._search.dimOthers && this._search.ids.length) {
+      this._dimOthers(found);
+    }
   },
 
   _tag: function(el, kind) {
@@ -114,6 +197,9 @@ var PedigreeOverlay = Class.create({
       return;
     }
     try {
+      if (this._search) {
+        this._drawSearch();
+      }
       if (this._cascade) {
         this._drawCascade();
       }
@@ -219,7 +305,7 @@ var PedigreeOverlay = Class.create({
     });
     legend.insert(openBtn);
     legend.insert(closeBtn);
-    workArea.insert(legend);
+    this._legendStack().insert(legend);
     this._legend = legend;
   },
 
@@ -227,6 +313,57 @@ var PedigreeOverlay = Class.create({
     if (this._legend) {
       this._legend.remove();
       this._legend = null;
+    }
+  },
+
+  // Floating legends (search, cascade) stack at the bottom centre of the chart
+  _legendStack: function() {
+    var stack = $('overlay-legend-stack');
+    if (!stack) {
+      stack = new Element('div', { 'id': 'overlay-legend-stack', 'class': 'overlay-legend-stack' });
+      $('work-area').insert(stack);
+    }
+    return stack;
+  },
+
+  _showSearchLegend: function() {
+    var workArea = $('work-area');
+    if (!workArea || !this._search) return;
+    var _this = this;
+    if (!this._searchLegend) {
+      var legend = new Element('div', { 'class': 'cascade-chart-legend search-chart-legend', 'role': 'status' });
+      legend.insert(new Element('span', { 'class': 'cascade-chart-legend-swatch' }).setStyle({ borderColor: '#0284C7' }));
+      legend.insert(new Element('span', { 'class': 'search-chart-legend-text' }));
+      var editBtn = new Element('button', { 'type': 'button', 'class': 'cascade-chart-legend-btn' }).update(translate('Edit search'));
+      editBtn.observe('click', function() {
+        editor.getSearchPanel && editor.getSearchPanel().show();
+      });
+      var closeBtn = new Element('button', { 'type': 'button', 'class': 'cascade-chart-legend-btn', 'title': translate('Clear highlight'), 'aria-label': translate('Clear highlight') }).update('&times;');
+      closeBtn.observe('click', function() {
+        if (editor.getSearchPanel) {
+          editor.getSearchPanel().clear();
+        } else {
+          _this.clearSearchHighlight();
+        }
+      });
+      legend.insert(editBtn).insert(closeBtn);
+      this._legendStack().insert({ top: legend });
+      this._searchLegend = legend;
+    }
+    this._searchLegend.down('.search-chart-legend-text').update(this._search.summary.escapeHTML());
+  },
+
+  _hideSearchLegend: function() {
+    if (this._searchLegend) {
+      this._searchLegend.remove();
+      this._searchLegend = null;
+    }
+  },
+
+  /** Shows or hides the search legend (hidden while the search panel is open) */
+  setSearchLegendVisible: function(visible) {
+    if (this._searchLegend) {
+      this._searchLegend.setStyle({ display: visible ? '' : 'none' });
     }
   }
 });

@@ -432,7 +432,8 @@ var Workspace = Class.create({
         title: translate('Edit'),
         items: [
           { key : 'undo', label : translate('Undo'), icon : 'undo', iconOnly : true},
-          { key : 'redo', label : translate('Redo'), icon : 'redo', iconOnly : true}
+          { key : 'redo', label : translate('Redo'), icon : 'redo', iconOnly : true},
+          { key : 'search', label : translate('Find people'), icon : 'search', iconOnly : true}
         ]
       }, {
         // Less frequent actions live in one dropdown on desktop; on mobile they are listed

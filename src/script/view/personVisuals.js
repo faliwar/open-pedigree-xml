@@ -10,6 +10,7 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { getElementHalfHeight, sector } from 'pedigree/view/graphicHelpers';
 import getAge from 'pedigree/view/ageCalc';
 import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
+import { translate } from 'pedigree/i18n';
 
 /**
  * Class for organizing graphics for Person nodes.
@@ -131,6 +132,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this._hpoLabel = null;
     this._genesLabel = null;
     this._testsLabel = null;
+    this._ancestryLabel = null;
     //console.log("person visuals end");
     //timer.printSinceLast("Person visuals time");
   },
@@ -950,6 +952,31 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this.drawLabels();
   },
 
+  getAncestryLabel: function() {
+    return this._ancestryLabel;
+  },
+
+  /**
+   * Ancestry under the person, e.g. "Ancestry: Ashkenazi Jewish" (Labels option, off by default)
+   *
+   * @method updateAncestryLabel
+   */
+  updateAncestryLabel: function() {
+    this._ancestryLabel && this._ancestryLabel.remove();
+    this._ancestryLabel = null;
+    var person = this.getNode();
+    var list = (PedigreeEditorParameters.attributes.showAncestryInLabel && person.getAncestry) ? person.getAncestry() : [];
+    if (list.length === 0) {
+      this.drawLabels();
+      return;
+    }
+    var text = this._wrapText(translate('Ancestry:') + ' ' + list.map(function(a) { return translate(a); }).join(', '), 24);
+    this._ancestryLabel = editor.getPaper().text(this.getX(), this.getY(), text)
+      .attr(PedigreeEditorParameters.attributes.commentLabel || PedigreeEditorParameters.attributes.label);
+    this._ancestryLabel.alignTop = true;
+    this.drawLabels();
+  },
+
   getTestsLabel: function() {
     return this._testsLabel;
   },
@@ -989,6 +1016,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this.getHPOLabel() && labels.push(this.getHPOLabel());
     this.getGenesLabel() && labels.push(this.getGenesLabel());
     this.getTestsLabel() && labels.push(this.getTestsLabel());
+    this.getAncestryLabel() && labels.push(this.getAncestryLabel());
     this.getCommentsLabel() && labels.push(this.getCommentsLabel());
     return labels;
   },

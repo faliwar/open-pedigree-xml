@@ -4,7 +4,7 @@ import AbstractPerson from 'pedigree/view/abstractPerson';
 import PersonVisuals from 'pedigree/view/personVisuals';
 import HPOTerm from 'pedigree/hpoTerm';
 import Disorder from 'pedigree/disorder';
-import { clone, normalizeTests, normalizeDetails, testResult } from 'pedigree/model/clinicalData';
+import { clone, normalizeTests, normalizeDetails, testResult, normalizeAncestry, hasAshkenaziAncestry } from 'pedigree/model/clinicalData';
 
 /**
  * Person is a class representing any AbstractPerson that has sufficient information to be
@@ -76,7 +76,7 @@ var Person = Class.create(AbstractPerson, {
     this._geneticTests = [];
     this._disorderDetails = {};
     this._invitaeExtra = null;
-    this._ashkenazi = false;
+    this._ancestry = [];
     this._ageAtDeath = '';
     // genes this node is registered under in the gene legend (kept across resets, so that
     // _syncGeneLegend() can remove stale entries)
@@ -327,17 +327,36 @@ var Person = Class.create(AbstractPerson, {
   },
 
   /**
-   * Ashkenazi Jewish ancestry (used by CanRisk/BOADICEA and kept as Progeny's "Ethnicity" note)
+   * Ancestry (one or more groups, e.g. ["Ashkenazi Jewish", "European (non-Finnish)"]), stored
+   * as "ethnicities" like the original PhenoTips format and Progeny's "Ethnicity" notes
+   *
+   * @method getAncestry
+   * @return {Array} a copy
+   */
+  getAncestry: function() {
+    return (this._ancestry || []).slice(0);
+  },
+
+  setAncestry: function(list) {
+    this._ancestry = normalizeAncestry(list);
+    this.getGraphics().updateAncestryLabel && this.getGraphics().updateAncestryLabel();
+  },
+
+  /**
+   * Ashkenazi Jewish ancestry, derived from getAncestry() (used by CanRisk/BOADICEA)
    *
    * @method getAshkenazi
    * @return {Boolean}
    */
   getAshkenazi: function() {
-    return !!this._ashkenazi;
+    return hasAshkenaziAncestry(this._ancestry);
   },
 
+  // kept for older callers: adds or removes "Ashkenazi Jewish" in the ancestry list
   setAshkenazi: function(value) {
-    this._ashkenazi = !!value;
+    var list = this.getAncestry().filter(function(a) { return !/ashkenazi/i.test(a); });
+    if (value) list.push('Ashkenazi Jewish');
+    this.setAncestry(list);
   },
 
   /**
@@ -1169,7 +1188,7 @@ var Person = Class.create(AbstractPerson, {
       evaluated:     {value : this.getEvaluated() },
       hpo_positive:  {value : hpoTerms},
       nocontact:     {value : this.getLostContact(), inactive: inactiveLostContact},
-      ashkenazi:     {value : this.getAshkenazi()},
+      ancestry:      {value : this.getAncestry()},
       age_at_death:  {value : this.getAgeAtDeath(), inactive: this.getLifeStatus() !== 'deceased'},
       proband:       {value : this.isProband(), inactive: this.isProband() || this.isVirtual()}
     };
@@ -1235,8 +1254,8 @@ var Person = Class.create(AbstractPerson, {
     if (this._invitaeExtra) {
       info['invitaeExtra'] = this.getInvitaeExtra();
     }
-    if (this._ashkenazi) {
-      info['ashkenazi'] = true;
+    if (this._ancestry.length > 0) {
+      info['ethnicities'] = this.getAncestry();
     }
     if (this._ageAtDeath) {
       info['ageAtDeath'] = this._ageAtDeath;
@@ -1312,10 +1331,13 @@ var Person = Class.create(AbstractPerson, {
       if (info.invitaeExtra && typeof info.invitaeExtra === 'object') {
         this._invitaeExtra = clone(info.invitaeExtra);
       }
-      // older BOADICEA imports stored ancestry as ethnicities: ['Ashkenazi Jews']
-      if (info.ashkenazi || (Array.isArray(info.ethnicities) && info.ethnicities.some(function(e) { return /ashkenazi/i.test(e); }))) {
-        this._ashkenazi = true;
+      // ancestry: "ethnicities" (PhenoTips format); earlier versions of this editor used a
+      // single "ashkenazi" flag, which becomes the "Ashkenazi Jewish" ancestry
+      var ancestry = normalizeAncestry(info.ethnicities);
+      if (info.ashkenazi && !hasAshkenaziAncestry(ancestry)) {
+        ancestry.push('Ashkenazi Jewish');
       }
+      this.setAncestry(ancestry); // also refreshes (or clears) the ancestry label
       if (info.ageAtDeath) {
         this._ageAtDeath = String(info.ageAtDeath);
       } else if (this.getComments && /^Age at death:\s*(.+)$/m.test(this.getComments() || '')) {

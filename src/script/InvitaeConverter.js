@@ -1,7 +1,7 @@
 import BaseGraph from 'pedigree/model/baseGraph';
 import RelationshipTracker from 'pedigree/model/relationshipTracker';
 import OntologyLookup from 'pedigree/ontologyLookup';
-import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toInvitaeAge, needsClassificationAttribute } from 'pedigree/model/clinicalData';
+import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toInvitaeAge, needsClassificationAttribute, normalizeAncestry, hasAshkenaziAncestry } from 'pedigree/model/clinicalData';
 
 /**
  * InvitaeConverter handles import and export of pedigrees in the Invitae/Progeny
@@ -829,8 +829,14 @@ InvitaeConverter._parseIndividual = function (indiEl) {
             properties.hpoTerms = [];
           }
           properties.hpoTerms.push(noteValue);
-        } else if (noteType === 'Ethnicity' && /ashkenazi/i.test(noteValue)) {
-          properties.ashkenazi = true;
+        } else if (noteType === 'Ethnicity') {
+          // Progeny's ethnicity note -> ancestry (several groups may be separated by ";")
+          if (!properties.ethnicities) {
+            properties.ethnicities = [];
+          }
+          noteValue.split(';').forEach(function(part) {
+            if (part.trim()) properties.ethnicities.push(part.trim());
+          });
         } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
@@ -1303,12 +1309,17 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   // Notes (HPO terms as phenotype notes + approximate DOB note)
   var hasHpoNotes = props.hpoTerms && props.hpoTerms.length > 0;
   var hasDobApproxNote = !!props.dobApprox;
-  var hasEthnicityNote = !!props.ashkenazi;
+  var ancestry = normalizeAncestry(props.ethnicities);
+  if (props.ashkenazi && !hasAshkenaziAncestry(ancestry)) {
+    ancestry.push('Ashkenazi Jewish'); // pedigrees saved by the previous version
+  }
+  var hasEthnicityNote = ancestry.length > 0;
   if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote) {
     xml += '<notes>';
     if (hasEthnicityNote) {
       // same shape as Progeny's own ethnicity note
-      xml += '<note id="1" note_id="1" value="Ashkenazi Jewish" string_type="composite" string_title="Ethnicity" string_value="Ashkenazi Jewish"/>';
+      var ethnicity = InvitaeConverter._escapeXml(ancestry.join('; '));
+      xml += '<note id="1" note_id="1" value="' + ethnicity + '" string_type="composite" string_title="Ethnicity" string_value="' + ethnicity + '"/>';
     }
     var noteIdx = 12;
     if (hasHpoNotes) {
