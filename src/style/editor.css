@@ -4273,7 +4273,6 @@ button.history-restore:hover {
   font-size: 13px;
   color: #1E293B;
   padding: 4px 6px;
-  max-width: 560px;
 }
 .pedigree-info-intro {
   margin: 0 0 12px;
@@ -4398,8 +4397,18 @@ textarea.pedigree-info-input {
 /* =========================================
  * START SCREEN (welcome, restore draft) and WHAT'S NEW
  * ========================================= */
+/* the popup is an .msdialog-box (sometimes .xdialog-box): fix the width so it does not stretch */
+.msdialog-box.start-modal-box,
+.xdialog-box.start-modal-box {
+  width: 680px !important;
+  max-width: 94vw !important;
+}
+.msdialog-box.pedigree-info-modal-box,
+.xdialog-box.pedigree-info-modal-box {
+  width: 600px !important;
+  max-width: 94vw !important;
+}
 .start-content {
-  max-width: 620px;
   text-align: left;
   font-size: 13.5px;
   color: #1E293B;
