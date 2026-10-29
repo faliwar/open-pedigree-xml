@@ -355,6 +355,7 @@ var DriveFileSelector = Class.create({
           this._currentFileName,
           xmlContent,
           function () {
+            document.fire('pedigree:exported');
             if (!silent) alert('File "' + _this._currentFileName + '" saved successfully!');
           },
           function (errMsg) {

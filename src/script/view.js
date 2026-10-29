@@ -798,6 +798,7 @@ var View = Class.create({
       if (typeof editor !== 'undefined' && editor && editor.getOverlay && editor.getOverlay()) {
         editor.getOverlay().onGraphChanged(changeSet);
         editor.getSearchPanel && editor.getSearchPanel() && editor.getSearchPanel().onGraphChanged(changeSet);
+        editor.getAnnotationLayer && editor.getAnnotationLayer() && editor.getAnnotationLayer().bringToFront();
       }
     }
   }

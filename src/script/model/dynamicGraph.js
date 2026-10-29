@@ -1968,6 +1968,14 @@ DynamicPositionedGraph.prototype = {
     output['order']     = this.DG.order.serialize();
     output['positions'] = this.DG.positions;
 
+    // pedigree title, family, author, date, notes and chart annotations (only when there are any)
+    if (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo && editor.getPedigreeInfo()) {
+      var info = editor.getPedigreeInfo().toJSONObject();
+      if (info) {
+        output['document'] = info;
+      }
+    }
+
     // note: everything else can be recomputed based on the information above
 
     //timer.printSinceLast("=== to JSON: ");
@@ -1994,6 +2002,10 @@ DynamicPositionedGraph.prototype = {
     this._updateauxiliaryStructures();
 
     this.screenRankShift = 0;
+
+    if (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo && editor.getPedigreeInfo()) {
+      editor.getPedigreeInfo().load(serializedData['document'] || null);
+    }
 
     var newNodes = this._getAllNodes();
 

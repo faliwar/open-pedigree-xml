@@ -1,6 +1,7 @@
 import BaseGraph from 'pedigree/model/baseGraph';
 import RelationshipTracker from 'pedigree/model/relationshipTracker';
 import OntologyLookup from 'pedigree/ontologyLookup';
+import { infoToInvitaeNotes } from 'pedigree/model/pedigreeInfo';
 import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toInvitaeAge, needsClassificationAttribute, normalizeAncestry, hasAshkenaziAncestry } from 'pedigree/model/clinicalData';
 
 /**
@@ -903,7 +904,9 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
   var xml = '';
   xml += '<tree created="' + dateStr + '" opened="' + dateStr + '" condition_mask="null" purpose="10000" guid="' + guid + '">';
   xml += '<metainformation/>';
-  xml += '<notes/>';
+  // pedigree title, family, author, date, notes and chart annotations
+  var pedigreeInfo = (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo) ? editor.getPedigreeInfo().get() : null;
+  xml += infoToInvitaeNotes(pedigreeInfo, privacySetting);
 
   // --- Orders section (simplified) ---
   xml += '<orders/>';

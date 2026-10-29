@@ -25,6 +25,12 @@ import SearchPanel from 'pedigree/view/searchPanel';
 import ModificationHistory from 'pedigree/view/modificationHistory';
 import KeyboardShortcuts from 'pedigree/view/keyboardShortcuts';
 import ClinicalDetailsDialog from 'pedigree/view/clinicalDetailsDialog';
+import { PedigreeInfo } from 'pedigree/model/pedigreeInfo';
+import PedigreeHeader from 'pedigree/view/pedigreeHeader';
+import AnnotationLayer from 'pedigree/view/annotationLayer';
+import DraftStore from 'pedigree/view/draftStore';
+import StartScreen from 'pedigree/view/startScreen';
+import DriveBackend from 'pedigree/DriveBackend';
 
 import '../style/editor.css';
 
@@ -77,6 +83,10 @@ var PedigreeEditor = Class.create({
     this._fhirTerminologyHelper = options.fhirTerminologyHelper || new DefaultFhirTerminologyHelper();
 
     this._overlay = new PedigreeOverlay();
+    // title/family/author/date/notes and chart notes; created before the first load reads them
+    this._pedigreeInfo = new PedigreeInfo();
+    this._pedigreeHeader = new PedigreeHeader();
+    this._annotationLayer = new AnnotationLayer();
     this._view = new View();
 
     this._actionStack = new ActionStack();
@@ -94,11 +104,22 @@ var PedigreeEditor = Class.create({
     this._versionUpdater = new VersionUpdater();
     this._saveLoadEngine = new SaveLoadEngine(backend);
 
+    // standalone use (no server, no Google Apps Script): keep a draft in this browser
+    var standalone = !patientDataUrl && typeof backend.load !== 'function' && !DriveBackend.isAppScriptEnvironment();
+    this._draftStore = new DraftStore(standalone);
+    this._startScreen = new StartScreen(this._draftStore);
+
     // load proband data and load the graph after proband data is available
     this._saveLoadEngine.load(patientDataUrl, this._saveLoadEngine);
 
     this._controller = new Controller();
     this._keyboardShortcuts = this.isReadOnlyMode() ? null : new KeyboardShortcuts();
+
+    // welcome / restore the draft / what's new, once the startup pedigree is on screen
+    if (standalone) {
+      var startScreen = this._startScreen;
+      setTimeout(function() { startScreen.start(); }, 300);
+    }
 
     
     //attach actions to buttons on the top bar
@@ -133,6 +154,21 @@ var PedigreeEditor = Class.create({
     var cascadeButton = $('action-cascade');
     cascadeButton && cascadeButton.on('click', function(event) {
       editor.getCascadeTestingDialog().show();
+    });
+
+    var infoButton = $('action-pedigree-info');
+    infoButton && infoButton.on('click', function(event) {
+      editor.getPedigreeHeader().show();
+    });
+
+    var newsButton = $('action-whats-new');
+    newsButton && newsButton.on('click', function(event) {
+      editor.getStartScreen().showNews();
+    });
+
+    var noteButton = $('action-add-note');
+    noteButton && noteButton.on('click', function(event) {
+      editor.getAnnotationLayer().addNote();
     });
 
     var searchButton = $('action-search');
@@ -661,6 +697,30 @@ var PedigreeEditor = Class.create({
    */
   getSearchPanel: function() {
     return this._searchPanel;
+  },
+
+  /**
+   * @method getPedigreeInfo
+   * @return {PedigreeInfo} title, family, author, date, notes and chart notes of the pedigree
+   */
+  getPedigreeInfo: function() {
+    return this._pedigreeInfo;
+  },
+
+  getPedigreeHeader: function() {
+    return this._pedigreeHeader;
+  },
+
+  getAnnotationLayer: function() {
+    return this._annotationLayer;
+  },
+
+  getStartScreen: function() {
+    return this._startScreen;
+  },
+
+  getDraftStore: function() {
+    return this._draftStore;
   },
 
   /**

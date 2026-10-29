@@ -141,6 +141,12 @@ var ExportSelector = Class.create({
     showNumbersRow.insert(showNumbersLabel.wrap('td'));
     configListElementPDF.insert(showNumbersRow);
 
+    var headerRow = new Element('tr');
+    var headerInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'pdf-include-header', 'checked': 'checked' });
+    var headerLabel = new Element('label', { 'class': 'export-subconfig-label' }).insert(headerInput).insert('Include header and footer (title, family, date, author, notes)');
+    headerRow.insert(headerLabel.wrap('td'));
+    configListElementPDF.insert(headerRow);
+
     // CanRisk: who the risk is calculated for; names are always replaced by I-1, II-3...
     var configListElementCanRisk = new Element('table', { 'id': 'canriskOptions', 'style': 'display:none' });
     var crLabel = new Element('label', { 'class': 'export-config-header' }).insert('CanRisk export options:');
@@ -299,6 +305,8 @@ var ExportSelector = Class.create({
         } else {
           downloadTextFile(exportString, fileName);
         }
+        // a full copy that can be opened again: closing the page no longer needs a warning
+        document.fire('pedigree:exported');
       } else if (exportType == 'svg') {
         var exportString = PedigreeExport.exportAsSVG(editor.getGraph().DG, privacySetting);
         var fileName = 'open-pedigree.svg';
@@ -314,7 +322,11 @@ var ExportSelector = Class.create({
         var legendPos = $$('select[name="pdf-legend-pos"]')[0].value;
         var embedXML = $$('input[type=checkbox][name="pdf-embed-xml"]')[0].checked;
         var showNumbers = $$('input[type=checkbox][name="pdf-show-numbers"]')[0].checked;
-        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML, showNumbers);
+        var includeHeader = $$('input[type=checkbox][name="pdf-include-header"]')[0].checked;
+        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML, showNumbers, includeHeader);
+        if (embedXML) {
+          document.fire('pedigree:exported');
+        }
       }
     }
   },

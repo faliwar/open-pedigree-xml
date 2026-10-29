@@ -294,6 +294,11 @@ var CascadeTestingDialog = Class.create({
       var end = (death && death.getTime) ? death : new Date();
       info.ageYears = (end.getTime() - birth.getTime()) / (365.25 * 24 * 3600 * 1000);
       info.ageText = getAge(birth, (death && death.getTime) ? death : null);
+      if (getLanguage() === 'pt-BR') {
+        info.ageText = info.ageText.replace(/(\d) y$/, '$1 anos').replace(/(\d) mo$/, '$1 meses')
+          .replace(/(\d) wk$/, '$1 sem').replace(/(\d) days?$/, function(m, d) { return d + (/days$/.test(m) ? ' dias' : ' dia'); })
+          .replace('not born yet', 'não nascido');
+      }
     }
 
     var carrier = node.getCarrierStatus && node.getCarrierStatus();
@@ -471,13 +476,40 @@ var CascadeTestingDialog = Class.create({
 
     var content = new Element('div', { 'class': 'cascade-dialog-content' });
 
-    content.insert(new Element('p', { 'class': 'cascade-intro' }).update(
-      translate('Blood relatives of the index person who may share the familial variant. Relatives who are deceased, unborn, not in contact, of unknown age or under the minimum age are not preselected.') +
-      ' ' + translate('Adopted individuals are not counted as blood relatives of their adoptive family.')
-    ));
-    content.insert(new Element('p', { 'class': 'cascade-assumptions' }).update(
-      translate('Chances follow the selected mode of inheritance through the pedigree and are updated with the phenotypes and test results recorded in it, using the model below. Review the de novo proportion and penetrance for the condition.')
-    ));
+    // Explanations live behind (?) buttons; one bubble is shared by all of them
+    var bubble = new Element('div', { 'class': 'cascade-help-bubble', 'role': 'tooltip' });
+    bubble.hide();
+    var bubbleOwner = null;
+    var closeBubble = function() {
+      bubble.hide();
+      bubbleOwner = null;
+    };
+    var help = function(texts) {
+      var btn = new Element('button', { 'type': 'button', 'class': 'cascade-help', 'aria-label': translate('Help') }).update('?');
+      btn.observe('click', function(e) {
+        e.stop();
+        if (bubbleOwner === btn) return closeBubble();
+        bubble.update(texts.map(function(t) { return '<p>' + translate(t).escapeHTML() + '</p>'; }).join(''));
+        bubble.show();
+        bubbleOwner = btn;
+        var c = content.getBoundingClientRect(), b = btn.getBoundingClientRect();
+        var left = Math.max(8, Math.min(b.left - c.left - 12, content.clientWidth - bubble.offsetWidth - 8));
+        bubble.setStyle({ left: left + 'px', top: (b.bottom - c.top + content.scrollTop + 6) + 'px' });
+      });
+      return btn;
+    };
+    content.observe('click', function(e) {
+      if (bubbleOwner && !e.findElement('.cascade-help-bubble')) closeBubble();
+    });
+
+    var topline = new Element('div', { 'class': 'cascade-topline' });
+    topline.insert(new Element('span').update(translate('Blood relatives who may share the familial variant.')));
+    topline.insert(help([
+      'Blood relatives of the index person who may share the familial variant. Relatives who are deceased, unborn, not in contact, of unknown age or under the minimum age are not preselected.',
+      'Adopted individuals are not counted as blood relatives of their adoptive family.',
+      'Chances follow the selected mode of inheritance through the pedigree and are updated with the phenotypes and test results recorded in it, using the model below. Review the de novo proportion and penetrance for the condition.'
+    ]));
+    content.insert(topline);
 
     // --- controls
     var controls = new Element('div', { 'class': 'cascade-controls' });
@@ -526,9 +558,11 @@ var CascadeTestingDialog = Class.create({
       genotypeSelect.insert(opt);
     });
 
-    var field = function(labelText, input, cls) {
+    var field = function(labelText, input, cls, helpTexts) {
       var wrap = new Element('label', { 'class': 'cascade-field ' + (cls || '') });
-      wrap.insert(new Element('span', { 'class': 'cascade-field-label' }).update(translate(labelText)));
+      var label = new Element('span', { 'class': 'cascade-field-label' }).update(translate(labelText));
+      if (helpTexts) label.insert(help(helpTexts));
+      wrap.insert(label);
       wrap.insert(input);
       return wrap;
     };
@@ -541,7 +575,8 @@ var CascadeTestingDialog = Class.create({
     var freqWrap = new Element('span', { 'class': 'cascade-freq' });
     freqWrap.insert(new Element('span').update(translate('1 in')));
     freqWrap.insert(freqInput);
-    var freqField = field('Population carrier frequency', freqWrap, 'cascade-field-wide');
+    var freqField = field('Carrier frequency', freqWrap, 'cascade-field-wide',
+      ['Population carrier frequency. Used to estimate whether both variants of a biallelic index came from one common ancestor (more likely in consanguineous families and for rare variants).']);
     controls.insert(freqField);
 
     var syncGenotypeField = function() {
@@ -550,13 +585,16 @@ var CascadeTestingDialog = Class.create({
     };
     syncGenotypeField();
     controls.insert(field('Relatives', degreeSelect));
-    controls.insert(field('Minimum age', minAgeInput, 'cascade-field-narrow'));
-    controls.insert(field('Familial variant or condition (optional)', findingInput, 'cascade-field-wide'));
+    controls.insert(field('Minimum age', minAgeInput, 'cascade-field-narrow',
+      ['Relatives younger than this are listed but not preselected.']));
+    controls.insert(field('Familial variant', findingInput, 'cascade-field-wide',
+      ['Optional. Printed in the list and the CSV. When the index has positive tests in several genes, naming the gene here selects which one is the familial variant.']));
     content.insert(controls);
 
     // --- model: de novo, penetrance, evidence
-    var modelBox = new Element('details', { 'class': 'cascade-model', 'open': 'open' });
-    modelBox.insert(new Element('summary').update(translate('Model and evidence')));
+    var modelBox = new Element('details', { 'class': 'cascade-model' });
+    var modelSummary = new Element('span', { 'class': 'cascade-model-summary' });
+    modelBox.insert(new Element('summary').insert(new Element('span', { 'class': 'cascade-model-title' }).update(translate('Model and evidence'))).insert(modelSummary));
     var modelGrid = new Element('div', { 'class': 'cascade-controls cascade-model-grid' });
     modelBox.insert(modelGrid);
 
@@ -587,12 +625,16 @@ var CascadeTestingDialog = Class.create({
       .insert(onsetFromInput).insert(new Element('span').update(translate('to'))).insert(onsetToInput)
       .insert(new Element('span').update(translate('years')));
 
-    var conditionField = field('Condition used for phenotypes', conditionSelect, 'cascade-field-wide');
-    var deNovoField = field('De novo (% of carriers)', deNovoInput, 'cascade-field-narrow');
+    var conditionField = field('Condition used for phenotypes', conditionSelect, 'cascade-field-wide',
+      ['Relatives with this condition count as affected, the others as unaffected (when that option is on). By default, the condition of the index person.']);
+    var deNovoField = field('De novo (% of carriers)', deNovoInput, 'cascade-field-narrow',
+      ['Share of carriers whose variant is new, so the parents do not carry it.',
+        'De novo examples: about 1/3 of isolated males for lethal X-linked conditions (Haldane); about 50% in NF1; about 80% in achondroplasia; rare in late-onset cancer syndromes.']);
     var penLabel = new Element('span', { 'class': 'cascade-field-label' });
     var penField = new Element('label', { 'class': 'cascade-field cascade-field-narrow' }).insert(penLabel).insert(penInput);
     var femalePenField = field('Penetrance in heterozygous females (%)', femalePenInput, 'cascade-field-narrow');
-    var onsetField = field('Age at onset (0 to 0 = at birth)', onsetWrap, 'cascade-field-onset');
+    var onsetField = field('Age at onset', onsetWrap, 'cascade-field-onset',
+      ['Age range in which carriers who become affected show signs. 0 to 0 means at birth (congenital). Unaffected relatives younger than the range are less informative.']);
     [conditionField, deNovoField, penField, femalePenField, onsetField].forEach(function(f) { modelGrid.insert(f); });
 
     var checks = new Element('div', { 'class': 'cascade-checks' });
@@ -611,8 +653,6 @@ var CascadeTestingDialog = Class.create({
     var unrecordedCb = makeCheck('unrecordedUnaffected', 'Relatives without the condition recorded are unaffected');
     var useTestsCb = makeCheck('useTests', 'Use test results (+ / −) and carrier marks');
     modelBox.insert(checks);
-    modelBox.insert(new Element('p', { 'class': 'cascade-model-hint' }).update(
-      translate('De novo examples: about 1/3 of isolated males for lethal X-linked conditions (Haldane); about 50% in NF1; about 80% in achondroplasia; rare in late-onset cancer syndromes.')));
     content.insert(modelBox);
 
     var syncModelFields = function() {
@@ -686,10 +726,15 @@ var CascadeTestingDialog = Class.create({
       if (_this._deNovoIndex !== null && _this._deNovoIndex !== undefined) {
         chips.push([_this._formatChance(_this._deNovoIndex), 'chance the variant arose de novo in the index']);
       }
+      // one-line summary of the model, visible while the model box is closed
       var ec = _this._evidenceCounts || {};
-      if (ec.affected || ec.unaffected || ec.tested) {
-        chips.push([translate('Evidence:'), ec.affected + ' ' + translate('affected') + ', ' + ec.unaffected + ' ' + translate('unaffected') + ', ' + ec.tested + ' ' + translate('tested')]);
-      }
+      var m = _this._getModel();
+      var parts = [];
+      if (_this._mode !== 'AR') parts.push(translate('de novo') + ' ' + m.deNovo + '%');
+      if (!(_this._mode === 'AR' && !biallelic)) parts.push(translate('penetrance') + ' ' + m.penetrance + '%');
+      parts.push((ec.affected || 0) + ' ' + translate('affected') + ', ' + (ec.unaffected || 0) + ' ' + translate('unaffected') + ', ' + (ec.tested || 0) + ' ' + translate('tested'));
+      modelSummary.update(parts.join(' · ').escapeHTML());
+
       chips.forEach(function(s) {
         summary.insert(new Element('span', { 'class': 'cascade-chip' })
           .insert(new Element('strong').update(String(s[0])))
@@ -708,7 +753,7 @@ var CascadeTestingDialog = Class.create({
       var table = new Element('table', { 'class': 'cascade-table' });
       var head = new Element('tr');
       var chanceHeaders = biallelic ? ['Carrier', 'Affected'] : ['Chance'];
-      ['', 'ID', 'Name', 'Relationship', 'Degree'].concat(chanceHeaders, ['If positive', 'Age', 'Status', 'Results', 'Note']).forEach(function(h) {
+      ['', 'ID', 'Name', 'Relationship'].concat(chanceHeaders, ['Age / status', 'Results', 'Note']).forEach(function(h) {
         head.insert(new Element('th').update(h ? translate(h) : ''));
       });
       table.insert(new Element('thead').insert(head));
@@ -735,18 +780,19 @@ var CascadeTestingDialog = Class.create({
         tr.insert(new Element('td').insert(cb));
         tr.insert(new Element('td', { 'class': 'cascade-id' }).update(row.label));
         tr.insert(new Element('td').insert(locate));
-        tr.insert(new Element('td').update(row.relationship.escapeHTML()));
-        tr.insert(new Element('td').insert(degreeBadge));
+        tr.insert(new Element('td', { 'class': 'cascade-rel' }).insert(degreeBadge).insert(' ' + row.relationship.escapeHTML()));
+        // what a positive result means is shown on hover (and kept in the CSV)
+        var ifPositive = translate('If positive') + ': ' + row.meaning;
         if (biallelic) {
-          tr.insert(new Element('td', { 'class': 'cascade-num' }).update(_this._formatChance(row.carrierChance)));
-          tr.insert(new Element('td', { 'class': 'cascade-num' }).update(_this._formatChance(row.affectedChance)));
+          tr.insert(new Element('td', { 'class': 'cascade-num', 'title': ifPositive }).update(_this._formatChance(row.carrierChance)));
+          tr.insert(new Element('td', { 'class': 'cascade-num', 'title': ifPositive }).update(_this._formatChance(row.affectedChance)));
         } else {
-          tr.insert(new Element('td', { 'class': 'cascade-num' }).update(_this._formatChance(row.chance)));
+          tr.insert(new Element('td', { 'class': 'cascade-num', 'title': ifPositive }).update(_this._formatChance(row.chance)));
         }
-        tr.insert(new Element('td', { 'class': 'cascade-meaning' }).update(row.meaning.escapeHTML()));
-        tr.insert(new Element('td').update(row.ageText ? row.ageText.escapeHTML() : '—'));
-        tr.insert(new Element('td').update(row.lifeStatus.escapeHTML()));
-        tr.insert(new Element('td').update(row.findings ? row.findings.escapeHTML() : '—'));
+        var alive = row.lifeStatus === translate('Alive');
+        var ageStatus = alive ? (row.ageText || '—') : row.lifeStatus + (row.ageText ? ' · ' + row.ageText : '');
+        tr.insert(new Element('td').update(ageStatus.escapeHTML()));
+        tr.insert(new Element('td', { 'class': 'cascade-results', 'title': row.findings || '' }).update(row.findings ? row.findings.escapeHTML() : '—'));
         tr.insert(new Element('td', { 'class': 'cascade-note' }).update(row.reason.escapeHTML()));
         body.insert(tr);
       });
@@ -821,6 +867,7 @@ var CascadeTestingDialog = Class.create({
     makeButton('Copy list', 'secondary', function(e) { _this.copyList(e && e.element ? e.element() : null); });
     makeButton('Close', 'secondary', function() { _this.hide(); });
     content.insert(buttons);
+    content.insert(bubble);
 
     this.dialog = new PhenoTips.widgets.ModalPopup(content, {
       close: { method: function() { _this.hide(); }, keys: ['Esc'] }

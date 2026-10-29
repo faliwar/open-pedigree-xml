@@ -5,6 +5,8 @@ import GA4GHFHIRConverter from 'pedigree/GA4GHFHIRConverter';
 import InvitaeConverter from 'pedigree/InvitaeConverter';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
+import { formatInfoDate } from 'pedigree/model/pedigreeInfo';
+import { getLanguage, translate } from 'pedigree/i18n';
 
 var PedigreeExport = function () {
 };
@@ -332,7 +334,7 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
   return new XMLSerializer().serializeToString(dom);
 };
 
-PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false){
+PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true){
   var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
   pedigreeImage = PedigreeExport._processPdfSvg(pedigreeImage, showNumbers);
 
@@ -429,34 +431,46 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   }
   doc.restore();
 
+  // Header (title; family · date · author) and footer notes from the pedigree information
+  let info = (includeHeader && typeof editor !== 'undefined' && editor && editor.getPedigreeInfo) ? editor.getPedigreeInfo().get() : null;
+  if (info && privacySetting !== 'all') {
+    info.family = ''; // names are left out of this export
+  }
+  let headerTitle = info ? info.title : '';
+  let headerSub = '';
+  if (info) {
+    let parts = [];
+    if (info.family) parts.push(translate('Family') + ': ' + info.family);
+    if (info.date) parts.push(translate('Date') + ': ' + formatInfoDate(info.date, getLanguage()));
+    if (info.author) parts.push(translate('Author') + ': ' + info.author);
+    headerSub = parts.join('    ');
+  }
+  let footerNotes = info ? info.notes : '';
+  let pageMargin = 20;
+  let headerHeight = 0;
+  if (headerTitle || headerSub) {
+    headerHeight = 10 + (headerTitle ? 19 : 0) + (headerSub ? 13 : 0);
+  }
+  let notesHeight = 0;
+  if (footerNotes) {
+    doc.save();
+    doc.font('Helvetica').fontSize(8);
+    notesHeight = Math.min(doc.heightOfString(footerNotes, { width: doc.page.width - pageMargin * 2 }), 48) + 4;
+    doc.restore();
+  }
+  let topReserved = headerHeight + 5;
+  let bottomReserved = 16 + notesHeight;
+
   let lineOffset = 14;
   let catOffset = 2;
   let legendHeight = (lineOffset * (headingCount + itemCount)) + (headingCount * catOffset) + 10;
-  let xOffset = 5;
-  let yOffset = doc.page.height - legendHeight;
+  let legendAtTop = (legendPos !== 'BottomLeft' && legendPos !== 'BottomRight');
+  let xOffset = (legendPos === 'TopLeft' || legendPos === 'BottomLeft') ? 5 : doc.page.width - (20 + maxWidth);
+  let yOffset = legendAtTop ? topReserved : doc.page.height - bottomReserved - legendHeight;
   let pedigreeXOffset = 5;
-  let pedigreeYOffset = legendHeight;
+  let pedigreeYOffset = legendAtTop ? topReserved + legendHeight : topReserved;
   let pedigreeWidth = doc.page.width - 10;
-  let pedigreeHeight = Math.max(doc.page.height - legendHeight, doc.page.height * 0.6);
-
-  if (legendPos === 'TopLeft') {
-    xOffset = 5;
-    yOffset = 5;
-    pedigreeYOffset = legendHeight;
-  } else if (legendPos === 'BottomLeft') {
-    xOffset = 5;
-    yOffset = doc.page.height - legendHeight;
-    pedigreeYOffset = 5;
-  } else if (legendPos === 'BottomRight') {
-    xOffset = doc.page.width - (20 + maxWidth);
-    yOffset = doc.page.height - legendHeight;
-    pedigreeYOffset = 5;
-  } else {
-    // TopRight default
-    xOffset = doc.page.width - (20 + maxWidth);
-    yOffset = 5;
-    pedigreeYOffset = legendHeight;
-  }
+  let pedigreeHeight = Math.max(doc.page.height - topReserved - bottomReserved - legendHeight, doc.page.height * 0.4);
 
   // 1. Draw Pedigree SVG first
   let options = {
@@ -504,7 +518,29 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     doc.restore();
   }
 
-  // 4. Date of last update (export time), centered at bottom of single page
+  // 4. Header and footer notes
+  if (headerTitle || headerSub) {
+    let y = 10;
+    doc.save();
+    if (headerTitle) {
+      doc.font('Helvetica-Bold').fontSize(15).fillColor('#111111');
+      doc.text(headerTitle, pageMargin, y, { width: doc.page.width - pageMargin * 2, align: 'center', lineBreak: false, ellipsis: true });
+      y += 19;
+    }
+    if (headerSub) {
+      doc.font('Helvetica').fontSize(9).fillColor('#444444');
+      doc.text(headerSub, pageMargin, y, { width: doc.page.width - pageMargin * 2, align: 'center', lineBreak: false, ellipsis: true });
+    }
+    doc.restore();
+  }
+  if (footerNotes) {
+    doc.save();
+    doc.font('Helvetica').fontSize(8).fillColor('#333333');
+    doc.text(footerNotes, pageMargin, doc.page.height - 16 - notesHeight, { width: doc.page.width - pageMargin * 2, height: notesHeight, ellipsis: true });
+    doc.restore();
+  }
+
+  // 5. Date of last update (export time), centered at bottom of single page
   {
     let now = new Date();
     let pad = (n) => String(n).padStart(2, '0');

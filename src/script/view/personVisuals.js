@@ -10,7 +10,7 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { getElementHalfHeight, sector } from 'pedigree/view/graphicHelpers';
 import getAge from 'pedigree/view/ageCalc';
 import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
-import { translate } from 'pedigree/i18n';
+import { getLanguage, translate } from 'pedigree/i18n';
 
 /**
  * Class for organizing graphics for Person nodes.
@@ -526,6 +526,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       }
     }
 
+    if (text && getLanguage() === 'pt-BR') {
+      // units only; "d." and the numbers stay as they are
+      text = text.replace(/(\d)\s*yrs\b/g, '$1 anos').replace(/(\d)\s*mo\b/g, '$1 meses')
+        .replace(/(\d)\s*wk\b/g, '$1 sem').replace(/(\d)\s*weeks\b/g, '$1 semanas')
+        .replace(/(\d)\s*days\b/g, '$1 dias').replace(/(\d)\s*day\b/g, '$1 dia')
+        .replace('not born yet', 'não nascido');
+    }
     if (text) {
       text = this._wrapText(text, 15);
     }

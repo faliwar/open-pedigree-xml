@@ -50,6 +50,7 @@ var SHORTCUT_GROUPS = [
       ['L', 'Labels'],
       ['H', 'Modification history'],
       ['K', 'Cascade testing'],
+      ['N', 'Add note on chart'],
       ['/ / ' + MOD + '+F', 'Find people'],
       ['?', 'Keyboard shortcuts']
     ]
@@ -67,6 +68,7 @@ var TOOLBAR_HINTS = {
   'action-history': 'H',
   'action-cascade': 'K',
   'action-search': '/',
+  'action-add-note': 'N',
   'action-shortcuts': '?'
 };
 
@@ -177,7 +179,8 @@ var KeyboardShortcuts = Class.create({
       e: function() { editor.getExportSelector().show(); },
       l: function() { editor.getLabelOptionsSelector().show(); },
       h: function() { editor.getHistory().show(); },
-      k: function() { editor.getCascadeTestingDialog().show(); }
+      k: function() { editor.getCascadeTestingDialog().show(); },
+      n: function() { editor.getAnnotationLayer().addNote(); }
     };
     if (openers[lower] && !this._isNodeMenuOpen()) {
       return this._run(e, openers[lower]);

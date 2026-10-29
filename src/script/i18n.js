@@ -85,6 +85,52 @@ const translations = {
   'The proband cannot be removed.': 'O probando não pode ser removido.', 'Removed': 'Removido(a)',
   'the proband': 'o probando', 'male': 'masculino', 'female': 'feminino', 'unknown': 'desconhecido',
   'deceased': 'falecido', 'alive': 'vivo',
+  // Start screen, draft restore and what's new
+  "What's new": 'Novidades', 'Welcome to Open Pedigree X': 'Bem-vindo ao Open Pedigree X',
+  'Draw and edit pedigrees in the browser. Nothing leaves your computer unless you export it.': 'Desenhe e edite heredogramas no navegador. Nada sai do seu computador, a menos que você exporte.',
+  'Start from a template': 'Começar de um modelo', 'Common family structures to build on.': 'Estruturas familiares comuns para começar.',
+  'Import a file': 'Importar arquivo', 'Progeny/Invitae XML, PED, GEDCOM, BOADICEA or a PDF saved here.': 'XML do Progeny/Invitae, PED, GEDCOM, BOADICEA ou um PDF salvo aqui.',
+  'Generate from clinical notes': 'Gerar a partir de notas clínicas', 'Copy the instructions to an AI, paste the XML it returns.': 'Copie as instruções para uma IA e cole o XML que ela devolver.',
+  'Tip: press ? at any time to see the keyboard shortcuts.': 'Dica: tecle ? a qualquer momento para ver os atalhos de teclado.',
+  'Start with a blank trio': 'Começar com um trio em branco', 'Continue where you left off?': 'Continuar de onde parou?',
+  'Your last pedigree was saved in this browser.': 'Seu último heredograma ficou salvo neste navegador.',
+  'Untitled pedigree': 'Heredograma sem título', 'edited': 'editado', 'Start a new one': 'Começar um novo',
+  'just now': 'agora há pouco', '{n} min ago': 'há {n} min', '{n} h ago': 'há {n} h', '1 day ago': 'há 1 dia', '{n} days ago': 'há {n} dias',
+  'Filter by condition, test result, age, ancestry or relationship and see them highlighted on the chart.': 'Filtre por condição, resultado de teste, idade, ancestralidade ou parentesco e veja o destaque no heredograma.',
+  'Cleaner cascade testing': 'Teste em cascata mais enxuto',
+  'Explanations behind (?) buttons, a one-line model summary and a shorter table.': 'Explicações nos botões (?), resumo do modelo em uma linha e tabela mais curta.',
+  'Title, header and notes on the chart': 'Título, cabeçalho e notas no heredograma',
+  'Family, date and author on screen and in the PDF; free-text notes on the drawing.': 'Família, data e autor na tela e no PDF; notas de texto livre no desenho.',
+  'Ancestry for every person': 'Ancestralidade de cada pessoa',
+  'gnomAD groups, founder populations or free text; kept in Progeny XML and used by CanRisk.': 'Grupos do gnomAD, populações fundadoras ou texto livre; mantida no XML do Progeny e usada pelo CanRisk.',
+  'Better pedigrees from AI': 'Heredogramas melhores a partir da IA',
+  'Clinical notes turned into XML with ages, names and comments in the right fields.': 'Notas clínicas convertidas em XML com idades, nomes e comentários nos campos certos.',
+  'Draft saved in this browser': 'Rascunho salvo neste navegador', 'A reload or a closed tab no longer loses your work.': 'Recarregar a página ou fechar a aba não perde mais o trabalho.',
+  // Pedigree header and chart notes
+  'Family': 'Família', 'Title': 'Título', 'Family (name or ID)': 'Família (nome ou ID)',
+  'Notes (printed at the bottom of the PDF)': 'Observações (impressas no rodapé do PDF)',
+  'Pedigree information': 'Informações do heredograma', 'Title and header': 'Título e cabeçalho',
+  'Shown above the chart and printed as the header and footer of the PDF.': 'Exibidas acima do heredograma e impressas no cabeçalho e no rodapé do PDF.',
+  'e.g. Hereditary cancer evaluation': 'ex.: Avaliação de câncer hereditário', 'Remove header': 'Remover cabeçalho',
+  'Edit the pedigree information': 'Editar as informações do heredograma',
+  'Edited the pedigree information': 'Editou as informações do heredograma',
+  'Removed the pedigree information': 'Removeu as informações do heredograma',
+  'Add note on chart': 'Adicionar nota no heredograma', 'Note on the chart': 'Nota no heredograma',
+  'Edit note': 'Editar nota', 'New note': 'Nova nota', 'Text shown on the chart': 'Texto exibido no heredograma',
+  'Drag the note to move it. Ctrl+Enter saves.': 'Arraste a nota para movê-la. Ctrl+Enter salva.', 'Delete': 'Excluir',
+  'Moved a note on the chart': 'Moveu uma nota no heredograma', 'Added a note on the chart': 'Adicionou uma nota no heredograma',
+  'Removed a note from the chart': 'Removeu uma nota do heredograma', 'Edited a note on the chart': 'Editou uma nota no heredograma',
+  'Include header and footer (title, family, date, author, notes)': 'Incluir cabeçalho e rodapé (título, família, data, autor, observações)',
+  // Cascade testing help
+  'Help': 'Ajuda', 'Blood relatives who may share the familial variant.': 'Parentes consanguíneos que podem ter a variante familiar.',
+  'Carrier frequency': 'Frequência de portadores', 'Familial variant': 'Variante familiar',
+  'Population carrier frequency. Used to estimate whether both variants of a biallelic index came from one common ancestor (more likely in consanguineous families and for rare variants).': 'Frequência de portadores na população. Usada para estimar se as duas variantes de um caso índice bialélico vieram de um ancestral comum (mais provável em famílias consanguíneas e em variantes raras).',
+  'Relatives younger than this are listed but not preselected.': 'Parentes mais novos aparecem na lista, mas não são pré-selecionados.',
+  'Optional. Printed in the list and the CSV. When the index has positive tests in several genes, naming the gene here selects which one is the familial variant.': 'Opcional. Aparece na lista e no CSV. Se o caso índice tiver testes positivos em vários genes, citar o gene aqui define qual é a variante familiar.',
+  'Relatives with this condition count as affected, the others as unaffected (when that option is on). By default, the condition of the index person.': 'Parentes com esta condição contam como afetados e os demais como não afetados (se essa opção estiver ligada). Por padrão, a condição do caso índice.',
+  'Share of carriers whose variant is new, so the parents do not carry it.': 'Proporção de portadores cuja variante é nova, ou seja, os pais não a têm.',
+  'Age range in which carriers who become affected show signs. 0 to 0 means at birth (congenital). Unaffected relatives younger than the range are less informative.': 'Faixa de idade em que os portadores que adoecem apresentam sinais. 0 a 0 significa ao nascer (congênito). Parentes não afetados mais novos que a faixa são menos informativos.',
+  'de novo': 'de novo', 'penetrance': 'penetrância', 'Age / status': 'Idade / status',
   // Find people (search panel)
   'Find people': 'Buscar pessoas', 'Edit search': 'Editar busca', 'Search:': 'Busca:',
   'person found': 'pessoa encontrada', 'people found': 'pessoas encontradas',
@@ -360,14 +406,21 @@ export function translate(text) {
     .reduce(function(result, key) { return result.split(key).join(translations[key]); }, text);
 }
 
+// Text typed by the user (pedigree header, chart notes) is marked data-no-translate
+var isUserText = function(el) {
+  return !!(el && el.closest && el.closest('[data-no-translate]'));
+};
+
 function translateNode(node) {
   if (!node) return;
   if (node.nodeType === 3) {
+    if (isUserText(node.parentElement)) return;
     var translated = translate(node.nodeValue);
     if (translated !== node.nodeValue) node.nodeValue = translated;
     return;
   }
   if (node.nodeType !== 1 && node.nodeType !== 9) return;
+  if (node.nodeType === 1 && node.hasAttribute('data-no-translate')) return;
   if (node.nodeType === 1) {
     // "value" is visible text only on buttons; on radios, checkboxes, options and text fields it
     // is data (e.g. "alive", "Left", "Positive test") and must never be translated

@@ -19,6 +19,16 @@ Open Pedigree X is a robust browser-based genomic pedigree drawing solution usin
 
 <img width="983" alt="image" src="./assets/openpedigreex.png">
 
+## What's new in 1.3
+
+<img width="960" alt="Open Pedigree X 1.3 demo: import, find people, cascade testing, chart notes and PDF export" src="./assets/demo-1.3.gif">
+
+* **Find people** with filters (condition, test result, age, ancestry, relationship) highlighted on the chart
+* **Title, header and notes on the chart**, printed as header/footer of the PDF
+* **Ancestry** for every person, kept in Progeny/Invitae XML and used by the CanRisk export
+* **Draft saved in the browser**: a reload or closed tab no longer loses work
+* Cleaner cascade testing, better AI instructions, welcome screen for new users and a What's new card after updates
+
 This repository forks phenotips/open-pedigree and adapts it for compatibility with Invitae/Progeny XML formats. It is configured for deployment to Google Apps Script and uses Google Drive for storage.
 
 ## Features
@@ -74,6 +84,7 @@ This repository (`open-pedigree-xml`) is an enhanced fork of the original Open P
 * **Standard Nomenclature on the Chart**: Toggle (Labels menu) Roman-numeral generation numbering and per-person numbers (I-1, II-3…) directly on the canvas. The same identifiers are used by the PDF export and the cascade list.
 * **Cascade Testing**: *Analysis → Cascade* lists the blood relatives of any index person up to the 3rd degree, with relationship name (paternal/maternal side), degree, chance of carrying the familial variant, what a positive result means, age, life status and existing results. The chance follows the selected mode of inheritance — autosomal dominant, autosomal recessive (index heterozygous or biallelic, giving carrier and affected chances), X-linked recessive/dominant, mitochondrial or Y-linked — tracing the variant through the pedigree (consanguinity-aware). Chances are updated with Bayes from the phenotypes recorded for the index person's condition (with penetrance and age at onset) and from test results (+/−) and carrier marks, and include de novo variants (an isolated case does not make a parent an obligate carrier; for X-linked conditions the Haldane equilibrium gives the textbook 2/3 for the mother of an isolated case). Relatives who cannot inherit it under that mode are left out; relatives already tested are not preselected. Relatives who are deceased, unborn, not in contact, of unknown age or under a configurable minimum age are not preselected. The selection can be highlighted on the chart, exported to CSV or copied.
 * **Find People**: the magnifier button (or `/`, `Ctrl+F`) opens a panel that finds people by clinical status, condition, age, age at diagnosis, genetic test result (per gene), sex, life status, ancestry, HPO phenotype, name/ID/comment and relationship (blood relative up to a degree, ancestor, descendant, sibling or partner of anyone), combining filters with AND or OR. Matches are ringed on the chart with everyone else faded, listed with their standard IDs (click to centre), and can be copied. Quick searches cover common questions (affected, positive genetic test, diagnosed at 50 or younger, living untested relatives of the proband, ancestors of the proband). Results follow every edit; the highlight is never exported.
+* **Title, Header and Chart Notes**: *Tools → Title and header* records a title, family name or ID, author, date and notes. They are shown above the chart and printed as header and footer of the PDF (option in the export dialog). *Tools → Add note on chart* (or `N`) places free-text notes on the drawing; drag to move, click to edit or delete. Everything is undoable, saved with the pedigree and kept in Invitae/Progeny XML as pedigree-level notes.
 * **Modification History**: *Edit → History* shows a timeline of every change in plain language (e.g. "Changed life status of Clara (V-2): deceased"), with time and author initials. Undo, redo and restores are logged too, any earlier version still in the undo stack can be restored, and the log can be exported to CSV. The history covers the current session and is not stored in the pedigree file.
 
 ### 💾 Import, Export & File Formats

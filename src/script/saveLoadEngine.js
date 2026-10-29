@@ -1,5 +1,6 @@
 import TemplateSelector from 'pedigree/view/templateSelector';
 import PedigreeTemplates from 'pedigree/view/templates';
+import { infoFromInvitaeXML } from 'pedigree/model/pedigreeInfo';
 
 /**
  * SaveLoadEngine is responsible for automatic and manual save and load operations.
@@ -212,6 +213,10 @@ var SaveLoadEngine = Class.create( {
       var changeSet = editor.getGraph().fromImport(importString, importType, importOptions);
       if (changeSet == null) {
         throw 'unable to create a pedigree from imported data';
+      }
+      // title, family, author, date, notes and annotations come only with Invitae/Progeny XML
+      if (editor.getPedigreeInfo) {
+        editor.getPedigreeInfo().load(importType === 'invitae' ? infoFromInvitaeXML(importString) : null);
       }
     } catch(err) {
       alert('Error importing pedigree: ' + err);

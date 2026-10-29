@@ -444,9 +444,12 @@ var Workspace = Class.create({
         items: [
           { key : 'relayout',  label : translate('Re-layout'), icon : 'sitemap'},
           { key : 'labels',    label : translate('Labels'),    icon : 'tags'},
+          { key : 'pedigree-info', label : translate('Title and header'), icon : 'heading'},
+          { key : 'add-note',  label : translate('Add note on chart'), icon : 'sticky-note'},
           { key : 'history',   label : translate('History'),   icon : 'history'},
           { key : 'cascade',   label : translate('Cascade testing'), icon : 'project-diagram'},
           { key : 'shortcuts', label : translate('Keyboard shortcuts'), icon : 'keyboard'},
+          { key : 'whats-new', label : translate("What's new"), icon : 'star'},
           { separator : true },
           { key : 'clear',     label : translate('Clear all'), icon : 'times-circle'}
         ]

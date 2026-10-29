@@ -265,6 +265,8 @@ var ModificationHistory = Class.create({
     if (this.dialog) {
       this._renderList();
     }
+    // one event for every change, undo and redo (used by the local draft autosave)
+    document.fire('pedigree:changed', { kind: kind });
   },
 
   getEntries: function() {
@@ -279,6 +281,7 @@ var ModificationHistory = Class.create({
     this._entries.push({ kind: 'restore', time: new Date(), author: this._author, text: this._t('restore', { t: this._formatTime(entry.time) }), state: null });
     // let other parts (e.g. Drive autosave) know the pedigree changed
     document.fire('pedigree:history:restored');
+    document.fire('pedigree:changed', { kind: 'restore' });
     return true;
   },
 
