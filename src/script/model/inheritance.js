@@ -54,7 +54,9 @@ var getParentSlots = function(graph, id) {
     var g = graph.getGender(p);
     if (g === 'M' && slots.f === null) slots.f = p;
     else if (g === 'F' && slots.m === null) slots.m = p;
-    else unknown.push(p);
+    else if (g !== 'M' && g !== 'F') unknown.push(p);
+    // a second parent of the same sex (same-sex couple) is not placed in the other sex's slot:
+    // only the first one is treated as the biological parent of that sex
   });
   unknown.forEach(function(p) {
     if (slots.f === null) slots.f = p;

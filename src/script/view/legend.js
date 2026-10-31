@@ -161,7 +161,7 @@ var Legend = Class.create( {
     var me = this;
     Element.observe(item, 'mouseover', function() {
       //item.setStyle({'text-decoration':'underline', 'cursor' : 'default'});
-      item.down('.disorder-name').setStyle({'background': color, 'cursor' : 'default'});
+      item.down('.disorder-name').setStyle({'background': me.getObjectColor(id), 'cursor' : 'default'});
       me._affectedNodes[id] && me._affectedNodes[id].forEach(function(nodeID) {
         var node = editor.getNode(nodeID);
         node && node.getGraphics().highlight();

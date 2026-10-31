@@ -173,6 +173,14 @@ var exportAsCanRisk = function(options) {
       slots = { f: null, m: null };
       if (graph.DG.GG.getParents(pid).length) warnings.push(labelOf(pid) + ': adopted, exported without parents (not a blood relative).');
     }
+    var bioParents = graph.DG.GG.getParents(pid);
+    if (slots.f !== null || slots.m !== null) {
+      bioParents.forEach(function(p) {
+        if (p !== slots.f && p !== slots.m && !graph.isVirtualParent(p)) {
+          warnings.push(labelOf(pid) + ': same-sex parents; ' + labelOf(p) + ' was left out as a parent (CanRisk needs a biological father and mother).');
+        }
+      });
+    }
     var f = (slots.f !== null && included[slots.f]) ? ids[slots.f] : null;
     var m = (slots.m !== null && included[slots.m]) ? ids[slots.m] : null;
     if (f || m) {

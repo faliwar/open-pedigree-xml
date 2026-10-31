@@ -1462,6 +1462,111 @@ html,
   background-color: #DDD;
   vertical-align: middle;
 }
+.disorder-color.editable-color {
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .15);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.disorder-color.editable-color:hover {
+  transform: scale(1.35);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .25);
+}
+/* Colour picker opened from the legend */
+.condition-color-picker {
+  position: fixed;
+  z-index: 20000;
+  width: 220px;
+  padding: 10px;
+  background: #FFF;
+  border: 1px solid #D6D6D6;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  font-size: 12px;
+  color: #333;
+}
+.condition-color-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.condition-name-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.condition-name-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 3px 5px;
+  border: 1px solid #CCC;
+  border-radius: 4px;
+}
+.condition-rename {
+  font-size: 11px;
+  padding: 3px 7px;
+  border: 1px solid #CCC;
+  border-radius: 4px;
+  background: #F7F7F7;
+  cursor: pointer;
+}
+.legend-box .disorder-name.editable-name {
+  cursor: pointer !important;
+}
+.condition-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.condition-color-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #FFF;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .2);
+  cursor: pointer;
+}
+.condition-color-swatch:hover {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .45);
+}
+.condition-color-swatch.selected {
+  box-shadow: 0 0 0 2px #222;
+}
+.condition-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-top: 1px solid #EEE;
+  padding-top: 8px;
+}
+.condition-color-custom-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.condition-color-custom {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.condition-color-reset {
+  font-size: 11px;
+  padding: 3px 7px;
+  border: 1px solid #CCC;
+  border-radius: 4px;
+  background: #F7F7F7;
+  cursor: pointer;
+}
+.condition-color-reset:disabled {
+  opacity: .45;
+  cursor: default;
+}
 .disorder-cases-container {
   font-size: .8em;
   font-style: italic;
@@ -1898,6 +2003,22 @@ html,
 }
 .menu-box .field-childlessSelect {
   padding: 0.5em 0 0.5em;
+}
+/* person menu: adoption sits next to the heredity options */
+.person-menu .field-childlessSelect {
+  width: 48%;
+  float: left;
+}
+.person-menu .field-adoption {
+  padding: 0.5em 0 0.5em;
+  width: 48%;
+  float: right;
+}
+.person-menu .field-adoption select {
+  max-width: 100%;
+}
+.person-menu .field-adoption ~ .field-box {
+  clear: both;
 }
 
 /* ===========================================

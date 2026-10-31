@@ -968,11 +968,17 @@ var PedigreeEditor = Class.create({
         'function' : 'setChildlessStatus'
       },
       {
-        'name' : 'adopted',
-        'label' : 'Adopted',
-        'type' : 'checkbox',
+        'name' : 'adoption',
+        'label' : 'Adoption',
+        'type' : 'select',
         'tab': 'Personal',
-        'function' : 'setAdopted'
+        'values' : [
+          { 'actual' : '', 'displayed' : 'Not adopted' },
+          { 'actual' : 'in', 'displayed' : 'Adopted in' },
+          { 'actual' : 'out', 'displayed' : 'Placed for adoption' }
+        ],
+        'default' : '',
+        'function' : 'setAdoptionStatus'
       },
       {
         'name' : 'ancestry',
@@ -1017,7 +1023,7 @@ var PedigreeEditor = Class.create({
         'rows' : 2,
         'function' : 'setComments'
       }
-    ], ['Personal', 'Clinical']);
+    ], ['Personal', 'Clinical'], 'person-menu');
   },
 
   /**

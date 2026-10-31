@@ -1015,6 +1015,7 @@ PedigreeImport.JSONToInternalPropertyMapping = {
   'twingroup':       'twinGroup',
   'monozygotic':     'monozygotic',
   'adoptedin':       'isAdopted',
+  'adoptedout':      'adoptedOut',
   'evaluated':       'evaluated',
   'birthdate':       'dob',
   'deathdate':       'dod',

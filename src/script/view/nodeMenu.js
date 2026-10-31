@@ -1297,8 +1297,11 @@ var NodeMenu = Class.create({
     'gene-picker' : function (container, inactive) {
       // FIXME: Not implemented
     },
-    'select' : function (container, inactive) {
-      // FIXME: Not implemented
+    'select' : function (container, disabled) {
+      // an array disables those options (e.g. adoption options that are not possible)
+      container.select('option').each(function(option) {
+        option.disabled = !!(disabled && Object.prototype.toString.call(disabled) === '[object Array]' && disabled.indexOf(option.value) >= 0);
+      });
     },
     'hidden' : function (container, inactive) {
       // FIXME: Not implemented

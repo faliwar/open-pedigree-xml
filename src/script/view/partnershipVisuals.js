@@ -23,6 +23,8 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     this._childlessShape = null;
     this._childlessStatusLabel = null;
     this._junctionShape = editor.getPaper().circle(x,y, PedigreeEditorParameters.attributes.partnershipRadius).attr(PedigreeEditorParameters.attributes.partnershipNode);
+    // the junction is an editing handle: left out of exported images and PDFs
+    this._junctionShape.node.setAttribute('data-opx-export', 'omit');
 
     var isSingleParent = editor.getGraph().isSingleParentRelationship(partnership.getID());
     var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID());
@@ -465,6 +467,8 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var currentIsMonozygothic   = false;
 
     var numPregnancies = 0;
+    var adoptedLineAttr = Object.assign({}, PedigreeEditorParameters.attributes.partnershipLines, {'stroke-dasharray': '- '});
+    var allAdoptedIn = true;
 
     for ( var j = 0; j < children.length; j++ ) {
       var child  = children[j];
@@ -515,11 +519,18 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
       // draw regular child line - for all nodes which are not monozygothic twins and for the
       // rightmost and leftmost monozygothic twin
+      // adopted in: dashed line of descent from the adoptive parents (NSGC)
+      var childNode = editor.getView().getNode(child);
+      var childAdoptedIn = !!(childNode && childNode.isAdopted && childNode.isAdopted());
+      var childLineAttr = childAdoptedIn ? adoptedLineAttr : PedigreeEditorParameters.attributes.partnershipLines;
+      if (!childAdoptedIn) {
+        allAdoptedIn = false;
+      }
       if (!currentIsMonozygothic || childX == positionL || childX == positionR ) {
-        editor.getView().drawLineWithCrossings( id, topLineX, topLineY, childX, childY, PedigreeEditorParameters.attributes.partnershipLines);
+        editor.getView().drawLineWithCrossings( id, topLineX, topLineY, childX, childY, childLineAttr);
       } else {
         var xIntercept = findXInterceptGivenLineAndY( twinlineY, currentTwinGroupCenterX, childlineY+twinCommonVerticalPieceLength, childX, childY);
-        editor.getView().drawLineWithCrossings( id, xIntercept, twinlineY, childX, childY, PedigreeEditorParameters.attributes.partnershipLines);
+        editor.getView().drawLineWithCrossings( id, xIntercept, twinlineY, childX, childY, childLineAttr);
       }
 
       var lostContact = editor.getGraph().isChildOfProband(child) && editor.getView().getNode(child).getLostContact();
@@ -534,12 +545,15 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
     editor.getView().drawLineWithCrossings( id, leftmostX, childlineY, rightmostX, childlineY, PedigreeEditorParameters.attributes.partnershipLines);
     if (!isParentless) {
-      editor.getView().drawLineWithCrossings( id, this.getX(), this.getY(), this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipLines);
+      // when every child was adopted in, the whole line of descent is dashed
+      editor.getView().drawLineWithCrossings( id, this.getX(), this.getY(), this.getX(), childlineY,
+        allAdoptedIn ? adoptedLineAttr : PedigreeEditorParameters.attributes.partnershipLines);
     }
 
     //draw small non-functional childhub junction orb
     if (numPregnancies > 1 && !isParentless) {
-      editor.getPaper().circle(this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipRadius/2).attr({fill: '#666666', stroke: '#888888', 'stroke-width':1, 'opacity': 1});
+      var orb = editor.getPaper().circle(this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipRadius/2).attr({fill: '#666666', stroke: '#888888', 'stroke-width':1, 'opacity': 1});
+      orb.node.setAttribute('data-opx-export', 'omit');
     }
 
     this._childhubConnection = editor.getPaper().setFinish();

@@ -468,20 +468,8 @@ DynamicPositionedGraph.prototype = {
   },
 
   getPossibleGenders: function( v ) {
-    var possible = {'M': true, 'F': true, 'U': true};
-    // any if no partners or all partners are of unknown genders; opposite of the partner gender otherwise
-    var partners = this.DG.GG.getAllPartners(v);
-
-    var knownGenderPartner = undefined;
-    for (var i = 0; i < partners.length; i++) {
-      var partnerGender = this.getGender(partners[i]);
-      if (partnerGender != 'U') {
-        possible[partnerGender] = false;
-        break;
-      }
-    }
-
-    return possible;
+    // any sex is allowed: partners may be of the same sex
+    return {'M': true, 'F': true, 'U': true};
   },
 
   getPossibleChildrenOf: function( v ) {
@@ -544,9 +532,8 @@ DynamicPositionedGraph.prototype = {
   },
 
   getPossiblePartnersOf: function( v ) {
-    // returns all person nodes of the other gender or unknown gender (who are not already partners)
-    var oppositeGender  = this.DG.GG.getOppositeGender(v);
-    var validGendersSet = (oppositeGender == 'U') ? ['M','F','U'] : [oppositeGender,'U'];
+    // returns all person nodes who are not already partners (partners may be of the same sex)
+    var validGendersSet = ['M','F','U'];
 
     var result = this._getAllPersonsOfGenders(validGendersSet);
 

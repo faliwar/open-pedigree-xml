@@ -1,7 +1,11 @@
+import Disorder from 'pedigree/disorder';
+import { INVITAE_PALETTE, normalizeHex } from 'pedigree/model/conditionColors';
+
 /**
  * Information about the pedigree as a document, not about any person:
  *   title, family (name or ID), author, date (YYYY-MM-DD), notes (free text),
- *   annotations: free-text boxes placed on the chart, [{ id, x, y, text }] in canvas coordinates.
+ *   annotations: free-text boxes placed on the chart, [{ id, x, y, text }] in canvas coordinates,
+ *   conditionColors: colours chosen for conditions, { disorderID: '#RRGGBB' } (others get automatic colours).
  *
  * Shown as a header on the chart and as header/footer in the PDF. Saved with the pedigree
  * (graph JSON, so undo/redo restore it) and in Invitae/Progeny XML as tree-level notes:
@@ -29,7 +33,7 @@ var str = function(v) {
 };
 
 var emptyInfo = function() {
-  return { title: '', family: '', author: '', date: '', notes: '', annotations: [] };
+  return { title: '', family: '', author: '', date: '', notes: '', annotations: [], conditionColors: {} };
 };
 
 var normalize = function(data) {
@@ -50,6 +54,11 @@ var normalize = function(data) {
     while (used[id]) id += '_';
     used[id] = true;
     out.annotations.push({ id: id, x: isFinite(x) ? Math.round(x) : 0, y: isFinite(y) ? Math.round(y) : 0, text: text });
+  });
+  var colors = (data.conditionColors && typeof data.conditionColors === 'object') ? data.conditionColors : {};
+  Object.keys(colors).sort().forEach(function(id) {
+    var hex = normalizeHex(colors[id]);
+    if (id && hex) out.conditionColors[id] = hex;
   });
   return out;
 };
@@ -84,7 +93,38 @@ var PedigreeInfo = Class.create({
   },
 
   hasContent: function() {
-    return this.hasHeader() || this._data.annotations.length > 0;
+    return this.hasHeader() || this._data.annotations.length > 0 || Object.keys(this._data.conditionColors).length > 0;
+  },
+
+  /** Colour chosen for a condition, or '' when it uses an automatic colour */
+  getConditionColor: function(disorderID) {
+    return this._data.conditionColors.hasOwnProperty(disorderID) ? this._data.conditionColors[disorderID] : '';
+  },
+
+  /**
+   * Moves a chosen colour to the condition's new id when it is renamed (part of the rename's
+   * undo step, so no separate one here)
+   */
+  renameConditionColor: function(fromID, toID) {
+    var colors = this._data.conditionColors;
+    if (!colors.hasOwnProperty(fromID)) return;
+    if (!colors.hasOwnProperty(toID)) colors[toID] = colors[fromID];
+    delete colors[fromID];
+    document.fire('pedigree:info:changed', {});
+  },
+
+  /**
+   * Sets (or with an empty colour, removes) the colour of a condition as an undoable change.
+   */
+  setConditionColor: function(disorderID, color, description) {
+    var colors = clone(this._data.conditionColors);
+    var hex = normalizeHex(color);
+    if (hex) {
+      colors[disorderID] = hex;
+    } else {
+      delete colors[disorderID];
+    }
+    this.update({ conditionColors: colors }, description);
   },
 
   /**
@@ -191,13 +231,29 @@ var infoFromInvitaeXML = function(xmlText) {
   try {
     var doc = new DOMParser().parseFromString(xmlText, 'text/xml');
     var tree = doc.querySelector('tree');
-    var notesEl = tree && tree.querySelector(':scope > notes');
-    if (!notesEl) return null;
+    if (!tree) return null;
     var data = emptyInfo();
     var found = false;
+    // condition colours: <indi><conditions><condition title="..." color="1"/>
+    // When different conditions share one colour (e.g. files written by an AI that copied the same
+    // index everywhere), only the first keeps it; the others get distinct automatic colours.
+    var condEls = tree.querySelectorAll(':scope > indi > conditions > condition');
+    var colourOwner = {};
+    for (var c = 0; c < condEls.length; c++) {
+      var cTitle = condEls[c].getAttribute('title') || condEls[c].getAttribute('code');
+      var cIdx = parseInt(condEls[c].getAttribute('color'), 10);
+      if (!cTitle || isNaN(cIdx) || cIdx < 0 || cIdx >= INVITAE_PALETTE.length) continue;
+      var cId = Disorder.sanitizeID(cTitle);
+      if (data.conditionColors.hasOwnProperty(cId)) continue;
+      if (colourOwner.hasOwnProperty(cIdx) && colourOwner[cIdx] !== cId) continue;
+      colourOwner[cIdx] = cId;
+      data.conditionColors[cId] = INVITAE_PALETTE[cIdx];
+      found = true;
+    }
+    var notesEl = tree.querySelector(':scope > notes');
     var byTitle = {};
     Object.keys(XML_TITLES).forEach(function(f) { byTitle[XML_TITLES[f].toLowerCase()] = f; });
-    var notes = notesEl.querySelectorAll(':scope > note');
+    var notes = notesEl ? notesEl.querySelectorAll(':scope > note') : [];
     for (var i = 0; i < notes.length; i++) {
       var n = notes[i];
       var title = str(n.getAttribute('string_title')).trim().toLowerCase();

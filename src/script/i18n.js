@@ -7,6 +7,7 @@ const translations = {
   ' unrecorded parent(s) added as "dummy" (CanRisk needs both parents or none).': ' genitor(es) não registrado(s) adicionado(s) como "dummy" (o CanRisk exige os dois pais ou nenhum).',
   ': not one of the cancers used by CanRisk (breast, ovarian, prostate, pancreatic); not exported.': ': não é um dos cânceres usados pelo CanRisk (mama, ovário, próstata, pâncreas); não exportado.',
   'adopted, exported without parents (not a blood relative).': 'adotado(a), exportado(a) sem pais (não é parente consanguíneo).',
+  ': same-sex parents; ': ': pais do mesmo sexo; ', ' was left out as a parent (CanRisk needs a biological father and mother).': ' foi deixado(a) de fora como genitor(a) (o CanRisk exige pai e mãe biológicos).',
   'sex unknown, left out (CanRisk needs M or F).': 'sexo desconhecido, deixado(a) de fora (o CanRisk exige M ou F).',
   'sex unknown, exported as ': 'sexo desconhecido, exportado(a) como ',
   ' does not match the sex and was not counted.': ' não corresponde ao sexo e não foi considerado.',
@@ -115,12 +116,16 @@ const translations = {
   'Edit the pedigree information': 'Editar as informações do heredograma',
   'Edited the pedigree information': 'Editou as informações do heredograma',
   'Removed the pedigree information': 'Removeu as informações do heredograma',
+  'Condition color': 'Cor da condição', 'Other color': 'Outra cor', 'Automatic color': 'Cor automática',
+  'Click to change the color': 'Clique para mudar a cor', 'Rename': 'Renomear',
+  'Renamed the condition': 'Renomeou a condição', 'Click to rename or change the color': 'Clique para renomear ou mudar a cor', 'Changed the color of': 'Mudou a cor de',
   'Add note on chart': 'Adicionar nota no heredograma', 'Note on the chart': 'Nota no heredograma',
   'Edit note': 'Editar nota', 'New note': 'Nova nota', 'Text shown on the chart': 'Texto exibido no heredograma',
   'Drag the note to move it. Ctrl+Enter saves.': 'Arraste a nota para movê-la. Ctrl+Enter salva.', 'Delete': 'Excluir',
   'Moved a note on the chart': 'Moveu uma nota no heredograma', 'Added a note on the chart': 'Adicionou uma nota no heredograma',
   'Removed a note from the chart': 'Removeu uma nota do heredograma', 'Edited a note on the chart': 'Editou uma nota no heredograma',
   'Include header and footer (title, family, date, author, notes)': 'Incluir cabeçalho e rodapé (título, família, data, autor, observações)',
+  'Black and white (conditions drawn with fill patterns)': 'Preto e branco (condições com padrões de preenchimento)',
   // Cascade testing help
   'Help': 'Ajuda', 'Blood relatives who may share the familial variant.': 'Parentes consanguíneos que podem ter a variante familiar.',
   'Carrier frequency': 'Frequência de portadores', 'Familial variant': 'Variante familiar',
@@ -338,7 +343,8 @@ const translations = {
   , 'Date of birth': 'Data de nascimento', 'Date of death': 'Data do óbito', 'Individual is': 'O indivíduo está'
   , 'Alive': 'Vivo', 'Stillborn': 'Natimorto', 'Deceased': 'Falecido', 'Miscarriage': 'Aborto espontâneo'
   , 'Unborn': 'Não nascido', 'Aborted': 'Aborto induzido', 'Gestation age': 'Idade gestacional'
-  , 'Heredity options': 'Opções reprodutivas', 'None': 'Nenhum', 'Childless': 'Sem filhos', 'Adopted': 'Adotado'
+  , 'Heredity options': 'Opções reprodutivas', 'None': 'Nenhum', 'Childless': 'Sem filhos', 'Adopted': 'Adotado',
+  'Adoption': 'Adoção', 'Not adopted': 'Não adotado', 'Adopted in': 'Adotado pela família', 'Placed for adoption': 'Dado em adoção'
   , 'Monozygotic twin': 'Gêmeo monozigótico', 'Not in contact with proband': 'Sem contato com o probando'
   , 'Proband': 'Probando', 'Placeholder node': 'Pessoa fictícia', 'Comments': 'Comentários'
   , 'Number of persons in this group': 'Número de pessoas neste grupo', 'Identifier(s)': 'Identificador(es)'

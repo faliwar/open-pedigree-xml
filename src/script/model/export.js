@@ -206,6 +206,11 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   // Cascade testing rings are a working aid on screen only; never export them
   removeOverlay(dom, 'cascade');
   removeOverlay(dom, 'search');
+  // editing handles (relationship junction dots) are not part of the drawing
+  var omitted = dom.querySelectorAll('[data-opx-export="omit"]');
+  for (var o = 0; o < omitted.length; o++) {
+    omitted[o].parentNode.removeChild(omitted[o]);
+  }
   // people dimmed by a search highlight are exported as usual
   var dimmed = dom.querySelectorAll('[data-opx-dim]');
   for (var d = 0; d < dimmed.length; d++) {
@@ -334,7 +339,239 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
   return new XMLSerializer().serializeToString(dom);
 };
 
-PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true){
+// ===============================================================================================
+// Black-and-white export: each colour of the legend (conditions, genes) becomes a black fill
+// pattern, so several conditions in one symbol stay distinguishable when printed without colour.
+// The patterns are drawn as plain lines and dots already cut to the shape of each symbol (no PDF
+// tiling patterns or masks, which several PDF viewers draw as solid black).
+
+var BW_PATTERNS = ['solid', 'diagonal', 'dots', 'horizontal', 'crosshatch', 'vertical', 'antidiagonal', 'grid', 'diagdots', 'grey'];
+var BW_GREY = '#8C8C8C';
+
+var bwKind = function(i) {
+  return BW_PATTERNS[i % BW_PATTERNS.length];
+};
+
+/**
+ * Lines and dots of pattern i inside a polygon.
+ * @param {Array} poly [[x, y], ...] closed polygon
+ * @param {Number} s spacing between lines / dots
+ * @return {Object} { segments: [[x1, y1, x2, y2], ...], dots: [[x, y], ...] }
+ */
+PedigreeExport._bwGeometry = function(i, poly, s) {
+  var kind = bwKind(i);
+  var out = { segments: [], dots: [] };
+  var hatch = function(angleDeg, offset) {
+    var a = angleDeg * Math.PI / 180;
+    var dx = Math.cos(a), dy = Math.sin(a), nx = -dy, ny = dx;
+    var proj = poly.map(function(p) { return p[0] * nx + p[1] * ny; });
+    var lo = Math.min.apply(null, proj), hi = Math.max.apply(null, proj);
+    for (var k = Math.ceil((lo - offset) / s); k * s + offset <= hi; k++) {
+      var c = k * s + offset, hits = [];
+      for (var e = 0; e < poly.length; e++) {
+        var p = poly[e], q = poly[(e + 1) % poly.length];
+        var dp = proj[e] - c, dq = proj[(e + 1) % poly.length] - c;
+        if ((dp < 0 && dq >= 0) || (dp >= 0 && dq < 0)) {
+          var t = dp / (dp - dq);
+          var x = p[0] + (q[0] - p[0]) * t, y = p[1] + (q[1] - p[1]) * t;
+          hits.push({ x: x, y: y, along: x * dx + y * dy });
+        }
+      }
+      hits.sort(function(u, v) { return u.along - v.along; });
+      for (var h = 0; h + 1 < hits.length; h += 2) {
+        out.segments.push([hits[h].x, hits[h].y, hits[h + 1].x, hits[h + 1].y]);
+      }
+    }
+  };
+  var inside = function(x, y) {
+    var c = false;
+    for (var e = 0, f = poly.length - 1; e < poly.length; f = e++) {
+      var p = poly[e], q = poly[f];
+      if ((p[1] > y) !== (q[1] > y) && x < (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1]) + p[0]) c = !c;
+    }
+    return c;
+  };
+  var dotGrid = function(step) {
+    var xs = poly.map(function(p) { return p[0]; }), ys = poly.map(function(p) { return p[1]; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    for (var row = 0, y = Math.floor(y0 / step) * step; y <= y1; y += step, row++) {
+      for (var x = Math.floor(x0 / step) * step + ((row % 2) ? step / 2 : 0); x <= x1; x += step) {
+        if (inside(x, y)) out.dots.push([x, y]);
+      }
+    }
+  };
+  switch (kind) {
+  case 'diagonal': hatch(-45, 0); break;
+  case 'antidiagonal': hatch(45, 0); break;
+  case 'crosshatch': hatch(-45, 0); hatch(45, 0); break;
+  case 'horizontal': hatch(0, s / 2); break;
+  case 'vertical': hatch(90, s / 2); break;
+  case 'grid': hatch(0, s / 2); hatch(90, s / 2); break;
+  case 'dots': dotGrid(s); break;
+  case 'diagdots': hatch(-45, 0); dotGrid(s * 1.4); break;
+  default: break;
+  }
+  return out;
+};
+
+/** "#abc", "#AABBCC", "rgb(1, 2, 3)" -> "#AABBCC"; anything else (none, url(...)) -> '' */
+var toHex = function(value) {
+  var v = String(value || '').trim();
+  var m = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(v);
+  if (m) return ('#' + m[1] + m[1] + m[2] + m[2] + m[3] + m[3]).toUpperCase();
+  m = /^#([0-9a-f]{6})$/i.exec(v);
+  if (m) return ('#' + m[1]).toUpperCase();
+  m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(v);
+  if (m) {
+    return '#' + [m[1], m[2], m[3]].map(function(n) { return parseInt(n, 10).toString(16).padStart(2, '0'); }).join('').toUpperCase();
+  }
+  return '';
+};
+
+/** Grey of the same lightness (keeps black and white as they are) */
+var toGrey = function(hex) {
+  var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
+  var l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  if (l > 235) l = 255;
+  var c = l.toString(16).padStart(2, '0').toUpperCase();
+  return '#' + c + c + c;
+};
+
+/**
+ * Outline of a filled shape as a polygon in the coordinates of the root <svg>.
+ * The element must be rendered (in the document) so its geometry and transforms are known.
+ */
+var shapePolygon = function(el, rootSvg) {
+  var local = [];
+  var tag = el.tagName.toLowerCase();
+  if (tag === 'circle' || tag === 'ellipse') {
+    var cx = parseFloat(el.getAttribute('cx')) || 0, cy = parseFloat(el.getAttribute('cy')) || 0;
+    var rx = parseFloat(el.getAttribute(tag === 'circle' ? 'r' : 'rx')) || 0;
+    var ry = parseFloat(el.getAttribute(tag === 'circle' ? 'r' : 'ry')) || 0;
+    for (var k = 0; k < 72; k++) {
+      var a = 2 * Math.PI * k / 72;
+      local.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+    }
+  } else if (tag === 'rect') {
+    var x = parseFloat(el.getAttribute('x')) || 0, y = parseFloat(el.getAttribute('y')) || 0;
+    var w = parseFloat(el.getAttribute('width')) || 0, h = parseFloat(el.getAttribute('height')) || 0;
+    local = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+  } else if (el.getTotalLength) {
+    var len = el.getTotalLength();
+    if (!(len > 0)) return null;
+    var n = Math.max(24, Math.min(160, Math.round(len / 3)));
+    for (var i = 0; i < n; i++) {
+      var pt = el.getPointAtLength(len * i / n);
+      local.push([pt.x, pt.y]);
+    }
+  } else {
+    return null;
+  }
+  var m = rootSvg.getScreenCTM().inverse().multiply(el.getScreenCTM());
+  return local.map(function(p) {
+    return [m.a * p[0] + m.c * p[1] + m.e, m.b * p[0] + m.d * p[1] + m.f];
+  });
+};
+
+/**
+ * Converts the pedigree SVG to black and white.
+ * @param {String} svgString
+ * @param {Array} colours legend colours in legend order; colour i is drawn with pattern i
+ */
+PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
+  var indexOf = {};
+  (colours || []).forEach(function(c, i) {
+    var hex = toHex(c);
+    if (hex && !indexOf.hasOwnProperty(hex)) indexOf[hex] = i;
+  });
+
+  // render the SVG off-screen so shapes and transforms can be measured
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-20000px;top:0;width:0;height:0;overflow:hidden;';
+  holder.innerHTML = svgString;
+  document.body.appendChild(holder);
+  var svgEl = holder.querySelector('svg');
+  if (!svgEl) {
+    holder.remove();
+    return svgString;
+  }
+  var ns = 'http://www.w3.org/2000/svg';
+  var hatchLayer = document.createElementNS(ns, 'g');
+
+  try {
+    var all = Array.prototype.slice.call(svgEl.getElementsByTagName('*'));
+    all.forEach(function(el) {
+      ['fill', 'stroke'].forEach(function(attr) {
+        var hex = toHex(el.getAttribute(attr));
+        var styleHex = el.style ? toHex(el.style.getPropertyValue(attr)) : '';
+        if (!hex && !styleHex) return;
+        var source = styleHex || hex;
+        var replacement = toGrey(source);
+        if (attr === 'fill' && indexOf.hasOwnProperty(source)) {
+          var i = indexOf[source], kind = bwKind(i);
+          if (kind === 'solid') {
+            replacement = '#000000';
+          } else if (kind === 'grey') {
+            replacement = BW_GREY;
+          } else {
+            replacement = '#FFFFFF';
+            var poly = shapePolygon(el, svgEl);
+            if (poly && poly.length > 2) {
+              var geo = PedigreeExport._bwGeometry(i, poly, 7);
+              geo.segments.forEach(function(sg) {
+                var line = document.createElementNS(ns, 'line');
+                line.setAttribute('x1', sg[0].toFixed(2)); line.setAttribute('y1', sg[1].toFixed(2));
+                line.setAttribute('x2', sg[2].toFixed(2)); line.setAttribute('y2', sg[3].toFixed(2));
+                line.setAttribute('stroke', '#000000'); line.setAttribute('stroke-width', '1.3');
+                line.setAttribute('stroke-linecap', 'butt');
+                hatchLayer.appendChild(line);
+              });
+              geo.dots.forEach(function(d) {
+                var dot = document.createElementNS(ns, 'circle');
+                dot.setAttribute('cx', d[0].toFixed(2)); dot.setAttribute('cy', d[1].toFixed(2));
+                dot.setAttribute('r', '1.5'); dot.setAttribute('fill', '#000000');
+                hatchLayer.appendChild(dot);
+              });
+            }
+          }
+        }
+        if (hex) el.setAttribute(attr, replacement);
+        if (styleHex) el.style.setProperty(attr, replacement);
+      });
+    });
+    svgEl.appendChild(hatchLayer);
+    return new XMLSerializer().serializeToString(svgEl);
+  } catch (e) {
+    console.warn('Black-and-white conversion failed:', e);
+    return svgString;
+  } finally {
+    holder.remove();
+  }
+};
+
+/** Legend swatch of pattern i, drawn directly with PDFKit (rectangle clip only) */
+PedigreeExport._bwDrawSwatch = function(doc, i, x, y, size) {
+  var kind = bwKind(i);
+  doc.save();
+  if (kind === 'solid' || kind === 'grey') {
+    doc.rect(x, y, size, size).fill(kind === 'solid' ? '#000000' : BW_GREY);
+  } else {
+    doc.rect(x, y, size, size).fill('#FFFFFF');
+    doc.rect(x, y, size, size).clip();
+    var geo = PedigreeExport._bwGeometry(i, [[x, y], [x + size, y], [x + size, y + size], [x, y + size]], 2.6);
+    geo.segments.forEach(function(sg) {
+      doc.moveTo(sg[0], sg[1]).lineTo(sg[2], sg[3]);
+    });
+    if (geo.segments.length) doc.lineWidth(0.6).stroke('#000000');
+    geo.dots.forEach(function(d) { doc.circle(d[0], d[1], 0.55).fill('#000000'); });
+  }
+  doc.restore();
+  doc.save();
+  doc.rect(x, y, size, size).lineWidth(0.6).stroke('#000000');
+  doc.restore();
+};
+
+PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true, blackAndWhite = false){
   var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
   pedigreeImage = PedigreeExport._processPdfSvg(pedigreeImage, showNumbers);
 
@@ -397,6 +634,13 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     }
   }
 
+  // black and white: colour i of the legend -> fill pattern i, other colours -> grey
+  let legendColours = [];
+  legend.forEach(function(cat) { cat.items.forEach(function(item) { legendColours.push(item.colour); }); });
+  if (blackAndWhite) {
+    pedigreeImage = PedigreeExport._applyBlackAndWhite(pedigreeImage, legendColours);
+  }
+
   let compress = false;
   // Margins 0 prevents PDFKit from adding accidental extra pages when elements are near margins
   let doc = new PDFDocument({ compress: compress, size: pageSize, layout: layout, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -446,31 +690,45 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     headerSub = parts.join('    ');
   }
   let footerNotes = info ? info.notes : '';
-  let pageMargin = 20;
+
+  // Page layout (points). Everything stays inside the margins; the footer band at the bottom
+  // (notes, separator line, edit notice and date) is never covered by the pedigree.
+  //   margin | header | legend (top) | pedigree | gap | legend (bottom) | notes | line | footer text | margin
+  let W = doc.page.width;
+  let H = doc.page.height;
+  let pageMargin = 28;            // ~1 cm
+  let contentWidth = W - pageMargin * 2;
+  let gap = 12;                   // space between the pedigree and what is around it
+  let footerTextSize = 7;
+  let footerTextY = H - pageMargin - footerTextSize;
+  let footerLineY = footerTextY - 6;
+
   let headerHeight = 0;
   if (headerTitle || headerSub) {
-    headerHeight = 10 + (headerTitle ? 19 : 0) + (headerSub ? 13 : 0);
+    headerHeight = (headerTitle ? 19 : 0) + (headerSub ? 13 : 0);
   }
   let notesHeight = 0;
   if (footerNotes) {
     doc.save();
     doc.font('Helvetica').fontSize(8);
-    notesHeight = Math.min(doc.heightOfString(footerNotes, { width: doc.page.width - pageMargin * 2 }), 48) + 4;
+    notesHeight = Math.min(doc.heightOfString(footerNotes, { width: contentWidth }), 48);
     doc.restore();
   }
-  let topReserved = headerHeight + 5;
-  let bottomReserved = 16 + notesHeight;
+  let notesY = footerLineY - 6 - notesHeight;
+  let topReserved = pageMargin + (headerHeight ? headerHeight + gap : 0);
+  let bottomReserved = (H - footerLineY) + (notesHeight ? notesHeight + 6 : 0) + gap;
 
   let lineOffset = 14;
   let catOffset = 2;
-  let legendHeight = (lineOffset * (headingCount + itemCount)) + (headingCount * catOffset) + 10;
+  let legendHeight = legend.length ? (lineOffset * (headingCount + itemCount)) + (headingCount * catOffset) : 0;
   let legendAtTop = (legendPos !== 'BottomLeft' && legendPos !== 'BottomRight');
-  let xOffset = (legendPos === 'TopLeft' || legendPos === 'BottomLeft') ? 5 : doc.page.width - (20 + maxWidth);
-  let yOffset = legendAtTop ? topReserved : doc.page.height - bottomReserved - legendHeight;
-  let pedigreeXOffset = 5;
-  let pedigreeYOffset = legendAtTop ? topReserved + legendHeight : topReserved;
-  let pedigreeWidth = doc.page.width - 10;
-  let pedigreeHeight = Math.max(doc.page.height - topReserved - bottomReserved - legendHeight, doc.page.height * 0.4);
+  let xOffset = (legendPos === 'TopLeft' || legendPos === 'BottomLeft') ? pageMargin : W - pageMargin - ((blackAndWhite ? 13 : 10) + maxWidth);
+  let yOffset = legendAtTop ? topReserved : H - bottomReserved - legendHeight;
+  let legendBand = legendHeight ? legendHeight + gap : 0;
+  let pedigreeXOffset = pageMargin;
+  let pedigreeYOffset = legendAtTop ? topReserved + legendBand : topReserved;
+  let pedigreeWidth = contentWidth;
+  let pedigreeHeight = Math.max(H - topReserved - bottomReserved - legendBand, 60);
 
   // 1. Draw Pedigree SVG first
   let options = {
@@ -489,6 +747,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   }
 
   // 2. Draw Legend
+  let swatchIndex = 0;
   for (let cat of legend) {
     doc.save();
     doc.fontSize(14);
@@ -498,58 +757,59 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     }
     for (let item of cat.items) {
       doc.save();
-      doc.rect(xOffset, yOffset, 8, 8).fill(item.colour || '#CCCCCC', 1);
+      if (blackAndWhite) {
+        PedigreeExport._bwDrawSwatch(doc, swatchIndex, xOffset - 0.5, yOffset - 0.5, 9);
+      } else {
+        doc.rect(xOffset, yOffset, 8, 8).fill(item.colour || '#CCCCCC', 1);
+      }
       doc.restore();
+      swatchIndex++;
       doc.fontSize(10);
       const textStr = (item.name || '') + (item.cases ? ' (' + item.cases + ')' : '');
-      doc.text(textStr, xOffset + 10, yOffset, { lineBreak: false });
+      doc.text(textStr, xOffset + (blackAndWhite ? 13 : 10), yOffset, { lineBreak: false });
       yOffset += lineOffset;
     }
     yOffset += catOffset;
     doc.restore();
   }
 
-  // 3. Top-left embed notice
-  if (embedXML) {
-    doc.save();
-    doc.fontSize(6);
-    doc.fillColor('#888888');
-    doc.text('To edit: upload PDF to Open Pedigree X.', 10, 10, { lineBreak: false });
-    doc.restore();
-  }
-
-  // 4. Header and footer notes
+  // 3. Header
   if (headerTitle || headerSub) {
-    let y = 10;
+    let y = pageMargin;
     doc.save();
     if (headerTitle) {
       doc.font('Helvetica-Bold').fontSize(15).fillColor('#111111');
-      doc.text(headerTitle, pageMargin, y, { width: doc.page.width - pageMargin * 2, align: 'center', lineBreak: false, ellipsis: true });
+      doc.text(headerTitle, pageMargin, y, { width: contentWidth, align: 'center', lineBreak: false, ellipsis: true });
       y += 19;
     }
     if (headerSub) {
       doc.font('Helvetica').fontSize(9).fillColor('#444444');
-      doc.text(headerSub, pageMargin, y, { width: doc.page.width - pageMargin * 2, align: 'center', lineBreak: false, ellipsis: true });
+      doc.text(headerSub, pageMargin, y, { width: contentWidth, align: 'center', lineBreak: false, ellipsis: true });
     }
     doc.restore();
   }
+
+  // 4. Footer: notes, separator line, edit notice (left) and date of last update (right)
   if (footerNotes) {
     doc.save();
     doc.font('Helvetica').fontSize(8).fillColor('#333333');
-    doc.text(footerNotes, pageMargin, doc.page.height - 16 - notesHeight, { width: doc.page.width - pageMargin * 2, height: notesHeight, ellipsis: true });
+    doc.text(footerNotes, pageMargin, notesY, { width: contentWidth, height: notesHeight + 2, ellipsis: true });
     doc.restore();
   }
-
-  // 5. Date of last update (export time), centered at bottom of single page
+  doc.save();
+  doc.moveTo(pageMargin, footerLineY).lineTo(W - pageMargin, footerLineY).lineWidth(0.5).strokeColor('#BBBBBB').stroke();
+  doc.restore();
   {
     let now = new Date();
     let pad = (n) => String(n).padStart(2, '0');
     let stamp = 'Last updated: ' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) +
       ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
     doc.save();
-    doc.fontSize(7);
-    doc.fillColor('#666666');
-    doc.text(stamp, 0, doc.page.height - 14, { width: doc.page.width, align: 'center', lineBreak: false });
+    doc.font('Helvetica').fontSize(footerTextSize).fillColor('#666666');
+    if (embedXML) {
+      doc.text('To edit: upload PDF to Open Pedigree X.', pageMargin, footerTextY, { width: contentWidth, align: 'left', lineBreak: false });
+    }
+    doc.text(stamp, pageMargin, footerTextY, { width: contentWidth, align: 'right', lineBreak: false });
     doc.restore();
   }
 
@@ -570,6 +830,7 @@ PedigreeExport.internalToJSONPropertyMapping = {
   'twinGroup':     'twinGroup',
   'monozygotic':   'monozygotic',
   'isAdopted':     'adoptedIn',
+  'adoptedOut':    'adoptedOut',
   'evaluated':     'evaluated',
   'dob':           'birthDate',
   'dod':           'deathDate',

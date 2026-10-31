@@ -235,7 +235,7 @@ var Query = Class.create({
         break;
       case 'flag':
         if (f.value === 'proband') hit = id === this.graph.getProbandId();
-        else if (f.value === 'adopted') hit = !!(node.isAdopted && node.isAdopted()) || this._isAdopted(id);
+        else if (f.value === 'adopted') hit = !!(node.isAdopted && node.isAdopted()) || !!(node.isAdoptedOut && node.isAdoptedOut()) || this._isAdopted(id);
         else if (f.value === 'nocontact') hit = !!(node.getLostContact && node.getLostContact());
         else if (f.value === 'twin') hit = this._isTwin(id);
         else if (f.value === 'comments') hit = str(node.getComments && node.getComments()) !== '';

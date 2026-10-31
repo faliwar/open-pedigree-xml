@@ -1,7 +1,9 @@
 import BaseGraph from 'pedigree/model/baseGraph';
 import RelationshipTracker from 'pedigree/model/relationshipTracker';
 import OntologyLookup from 'pedigree/ontologyLookup';
+import Disorder from 'pedigree/disorder';
 import { infoToInvitaeNotes } from 'pedigree/model/pedigreeInfo';
+import { INVITAE_PALETTE, closestPaletteIndex } from 'pedigree/model/conditionColors';
 import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toInvitaeAge, needsClassificationAttribute, normalizeAncestry, hasAshkenaziAncestry } from 'pedigree/model/clinicalData';
 
 /**
@@ -21,31 +23,10 @@ var InvitaeConverter = function () {};
 
 InvitaeConverter.prototype = {};
 
-InvitaeConverter.PREF_COLORS = [
-  '#CC0000', '#4575B4', '#E8A735', '#7B68A0', '#2E8B57',
-  '#D4856A', '#5F9EA0', '#8B6C42', '#C75B8E', '#6B8E8E'
-];
+// Invitae colour index -> colour (see model/conditionColors.js)
+InvitaeConverter.PREF_COLORS = INVITAE_PALETTE;
 
-InvitaeConverter._findClosestPaletteIndex = function (hex) {
-  if (!hex || typeof hex !== 'string') return -1;
-  var m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-  if (!m) return -1;
-  var r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
-  var bestIdx = -1;
-  var bestDist = Infinity;
-  for (var i = 0; i < InvitaeConverter.PREF_COLORS.length; i++) {
-    var pm = InvitaeConverter.PREF_COLORS[i].match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-    if (pm) {
-      var pr = parseInt(pm[1], 16), pg = parseInt(pm[2], 16), pb = parseInt(pm[3], 16);
-      var dist = Math.pow(r - pr, 2) + Math.pow(g - pg, 2) + Math.pow(b - pb, 2);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
-      }
-    }
-  }
-  return bestIdx;
-};
+InvitaeConverter._findClosestPaletteIndex = closestPaletteIndex;
 
 InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, disorderIndexMap) {
   var hexColor = null;
@@ -53,7 +34,14 @@ InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, d
     if (typeof editor !== 'undefined' && editor && editor.getDisorderLegend) {
       var legend = editor.getDisorderLegend();
       if (legend) {
+        // the legend is keyed by the sanitized id ("Fabry disease" -> "Fabry__disease")
         var candidates = [disorderKey, disorderName];
+        [disorderKey, disorderName].forEach(function(k) {
+          if (k && typeof k === 'string') {
+            var sid = Disorder.sanitizeID(k);
+            if (candidates.indexOf(sid) === -1) candidates.unshift(sid);
+          }
+        });
         for (var i = 0; i < candidates.length; i++) {
           if (!candidates[i]) continue;
           if (legend.getObjectColor) {
@@ -411,6 +399,20 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
         motherId = invitaeIdToPedigreeId[femaleInvitaeId];
       }
     }
+    // same-sex couples may be written as two <male> or two <female> elements: the second one
+    // fills the free slot (the sex of each person comes from their <indi>, not from the tag)
+    var parentEls = fam.querySelectorAll(':scope > male, :scope > female');
+    for (var pe = 0; pe < parentEls.length && (fatherId === null || motherId === null); pe++) {
+      var peId = parentEls[pe].getAttribute('id');
+      if (!invitaeIdToPedigreeId.hasOwnProperty(peId)) continue;
+      var pePerson = invitaeIdToPedigreeId[peId];
+      if (pePerson === fatherId || pePerson === motherId) continue;
+      if (fatherId === null) {
+        fatherId = pePerson;
+      } else {
+        motherId = pePerson;
+      }
+    }
 
     // If only one parent exists, use single-parent relationship (no virtual partner)
     var isSingleParent = false;
@@ -604,8 +606,13 @@ InvitaeConverter._parseIndividual = function (indiEl) {
   // Adoption
   var adoptionVal = InvitaeConverter._getChildAttr(indiEl, 'adoption', 'value');
   var adoptionFromVal = InvitaeConverter._getChildAttr(indiEl, 'adoption_from', 'value');
-  if (adoptionVal === '1' || adoptionFromVal === '1') {
+  // adoption="1": adopted into this family (dashed line from the adoptive parents);
+  // adoption_from="1" alone: placed for adoption (solid line from the biological parents).
+  // Files from earlier versions of this editor set both for an adopted person: read as adopted in.
+  if (adoptionVal === '1') {
     properties.isAdopted = true;
+  } else if (adoptionFromVal === '1') {
+    properties.adoptedOut = true;
   }
 
   // DOB
@@ -721,7 +728,6 @@ InvitaeConverter._parseIndividual = function (indiEl) {
       var condEl = condEls[c];
       var condTitle = condEl.getAttribute('title') || condEl.getAttribute('code');
       var condStatus = condEl.getAttribute('status');
-      var colorAttr = condEl.getAttribute('color');
 
       if (!properties.disorders) {
         properties.disorders = [];
@@ -756,21 +762,7 @@ InvitaeConverter._parseIndividual = function (indiEl) {
         properties.carrierStatus = 'affected';
       }
 
-      // Preserve condition color in legend cache if specified
-      if (colorAttr !== null && colorAttr !== '') {
-        var cIdx = parseInt(colorAttr, 10);
-        if (!isNaN(cIdx) && cIdx >= 0 && cIdx < InvitaeConverter.PREF_COLORS.length) {
-          var assignedHex = InvitaeConverter.PREF_COLORS[cIdx];
-          try {
-            if (typeof editor !== 'undefined' && editor && editor.getDisorderLegend) {
-              var dl = editor.getDisorderLegend();
-              if (dl && dl._objectColors) {
-                dl._objectColors[condTitle] = assignedHex;
-              }
-            }
-          } catch (e) {}
-        }
-      }
+      // the condition colour (color="index") is read with the pedigree information (infoFromInvitaeXML)
     }
   }
 
@@ -1195,7 +1187,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Adoption
   xml += '<adoption value="' + (props.isAdopted ? '1' : '0') + '"/>';
-  xml += '<adoption_from value="' + (props.isAdopted ? '1' : '0') + '"/>';
+  xml += '<adoption_from value="' + (!props.isAdopted && props.adoptedOut ? '1' : '0') + '"/>';
   xml += '<smoker value="3"/>';
   xml += '<obese value="0"/>';
 

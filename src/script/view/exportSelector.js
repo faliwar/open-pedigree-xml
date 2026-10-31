@@ -147,6 +147,12 @@ var ExportSelector = Class.create({
     headerRow.insert(headerLabel.wrap('td'));
     configListElementPDF.insert(headerRow);
 
+    var bwRow = new Element('tr');
+    var bwInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'pdf-black-white' });
+    var bwLabel = new Element('label', { 'class': 'export-subconfig-label' }).insert(bwInput).insert('Black and white (conditions drawn with fill patterns)');
+    bwRow.insert(bwLabel.wrap('td'));
+    configListElementPDF.insert(bwRow);
+
     // CanRisk: who the risk is calculated for; names are always replaced by I-1, II-3...
     var configListElementCanRisk = new Element('table', { 'id': 'canriskOptions', 'style': 'display:none' });
     var crLabel = new Element('label', { 'class': 'export-config-header' }).insert('CanRisk export options:');
@@ -323,7 +329,8 @@ var ExportSelector = Class.create({
         var embedXML = $$('input[type=checkbox][name="pdf-embed-xml"]')[0].checked;
         var showNumbers = $$('input[type=checkbox][name="pdf-show-numbers"]')[0].checked;
         var includeHeader = $$('input[type=checkbox][name="pdf-include-header"]')[0].checked;
-        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML, showNumbers, includeHeader);
+        var blackAndWhite = $$('input[type=checkbox][name="pdf-black-white"]')[0].checked;
+        let pdf = PedigreeExport.exportAsPDF(editor.getGraph().DG, privacySetting, pageSize, layout, legendPos, embedXML, showNumbers, includeHeader, blackAndWhite);
         if (embedXML) {
           document.fire('pedigree:exported');
         }

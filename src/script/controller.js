@@ -179,7 +179,7 @@ var Controller = Class.create({
           undoEvent.memo.properties['setDeathDate']    = node.getDeathDate();
           undoEvent.memo.properties['setGestationAge'] = node.getGestationAge();
           undoEvent.memo.properties['setBirthDate']    = node.getBirthDate();
-          undoEvent.memo.properties['setAdopted']      = node.getAdopted();
+          undoEvent.memo.properties['setAdoptionStatus'] = node.getAdoptionStatus ? node.getAdoptionStatus() : (node.getAdopted() ? 'in' : '');
         }
         if (propertySetFunction == 'setDeathDate') {
           undoEvent.memo.properties['setLifeStatus'] = node.getLifeStatus();
@@ -222,7 +222,12 @@ var Controller = Class.create({
           }
         }
 
-        if (propertySetFunction == 'setAdopted') {
+        if (propertySetFunction == 'setAdoptionStatus') {
+          // adopted in: dashed line of descent; adopted out: solid line
+          needUpdateRelationship = true;
+        }
+
+        if (propertySetFunction == 'setAdopted' || propertySetFunction == 'setAdoptionStatus') {
           needUpdateAncestors = true;
           if (!twinUpdate) {
             twinUpdate = {};
@@ -290,8 +295,10 @@ var Controller = Class.create({
 
     if (needUpdateRelationship) {
       var relID = editor.getGraph().isRelationship(nodeID) ? nodeID : editor.getGraph().getParentRelationship(nodeID);
-      var changeSet = {'moved': [relID]};
-      editor.getView().applyChanges(changeSet, true);
+      if (relID !== null && relID !== undefined) {
+        var changeSet = {'moved': [relID]};
+        editor.getView().applyChanges(changeSet, true);
+      }
     }
 
     editor.getNodeMenu().update();  // for example, user selected a wrong gender in the nodeMenu, which

@@ -236,10 +236,6 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
       }, newG.defaultPersonNodeWidth);
     } else {
       fatherID = findReferencedPerson(fatherLink, 'father');
-      if (newG.properties[fatherID].gender === 'F') {
-        throw 'Unable to import pedigree: a person declared as female is also declared as being a father ('
-        + fatherLink + ')';
-      }
     }
     if (motherLink == null) {
       motherID = newG._addVertex(null, BaseGraph.TYPE.PERSON, {
@@ -248,10 +244,6 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
       }, newG.defaultPersonNodeWidth);
     } else {
       motherID = findReferencedPerson(motherLink, 'mother');
-      if (newG.properties[motherID].gender === 'M') {
-        throw 'Unable to import pedigree: a person declared as male is also declared as being a mother ('
-        + motherLink + ')';
-      }
     }
 
     if (fatherID === personID || motherID === personID) {

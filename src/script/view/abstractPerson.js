@@ -19,6 +19,7 @@ var AbstractPerson = Class.create(AbstractNode, {
   initialize: function($super, x, y, gender, id) {
     this._gender = this.parseGender(gender);
     this._isAdopted = false;
+    this._adoptedOut = false;
     !this._type && (this._type = 'AbstractPerson');
     $super(x, y, id);
   },
@@ -89,8 +90,21 @@ var AbstractPerson = Class.create(AbstractNode, {
      */
   setAdopted: function(isAdopted) {
     this._isAdopted = isAdopted;
-    //TODO: implement adopted and social parents
-    if(isAdopted) {
+    if (isAdopted) {
+      this._adoptedOut = false;
+    }
+    this._updateAdoptedShape();
+  },
+
+  /**
+     * Brackets are drawn for both adoption types (NSGC): adopted in (dashed line from the
+     * adoptive parents) and adopted out (solid line from the biological parents).
+     *
+     * @method _updateAdoptedShape
+     * @private
+     */
+  _updateAdoptedShape: function() {
+    if (this._isAdopted || this._adoptedOut) {
       this.getGraphics().drawAdoptedShape();
     } else {
       this.getGraphics().removeAdoptedShape();
@@ -105,6 +119,43 @@ var AbstractPerson = Class.create(AbstractNode, {
      */
   isAdopted: function() {
     return this._isAdopted;
+  },
+
+  /**
+     * Marks this person as placed for adoption: the parents drawn are the biological parents.
+     *
+     * @method setAdoptedOut
+     */
+  setAdoptedOut: function(adoptedOut) {
+    this._adoptedOut = !!adoptedOut;
+    if (this._adoptedOut) {
+      this._isAdopted = false;
+    }
+    this._updateAdoptedShape();
+  },
+
+  isAdoptedOut: function() {
+    return !!this._adoptedOut;
+  },
+
+  /**
+     * Adoption as one value: '' (not adopted), 'in' (adopted into this family) or 'out' (placed for adoption)
+     *
+     * @method getAdoptionStatus
+     */
+  getAdoptionStatus: function() {
+    return this._isAdopted ? 'in' : (this._adoptedOut ? 'out' : '');
+  },
+
+  setAdoptionStatus: function(status) {
+    if (status === 'in') {
+      this.setAdopted(true);
+    } else if (status === 'out') {
+      this.setAdoptedOut(true);
+    } else {
+      this._adoptedOut = false;
+      this.setAdopted(false);
+    }
   },
 
   // TODO: for automated setMethod -> getMethod used for undo/redo

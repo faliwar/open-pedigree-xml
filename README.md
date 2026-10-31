@@ -21,7 +21,7 @@ Open Pedigree X is a robust browser-based genomic pedigree drawing solution usin
 
 ## What's new in 1.3
 
-<img width="960" alt="Open Pedigree X 1.3 demo: import, find people, cascade testing, chart notes and PDF export" src="./assets/demo-1.3.gif">
+<img width="960" alt="Open Pedigree X demo: import, find people, cascade testing, condition names and colours, chart notes and PDF export" src="./assets/demo-1.4.gif">
 
 * **Find people** with filters (condition, test result, age, ancestry, relationship) highlighted on the chart
 * **Title, header and notes on the chart**, printed as header/footer of the PDF

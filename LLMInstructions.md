@@ -64,7 +64,7 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   </siblings>
   <!-- Optional: Include <conditions> ONLY if the individual has a clinical condition/phenotype -->
   <conditions>
-    <condition code="Gaucher Disease" title="Gaucher Disease" shortenTitle="Gaucher Disease" type="" onset="" atdiag="12 yrs" note="" color="9" visible="1" ontology="All" status="affected">
+    <condition code="Gaucher Disease" title="Gaucher Disease" shortenTitle="Gaucher Disease" type="" onset="" atdiag="12 yrs" note="" color="0" visible="1" ontology="All" status="affected">
       <note value=""/>
     </condition>
   </conditions>
@@ -88,8 +88,8 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * `"2"`: Tested negative (`−`) — only if the text states a negative test result for that person.
   * `"3"`: Documented evaluation (`*`) — only if the text explicitly says the person's records/examination were reviewed. Never use it just because the person is the proband.
 * **`<gender value="..."/>` (CRITICAL MAPPING):**
-  * `"0"`: **Male** (Must correspond to `<male id="..."/>` in `<fam>`).
-  * `"1"`: **Female** (Must correspond to `<female id="..."/>` in `<fam>`).
+  * `"0"`: **Male** (Must correspond to `<male id="..."/>` in `<fam>`, except in same-sex couples).
+  * `"1"`: **Female** (Must correspond to `<female id="..."/>` in `<fam>`, except in same-sex couples).
   * `"2"`: **Unknown sex** (Often used for fetuses or unspecified sex).
 * **`<status value="..."/>` (Vital & Reproductive Status):**
   * `"0"`: Alive.
@@ -112,7 +112,8 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * `"1"`: Obligate or confirmed carrier (asymptomatic/heterozygous carrier).
 * **`<adoption value="..."/>` and `<adoption_from value="..."/>`:**
   * Default: `adoption="0"` and `adoption_from="0"`.
-  * Adopted individual: `adoption="1"` and `adoption_from="1"`.
+  * Adopted into the family (child of the adoptive parents in `<fam>`; dashed line): `adoption="1"` and `adoption_from="0"`.
+  * Placed for adoption (child of the biological parents in `<fam>`; solid line): `adoption="0"` and `adoption_from="1"`.
 * **`<fetus value="..."/>`:**
   * `"0"`: Postnatal individual (default).
   * `"1"`: Fetus / current pregnancy.
@@ -126,11 +127,12 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * If the individual is affected by a disease or clinical phenotype, include `<conditions>` with one `<condition>` element per distinct condition/syndrome:
     ```xml
     <conditions>
-      <condition code="Condition Name" title="Condition Name" shortenTitle="Condition Name" type="" onset="" atdiag="" note="" color="9" visible="1" ontology="All" status="affected">
+      <condition code="Condition Name" title="Condition Name" shortenTitle="Condition Name" type="" onset="" atdiag="" note="" color="N" visible="1" ontology="All" status="affected">
         <note value=""/>
       </condition>
     </conditions>
     ```
+  * **`color` — one colour per condition:** give each distinct condition its own colour index, in the order the conditions first appear: 1st condition `"0"` (red), 2nd `"9"` (blue), 3rd `"1"` (green), 4th `"6"` (purple), 5th `"8"` (orange), 6th `"7"` (teal), 7th `"5"` (gold), 8th `"4"` (light blue), 9th `"3"` (olive), 10th `"2"` (grey). The same condition always keeps the same index in every individual; two different conditions **never** share an index (e.g., melanoma `"0"`, prostate cancer `"9"`, bladder cancer `"1"`).
   * Keep `code`, `title`, and `shortenTitle` concise (e.g., `"Gaucher Disease"`, `"Parkinson disease"`, `"Ataxic syndrome with myoclonus"`).
   * Ages tied to a condition go in its attributes, written like `<age>` (`"N yrs"`, `"N mo"`): `onset` = age at symptom onset, `atdiag` = age at diagnosis (e.g., "breast cancer at 45" → `atdiag="45 yrs"`). They are displayed on the chart (e.g., `dx 45y`).
   * The condition names are displayed on the chart: **never repeat them in `<comments>`**. Use `<comments>` only for chronology that the attributes cannot hold (e.g., several symptoms at different ages), genotypes, or qualifiers.
@@ -180,7 +182,7 @@ Each parental union or connected single-parent offspring group is represented by
 ```
 
 * **Missing parents:** A `<fam>` may omit `<male>` **or** `<female>` (single-parent family), but only when the single parent present is **already connected** to the rest of the pedigree (e.g., the proband's mother, who also appears in a couple `<fam>` as a child or partner). A `<fam>` must **never** omit both parents. Missing ancestors needed to connect a person to the pedigree must be added as anonymous placeholders (see "Connectivity Rule").
-* **Gender Consistency:** An individual referenced in `<male id="X"/>` **must** have `<gender value="0"/>`. An individual referenced in `<female id="Y"/>` **must** have `<gender value="1"/>`.
+* **Gender Consistency:** An individual referenced in `<male id="X"/>` **must** have `<gender value="0"/>`. An individual referenced in `<female id="Y"/>` **must** have `<gender value="1"/>`. **Exception — same-sex couples:** put one partner in `<male id="..."/>` and the other in `<female id="..."/>` anyway; each keeps their real `<gender>` (e.g., two women both have `<gender value="1"/>`).
 * **Consanguinity:** Set `consanguinity="0"` by default. If the couple is explicitly stated to be consanguineous (e.g., first cousins), set `consanguinity="1"` (or connect their shared ancestry through `<fam>` blocks if the exact ancestral branch is known).
 * **Divorce / Separation (`ex`):** Default is `ex="0"`. Set `ex="1"` if the couple is divorced/separated.
 
@@ -259,6 +261,20 @@ Open Pedigree imports **a single connected graph only**. If any `<indi>` (or gro
 
 ---
 
+## Reading a Pedigree Drawing (photo, scan or hand-drawn chart)
+
+When the input is an image of a pedigree, the hard part is seeing **which line each person hangs from**. Follow these rules; they correct the most common mistakes:
+
+1. **Follow every line of descent to its relationship line.** A child belongs to the couple (or single parent) whose relationship line the child's vertical line starts from — not to the nearest person on the drawing. Trace each child up before assigning it.
+2. **Earlier partnerships (`//` or a second partner on the same person):** a person drawn with two partners has two separate `<fam>` blocks. Children whose line descends from the earlier relationship (often marked `//`) are **half-siblings** of the children of the later relationship: put them only in the earlier `<fam>`, never in the `<children>` of the later one, and do not make them full siblings of the proband. Their `<siblings>` lists only contain siblings of the same `<fam>`.
+3. **Written notes are not drawn people.** Text such as "2 step-children", "3 children", "twins", "has kids" next to a person does not refer to people drawn elsewhere on the chart. Never move or reuse a drawn person to "fill" such a note: put the note in that person's `<comments>`, or, when a symbol with a number is drawn (e.g., a diamond with "3"), create **one** `<indi>` for the group with `<multiple value="1">3</multiple>`.
+4. **Shade only the conditions of the chart's key/legend.** If the drawing has a KEY, create `<conditions>` only for the conditions listed there (and for symbols drawn shaded). Risk factors and other findings written next to a person (smoker, ETOH/alcohol, diabetes, renal failure, cause of death not in the key, ...) go in `<comments>` or `<cause>`, not in `<conditions>`.
+5. **Separation (`ex="1"`) only where it is drawn:** set it only when `//` crosses that couple's own relationship line. A `//` on a person's other relationship does not apply here.
+6. **Do not invent partners to hold children** of a person drawn without one: use a single-parent `<fam>` for that person (see "Family Element"). Never pair two siblings, or two people who are not drawn as a couple, to hold children.
+7. **Labels belong to the nearest symbol above them**, in the same column: names, ages and notes are written under (or beside) the person they describe.
+
+---
+
 ## Mandatory Workflow
 
 ### Step 1 — Internal Family Extraction
@@ -293,13 +309,14 @@ Ask these concisely **only** when needed to connect a described relative (Connec
 Verify all of the following before outputting the XML:
 1. The XML is well-formed and all tags are properly closed.
 2. Every `<indi id="..."/>` is a unique integer, and only the proband has `pat="1"`. `<first_name>`/`<last_name>` contain only personal names stated in the text — never relationship words ("Mãe", "Tio paterno", "Probando", "Filho"...); otherwise they are empty. `<marked_by>` is `"0"` for everyone (proband included) unless a test result or documented evaluation is stated for that person.
-3. Gender codes match `<fam>` roles (`gender="0"` for `<male>`, `gender="1"` for `<female>`).
+3. Gender codes match `<fam>` roles (`gender="0"` for `<male>`, `gender="1"` for `<female>`), except in same-sex couples.
 4. Every ID referenced in `<fam><male>`, `<fam><female>`, `<fam><children><child>`, and `<indi><siblings><sibling>` points to an existing `<indi>`.
 5. Sibling lists in `<indi><siblings>` are 100% reciprocal and match the `<children>` lists in `<fam>`.
 6. Vital status (`status="1"` for deceased), age at death, age of onset, and current age are properly separated: every stated current age is in `<age>` (`"N yrs"` / `"N mo"` / `"N wk"`), and **no `<comments>` contains an age, a condition name already in `<conditions>`, or words like "healthy"/"hígido"**.
 7. **Connectivity (most common cause of import failure):** starting at the proband (id 0) and walking through every `<fam>` (parents ↔ children, both directions, and partner links), **every `<indi>` is reached**. Verify each `<indi>` id and the `<fam>` it belongs to; if any id is reached by no path, add placeholders or fix links before delivering.
 8. No `<fam>` lacks both `<male>` and `<female>`; every `<fam>` with a single parent has that parent also present in another `<fam>` (connected).
 9. Every placeholder has empty `<comments>` and no clinical data, and every placeholder and assumption is listed in the final notes below the XML (not inside the file).
+10. **For a drawn pedigree:** every child's `<fam>` is the relationship line its descent line starts from; children of an earlier partnership are not in the later `<fam>`; no drawn person was reused for a written note ("2 step-children"); `<conditions>` contain only conditions of the chart's key or drawn shaded; `ex="1"` only where `//` crosses that couple's line.
 
 ---
 
@@ -308,6 +325,9 @@ Verify all of the following before outputting the XML:
 * **If critical structural ambiguities exist:** Ask the necessary clarifying questions concisely first.
 * **When ready to generate:** Output the complete XML inside a **single, clean `xml` code block** so the user can copy it with one click and paste it directly into the Open Pedigree app's "Paste XML" dialog (or save it as a `.xml` file if preferred).
 * Briefly list below the XML code block (outside the XML) any details that remained unknown, **every anonymous placeholder created (with its `id`), and every assumption made to connect relatives (sex, side of the family)**, so the user can review or adjust them.
+* **When the input was a drawing (image/scan),** also add a short **check list of parents**, one line per person who has parents in the file, so the user can compare it with the drawing in seconds, e.g.:
+  * `Jill (id 0): daughter of Thomas (5) and Evelyn (4)`
+  * `Patrick (9): son of Thomas (5) and his ex-partner (6) — half-brother of Jill`
 
 ---
 

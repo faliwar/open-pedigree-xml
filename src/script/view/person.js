@@ -66,6 +66,7 @@ var Person = Class.create(AbstractPerson, {
     this._conceptionDate = '';
     this._gestationAge = '';
     this._isAdopted = false;
+    this._adoptedOut = false;
     this._externalID = '';
     this._lifeStatus = 'alive';
     this._childlessStatus = null;
@@ -342,6 +343,7 @@ var Person = Class.create(AbstractPerson, {
     this.getGraphics().updateAncestryLabel && this.getGraphics().updateAncestryLabel();
   },
 
+
   /**
    * Ashkenazi Jewish ancestry, derived from getAncestry() (used by CanRisk/BOADICEA)
    *
@@ -447,7 +449,7 @@ var Person = Class.create(AbstractPerson, {
 
       if(this.isFetus()) {
         this.setBirthDate('');
-        this.setAdopted(false);
+        this.setAdoptionStatus('');
         this.setChildlessStatus(null);
       }
       this.getGraphics().updateLifeStatusShapes(oldStatus);
@@ -1134,7 +1136,7 @@ var Person = Class.create(AbstractPerson, {
       hpoTerms.push({id: hpo, value: termName});
     });
 
-    var cantChangeAdopted = this.isFetus() || editor.getGraph().hasToBeAdopted(this.getID());
+    var cantChangeAdopted = editor.getGraph().hasToBeAdopted(this.getID());
 
     var inactiveMonozygothic = true;
     var disableMonozygothic  = true;
@@ -1177,7 +1179,7 @@ var Person = Class.create(AbstractPerson, {
       disorders:     {value : disorders},
       candidate_genes: {value : this.getGenes()},
       clinical_details: {value : { tests: this.getGeneticTests(), details: this.getDisorderDetails(), disorders: disorders, candidateGenes: this.getGenes().slice(0) }},
-      adopted:       {value : this.isAdopted(), inactive: cantChangeAdopted},
+      adoption:      {value : this.getAdoptionStatus(), inactive: this.isFetus(), disabled: cantChangeAdopted ? ['', 'out'] : false},
       state:         {value : this.getLifeStatus(), inactive: inactiveStates},
       date_of_death: {value : this.getDeathDate(), inactive: this.isFetus()},
       comments:      {value : this.getComments(), inactive: false},
@@ -1223,6 +1225,9 @@ var Person = Class.create(AbstractPerson, {
     }
     if (this.isAdopted()) {
       info['isAdopted'] = this.isAdopted();
+    }
+    if (this.isAdoptedOut()) {
+      info['adoptedOut'] = true;
     }
     if (this.getLifeStatus() != 'alive') {
       info['lifeStatus'] = this.getLifeStatus();
@@ -1353,6 +1358,8 @@ var Person = Class.create(AbstractPerson, {
       if(info.hasOwnProperty('isAdopted') && this.isAdopted() != info.isAdopted) {
         this.setAdopted(info.isAdopted);
       }
+      this._adoptedOut = !!info.adoptedOut && !this.isAdopted();
+      this._updateAdoptedShape();
       if(info.hasOwnProperty('lifeStatus') && this.getLifeStatus() != info.lifeStatus) {
         this.setLifeStatus(info.lifeStatus);
       }
