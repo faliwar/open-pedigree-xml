@@ -571,12 +571,12 @@ PedigreeExport._bwDrawSwatch = function(doc, i, x, y, size) {
   doc.restore();
 };
 
-PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true, blackAndWhite = false){
-  var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
-  pedigreeImage = PedigreeExport._processPdfSvg(pedigreeImage, showNumbers);
-
+/**
+ * The legends shown on screen (conditions, genes, phenotypes...), as
+ * [{ heading, items: [{ colour, name, cases }] }], in screen order.
+ */
+PedigreeExport._readLegend = function() {
   let legend = [];
-  let itemCount = 0;
   let container = document.getElementById('legend-container');
   let rgbRegex = /^rgb\(([0-9]+),\s*([0-9]+),\s*([0-9]+)\)$/;
 
@@ -625,7 +625,6 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
         }
 
         legendSection.items.push({ colour: colour || '#CCCCCC', name: name, cases: cases });
-        itemCount++;
       }
 
       if (legendSection.items.length > 0 || legendSection.heading) {
@@ -633,10 +632,266 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
       }
     }
   }
+  return legend;
+};
+
+/** Legend colours in order: colour i is drawn with black-and-white pattern i */
+var legendColoursOf = function(legend) {
+  var colours = [];
+  legend.forEach(function(cat) { cat.items.forEach(function(item) { colours.push(item.colour); }); });
+  return colours;
+};
+
+/** Pattern index of each legend item (a colour used twice keeps its first pattern, as in the drawing) */
+var legendPatternIndex = function(colours) {
+  var first = {};
+  return colours.map(function(c, i) {
+    var hex = toHex(c);
+    if (!first.hasOwnProperty(hex)) first[hex] = i;
+    return first[hex];
+  });
+};
+
+/**
+ * Draws the legend inside the SVG, next to the pedigree (left or right, aligned to the top or
+ * the bottom), and enlarges the drawing area to fit it.
+ * @param {String} svgString
+ * @param {Array} legend as returned by _readLegend()
+ * @param {String} position 'TopRight' | 'BottomRight' | 'TopLeft' | 'BottomLeft'
+ * @param {Boolean} blackAndWhite swatches drawn with the black-and-white patterns
+ */
+PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhite) {
+  if (!legend || !legend.length) return svgString;
+  var dom = new DOMParser().parseFromString(svgString, 'image/svg+xml');
+  if (dom.getElementsByTagName('parsererror').length) return svgString;
+  var svgEl = dom.documentElement;
+  var ns = 'http://www.w3.org/2000/svg';
+  var vb = (svgEl.getAttribute('viewBox') || '').split(/[\s,]+/).map(parseFloat);
+  if (vb.length !== 4 || vb.some(isNaN)) vb = [0, 0, parseFloat(svgEl.getAttribute('width')) || 1200, parseFloat(svgEl.getAttribute('height')) || 900];
+
+  // sizes in drawing units (a person symbol is about 80 wide)
+  var FONT = 'Arial, Helvetica, sans-serif';
+  // same text size as the person labels (20)
+  var HEAD = 24, TEXT = 20, SWATCH = 20, ROW = 31, GAP = 12, PAD = 40;
+  var measure = document.createElement('canvas').getContext('2d');
+  var width = function(text, size, bold) {
+    measure.font = (bold ? 'bold ' : '') + size + 'px Arial';
+    return measure.measureText(text).width;
+  };
+  var label = function(item) { return (item.name || '') + (item.cases ? ' (' + item.cases + ')' : ''); };
+
+  var legendW = 0, legendH = 0;
+  legend.forEach(function(cat, c) {
+    if (cat.heading) {
+      legendW = Math.max(legendW, width(cat.heading, HEAD, true));
+      legendH += ROW + 4;
+    }
+    cat.items.forEach(function(item) {
+      legendW = Math.max(legendW, SWATCH + 10 + width(label(item), TEXT, false));
+      legendH += ROW;
+    });
+    if (c < legend.length - 1) legendH += GAP;
+  });
+
+  var right = position !== 'TopLeft' && position !== 'BottomLeft';
+  var bottom = position === 'BottomLeft' || position === 'BottomRight';
+  var lx = right ? vb[0] + vb[2] + PAD : vb[0] - PAD - legendW;
+  var ly = bottom ? vb[1] + vb[3] - legendH : vb[1];
+
+  var colours = legendColoursOf(legend);
+  var patternOf = legendPatternIndex(colours);
+  var group = dom.createElementNS(ns, 'g');
+  group.setAttribute('data-opx-legend', '1');
+  var y = ly, k = 0;
+  var add = function(tag, attrs, text) {
+    var el = dom.createElementNS(ns, tag);
+    Object.keys(attrs).forEach(function(a) { el.setAttribute(a, attrs[a]); });
+    if (text !== undefined) el.textContent = text;
+    group.appendChild(el);
+    return el;
+  };
+  legend.forEach(function(cat, c) {
+    if (cat.heading) {
+      add('text', { x: lx, y: (y + HEAD).toFixed(1), 'font-family': FONT, 'font-size': HEAD, 'font-weight': 'bold', fill: blackAndWhite ? '#000000' : '#1F2937' }, cat.heading);
+      y += ROW + 4;
+    }
+    cat.items.forEach(function(item) {
+      var sx = lx, sy = y + (ROW - SWATCH) / 2 - 2;
+      if (blackAndWhite) {
+        var i = patternOf[k], kind = bwKind(i);
+        add('rect', { x: sx, y: sy.toFixed(1), width: SWATCH, height: SWATCH, fill: kind === 'solid' ? '#000000' : (kind === 'grey' ? BW_GREY : '#FFFFFF') });
+        if (kind !== 'solid' && kind !== 'grey') {
+          var geo = PedigreeExport._bwGeometry(i, [[sx, sy], [sx + SWATCH, sy], [sx + SWATCH, sy + SWATCH], [sx, sy + SWATCH]], 4.5);
+          geo.segments.forEach(function(sg) {
+            add('line', { x1: sg[0].toFixed(2), y1: sg[1].toFixed(2), x2: sg[2].toFixed(2), y2: sg[3].toFixed(2), stroke: '#000000', 'stroke-width': 1.1 });
+          });
+          geo.dots.forEach(function(d) {
+            add('circle', { cx: d[0].toFixed(2), cy: d[1].toFixed(2), r: 1.2, fill: '#000000' });
+          });
+        }
+        add('rect', { x: sx, y: sy.toFixed(1), width: SWATCH, height: SWATCH, fill: 'none', stroke: '#000000', 'stroke-width': 1.2 });
+      } else {
+        add('rect', { x: sx, y: sy.toFixed(1), width: SWATCH, height: SWATCH, rx: 3, fill: toHex(item.colour) || '#CCCCCC', stroke: 'rgba(0,0,0,0.25)', 'stroke-width': 1 });
+      }
+      add('text', { x: sx + SWATCH + 10, y: (y + ROW / 2 + TEXT * 0.35).toFixed(1), 'font-family': FONT, 'font-size': TEXT, fill: blackAndWhite ? '#000000' : '#374151' }, label(item));
+      y += ROW;
+      k++;
+    });
+    if (c < legend.length - 1) y += GAP;
+  });
+  svgEl.appendChild(group);
+
+  // enlarge the drawing area to the pedigree plus the legend, with a small margin
+  var minX = Math.min(vb[0], lx) - 10, minY = Math.min(vb[1], ly) - 10;
+  var maxX = Math.max(vb[0] + vb[2], lx + legendW) + 10, maxY = Math.max(vb[1] + vb[3], ly + legendH) + 10;
+  svgEl.setAttribute('viewBox', [minX, minY, maxX - minX, maxY - minY].map(function(n) { return n.toFixed(1); }).join(' '));
+  svgEl.setAttribute('width', (maxX - minX).toFixed(1));
+  svgEl.setAttribute('height', (maxY - minY).toFixed(1));
+  return new XMLSerializer().serializeToString(dom);
+};
+
+/**
+ * SVG file for download: the drawing, optionally in black and white and with the legend.
+ * @param {Object} options { includeLegend, legendPos, blackAndWhite }
+ */
+PedigreeExport.exportAsSVGFile = function(pedigree, privacySetting = 'all', options = {}) {
+  var svg = PedigreeExport.exportAsSVG(pedigree, privacySetting);
+  var legend = PedigreeExport._readLegend();
+  if (options.blackAndWhite) {
+    svg = PedigreeExport._applyBlackAndWhite(svg, legendColoursOf(legend));
+  }
+  if (options.includeLegend) {
+    svg = PedigreeExport._addSvgLegend(svg, legend, options.legendPos || 'TopRight', !!options.blackAndWhite);
+  }
+  return svg;
+};
+
+// ===============================================================================================
+// PNG export: the SVG export drawn on a canvas at print resolution, with the DPI written in the
+// file (pHYs chunk) so word processors and print layouts place it at the right physical size.
+
+var CRC_TABLE = null;
+var crc32 = function(bytes) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      CRC_TABLE[n] = c >>> 0;
+    }
+  }
+  var crc = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+};
+
+/** PNG bytes with a pHYs chunk (pixels per metre) inserted right after IHDR */
+var withDpi = function(bytes, dpi) {
+  var ppm = Math.round(dpi / 0.0254);
+  var chunk = new Uint8Array(4 + 4 + 9 + 4);
+  var view = new DataView(chunk.buffer);
+  view.setUint32(0, 9);
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // "pHYs"
+  view.setUint32(8, ppm);
+  view.setUint32(12, ppm);
+  chunk[16] = 1; // unit: metre
+  view.setUint32(17, crc32(chunk.subarray(4, 17)));
+  var ihdrEnd = 8 + 4 + 4 + 13 + 4; // signature + IHDR (length, type, data, crc)
+  var out = new Uint8Array(bytes.length + chunk.length);
+  out.set(bytes.subarray(0, ihdrEnd), 0);
+  out.set(chunk, ihdrEnd);
+  out.set(bytes.subarray(ihdrEnd), ihdrEnd + chunk.length);
+  return out;
+};
+
+/**
+ * PNG image of the pedigree.
+ * @param {Object} options
+ *   dpi            print resolution (default 300); drawing units are CSS pixels at 96 per inch
+ *   transparent    no white background
+ *   includeLegend, legendPos, blackAndWhite   as for the SVG file
+ *   maxDimension   largest width or height in pixels (browsers cannot draw huge canvases);
+ *                  a bigger pedigree is drawn smaller but keeps the DPI, so it prints smaller
+ * @return {Promise<Object>} { blob, width, height, dpi, reduced }
+ */
+PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options = {}) {
+  var dpi = options.dpi || 300;
+  var svg = PedigreeExport.exportAsSVGFile(pedigree, privacySetting, options);
+  var root = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+  var w = parseFloat(root.getAttribute('width')) || 1200;
+  var h = parseFloat(root.getAttribute('height')) || 900;
+  var scale = dpi / 96;
+  var maxDim = options.maxDimension || 16000;
+  var maxArea = 120e6;
+  var reduced = false;
+  if (w * scale > maxDim || h * scale > maxDim) {
+    scale = Math.min(maxDim / w, maxDim / h);
+    reduced = true;
+  }
+  if (w * h * scale * scale > maxArea) {
+    scale = Math.sqrt(maxArea / (w * h));
+    reduced = true;
+  }
+  var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+
+  return new Promise(function(resolve, reject) {
+    var url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+    var img = new Image();
+    img.onload = function() {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!options.transparent) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, cw, ch);
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function(blob) {
+          if (!blob) return reject(new Error('The image is too large to draw.'));
+          blob.arrayBuffer().then(function(buf) {
+            var bytes = withDpi(new Uint8Array(buf), dpi);
+            resolve({ blob: new Blob([bytes], { type: 'image/png' }), width: cw, height: ch, dpi: dpi, reduced: reduced });
+          }, reject);
+        }, 'image/png');
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = function() {
+      URL.revokeObjectURL(url);
+      reject(new Error('The drawing could not be converted to an image.'));
+    };
+    img.src = url;
+  });
+};
+
+/**
+ * Copies the pedigree to the clipboard as a PNG image. Must be called from a click (the
+ * browser requires a user action); the image is produced while the clipboard waits for it.
+ * @return {Promise}
+ */
+PedigreeExport.copyAsPNG = function(pedigree, privacySetting = 'all', options = {}) {
+  if (!(navigator.clipboard && navigator.clipboard.write && typeof window.ClipboardItem === 'function')) {
+    return Promise.reject(new Error('This browser cannot copy images to the clipboard.'));
+  }
+  var png = PedigreeExport.exportAsPNG(pedigree, privacySetting, options);
+  var item = new window.ClipboardItem({ 'image/png': png.then(function(r) { return r.blob; }) });
+  return navigator.clipboard.write([item]).then(function() { return png; });
+};
+
+PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true, blackAndWhite = false){
+  var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
+  pedigreeImage = PedigreeExport._processPdfSvg(pedigreeImage, showNumbers);
+
+  let legend = PedigreeExport._readLegend();
+  let itemCount = legend.reduce(function(n, cat) { return n + cat.items.length; }, 0);
 
   // black and white: colour i of the legend -> fill pattern i, other colours -> grey
-  let legendColours = [];
-  legend.forEach(function(cat) { cat.items.forEach(function(item) { legendColours.push(item.colour); }); });
+  let legendColours = legendColoursOf(legend);
   if (blackAndWhite) {
     pedigreeImage = PedigreeExport._applyBlackAndWhite(pedigreeImage, legendColours);
   }

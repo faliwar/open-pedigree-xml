@@ -1,6 +1,8 @@
 import { ChildlessBehavior } from 'pedigree/view/abstractNode';
 import AbstractNode from 'pedigree/view/abstractNode';
 import PartnershipVisuals from 'pedigree/view/partnershipVisuals';
+import { inbreedingOfChildren, formatCoefficient } from 'pedigree/model/kinship';
+import { getLanguage, translate } from 'pedigree/i18n';
 
 /**
  * Partnership is a class that represents the relationship between two AbstractNodes
@@ -129,7 +131,33 @@ var Partnership = Class.create(AbstractNode, {
       identifier:    {value : this.getID()},
       childlessSelect : {value : this.getChildlessStatus() ? this.getChildlessStatus() : 'none', inactive: childlessInactive},
       consangr: {value: this._consangrMode, inactive: false},
+      inbreeding: this._inbreedingSummary(),
       broken: {value: this.getBrokenStatus(), inactive: false}
+    };
+  },
+
+  /**
+   * Wright's F of the couple's children, for the menu; hidden for unrelated couples
+   */
+  _inbreedingSummary: function() {
+    var graph = editor.getGraph();
+    var partners = [];
+    try { partners = graph.DG.GG.getParents(this.getID()); } catch (e) {}
+    if (partners.length !== 2) return { value: null, inactive: true };
+    var f = inbreedingOfChildren(graph, partners[0], partners[1]);
+    if (!(f > 0)) {
+      // marked consanguineous, but the common ancestors are not drawn
+      return this.getConsanguinity() === 'Y'
+        ? { value: { text: translate('Not calculated: the common ancestors are not in the pedigree.') }, inactive: false }
+        : { value: null, inactive: true };
+    }
+    var lang = getLanguage();
+    return {
+      value: {
+        text: 'F = ' + formatCoefficient(f, lang),
+        hint: translate('Coefficient of relationship of the couple:') + ' r = ' + formatCoefficient(2 * f, lang)
+      },
+      inactive: false
     };
   },
 

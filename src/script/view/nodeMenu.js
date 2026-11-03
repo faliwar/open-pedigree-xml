@@ -875,6 +875,13 @@ var NodeMenu = Class.create({
       result.inputsContainer.insert(chips).insert(select).insert(other);
       return result;
     },
+    // Read-only computed value (e.g. Wright's F of a couple's children) with an optional hint
+    'info-text' : function (data) {
+      var result = this._generateEmptyField(data);
+      result.inputsContainer.insert(new Element('div', {'class' : 'menu-info-text'}));
+      result.inputsContainer.insert(new Element('div', {'class' : 'menu-info-hint'}));
+      return result;
+    },
     // Read-only summary of genetic tests and diagnosis details, edited in its own dialog
     'clinical-summary' : function (data) {
       var result = this._generateEmptyField(data);
@@ -1157,6 +1164,11 @@ var NodeMenu = Class.create({
       });
       select.insert(new Element('option', {'value' : '__other'}).update(translate('Other (type)…')));
     },
+    'info-text' : function (container, value) {
+      var text = container.down('.menu-info-text'), hint = container.down('.menu-info-hint');
+      text && text.update(value && value.text ? String(value.text).escapeHTML() : '');
+      hint && hint.update(value && value.hint ? String(value.hint).escapeHTML() : '');
+    },
     'clinical-summary' : function (container, value) {
       var box = container.down('.clinical-summary');
       if (!box) {
@@ -1249,6 +1261,9 @@ var NodeMenu = Class.create({
     'clinical-summary' : function (container, inactive) {
       this._toggleFieldVisibility(container, inactive);
     },
+    'info-text' : function (container, inactive) {
+      this._toggleFieldVisibility(container, inactive);
+    },
     'ancestry-picker' : function (container, inactive) {
       this._toggleFieldVisibility(container, inactive);
     }
@@ -1307,6 +1322,8 @@ var NodeMenu = Class.create({
       // FIXME: Not implemented
     },
     'clinical-summary' : function (container, disabled) {
+    },
+    'info-text' : function (container, disabled) {
     },
     'ancestry-picker' : function (container, disabled) {
     }

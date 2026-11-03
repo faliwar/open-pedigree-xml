@@ -29,6 +29,7 @@ import { PedigreeInfo } from 'pedigree/model/pedigreeInfo';
 import PedigreeHeader from 'pedigree/view/pedigreeHeader';
 import AnnotationLayer from 'pedigree/view/annotationLayer';
 import DraftStore from 'pedigree/view/draftStore';
+import FamilySummaryDialog from 'pedigree/view/familySummaryDialog';
 import StartScreen from 'pedigree/view/startScreen';
 import DriveBackend from 'pedigree/DriveBackend';
 
@@ -94,6 +95,7 @@ var PedigreeEditor = Class.create({
     this._history = new ModificationHistory();
     this._cascadeTestingDialog = new CascadeTestingDialog();
     this._searchPanel = new SearchPanel();
+    this._familySummaryDialog = new FamilySummaryDialog();
     this._clinicalDetailsDialog = new ClinicalDetailsDialog();
     this._templateSelector = new TemplateSelector();
     this._labelOptionsSelector = new LabelOptionsSelector();
@@ -159,6 +161,17 @@ var PedigreeEditor = Class.create({
     var infoButton = $('action-pedigree-info');
     infoButton && infoButton.on('click', function(event) {
       editor.getPedigreeHeader().show();
+    });
+
+    // the pedigree as a 300 DPI PNG with its legend, ready to paste into a report
+    var copyImageButton = $('action-copy-image');
+    copyImageButton && copyImageButton.on('click', function(event) {
+      ExportSelector.exportPNG('all', { dpi: 300, includeLegend: true, legendPos: 'TopRight', blackAndWhite: false }, true);
+    });
+
+    var summaryButton = $('action-family-summary');
+    summaryButton && summaryButton.on('click', function(event) {
+      editor.getFamilySummaryDialog().show();
     });
 
     var newsButton = $('action-whats-new');
@@ -715,6 +728,10 @@ var PedigreeEditor = Class.create({
     return this._annotationLayer;
   },
 
+  getFamilySummaryDialog: function() {
+    return this._familySummaryDialog;
+  },
+
   getStartScreen: function() {
     return this._startScreen;
   },
@@ -1165,6 +1182,11 @@ var PedigreeEditor = Class.create({
         ],
         'default' : 'A',
         'function' : 'setConsanguinity'
+      },
+      {
+        'name' : 'inbreeding',
+        'label' : "Inbreeding coefficient of the children (Wright's F)",
+        'type' : 'info-text'
       },
       {
         'name' : 'broken',

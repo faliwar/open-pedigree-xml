@@ -119,6 +119,10 @@ var LabelOptionsSelector = Class.create({
       'Number generations with Roman numerals and individuals from left to right, as in clinical pedigree notation.',
       !!(overlay && overlay.isNumberingVisible()));
 
+    var inbreedingOpt = createOptionRow('cb-show-inbreeding', 'Inbreeding coefficient (F)',
+      "Write Wright's inbreeding coefficient of the children (e.g. F = 1/16 for first cousins) above the line of each consanguineous couple.",
+      !!(overlay && overlay.isInbreedingVisible()));
+
     var nameCard = new Element('label', { 'class': 'label-option-name-row', 'for': 'select-name-format',
       'title': "Choose how much of each individual's name to display on the pedigree chart." });
     var nameTitle = new Element('span', { 'class': 'label-option-section' }).update('Name');
@@ -156,11 +160,14 @@ var LabelOptionsSelector = Class.create({
 
     optionsList.insert(nameCard);
     optionsList.insert(section('Show under each person', [disordersOpt, hpoOpt, testsOpt, ancestryOpt, commentsOpt, prefixesOpt, genesOpt]));
-    optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt]));
+    optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt, inbreedingOpt]));
     mainDiv.insert(optionsList);
 
     numberingOpt.input.observe('change', function() {
       overlay && overlay.setNumberingVisible(numberingOpt.input.checked);
+    });
+    inbreedingOpt.input.observe('change', function() {
+      overlay && overlay.setInbreedingVisible(inbreedingOpt.input.checked);
     });
 
     var applyCurrentValues = function() {

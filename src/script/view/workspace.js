@@ -448,6 +448,8 @@ var Workspace = Class.create({
           { key : 'add-note',  label : translate('Add note on chart'), icon : 'sticky-note'},
           { key : 'history',   label : translate('History'),   icon : 'history'},
           { key : 'cascade',   label : translate('Cascade testing'), icon : 'project-diagram'},
+          { key : 'family-summary', label : translate('Family history summary'), icon : 'file-medical-alt'},
+          { key : 'copy-image', label : translate('Copy as image'), icon : 'image'},
           { key : 'shortcuts', label : translate('Keyboard shortcuts'), icon : 'keyboard'},
           { key : 'whats-new', label : translate("What's new"), icon : 'star'},
           { separator : true },

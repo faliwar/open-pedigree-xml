@@ -284,7 +284,8 @@ var topologicalPersons = function(graph) {
  *              test result) for each state; persons left out carry no evidence
  * @return {Object} { probs: {id: [p0, p1, p2, p3]}, warning: '', ibd: probability that the
  *   index's two copies descend from one ancestral copy (biallelic only), deNovoIndex: probability
- *   that the variant arose de novo in the index }
+ *   that the variant arose de novo in the index, evidenceLikelihood: probability of the evidence
+ *   under this mode given that the index carries the variant (1 without evidence) }
  *   p(any) = p1 + p2 + p3 is the chance of carrying at least one familial allele;
  *   p3 is the chance of carrying both (biallelic AR: affected).
  *   All probabilities are conditioned on the evidence given in options.likelihood.
@@ -315,6 +316,7 @@ var computeVariantRisks = function(graph, indexId, mode, indexGenotype, alleleFr
   var totals = {};
   order.forEach(function(id) { totals[id] = [0, 0, 0, 0]; });
   var totalWeight = 0;
+  var priorWeight = 0;   // the same sum without the evidence, to normalize it
   var ibdWeight = 0;
   var deNovoIndexWeight = 0;
 
@@ -343,6 +345,7 @@ var computeVariantRisks = function(graph, indexId, mode, indexGenotype, alleleFr
       // prior genotype distribution of every person under this line of origin
       var prior = forwardPrior(mode, order, slotsOf, sexOf, received);
       var post = prior;
+      priorWeight += w;
       if (likelihood) {
         // condition on phenotypes and test results: weight of this line and posteriors
         var peeled = peelEvidence(mode, order, slotsOf, sexOf, received, prior, likelihood);
@@ -374,6 +377,8 @@ var computeVariantRisks = function(graph, indexId, mode, indexGenotype, alleleFr
   return {
     probs: probs,
     warning: warning,
+    // P(evidence | mode, the index carries the variant): compares how well modes explain the pedigree
+    evidenceLikelihood: priorWeight > 0 ? totalWeight / priorWeight : 0,
     ibd: (biallelic && totalWeight > 0) ? ibdWeight / totalWeight : null,
     deNovoIndex: (deNovo > 0 && totalWeight > 0) ? deNovoIndexWeight / totalWeight : null
   };

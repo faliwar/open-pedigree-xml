@@ -263,4 +263,79 @@ var findBloodRelatives = function(graph, indexId, maxDegree) {
   return result;
 };
 
-export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents };
+// ---------------------------------------------------------------------------------------------
+// Wright's coefficient of inbreeding
+
+/**
+ * Kinship (coancestry) and inbreeding for one graph, computed recursively with memoization:
+ *   phi(a, a) = (1 + F(a)) / 2
+ *   phi(a, b) = (phi(father of x, y) + phi(mother of x, y)) / 2, where x is whichever of a, b is
+ *               not an ancestor of the other (unknown parents are unrelated founders)
+ *   F(x)      = phi(father of x, mother of x)
+ * so inbred common ancestors are accounted for. Adopted people are not linked to their adoptive
+ * parents. F of a child of a couple = phi(partner 1, partner 2); the coefficient of relationship
+ * of the couple is r = 2 phi (when the partners are not inbred themselves).
+ */
+var makeInbreeding = function(graph) {
+  var ancCache = {}, phiMemo = {}, fMemo = {};
+  var isAncestor = function(a, b) {
+    return String(a) !== String(b) && buildAncestorMap(graph, b, ancCache).hasOwnProperty(a);
+  };
+  var F = function(x) {
+    if (fMemo.hasOwnProperty(x)) return fMemo[x];
+    fMemo[x] = 0; // guards against (invalid) cycles
+    var p = getBiologicalParents(graph, x);
+    var v = p.length === 2 ? phi(p[0], p[1]) : 0;
+    fMemo[x] = v;
+    return v;
+  };
+  var phi = function(a, b) {
+    if (String(a) === String(b)) return (1 + F(a)) / 2;
+    var key = a < b ? a + '|' + b : b + '|' + a;
+    if (phiMemo.hasOwnProperty(key)) return phiMemo[key];
+    phiMemo[key] = 0;
+    var x = a, y = b;
+    if (isAncestor(a, b)) { x = b; y = a; }
+    var v = 0;
+    getBiologicalParents(graph, x).forEach(function(parent) { v += phi(parent, y) / 2; });
+    phiMemo[key] = v;
+    return v;
+  };
+  return { kinship: phi, inbreeding: F };
+};
+
+/** F of a child of these two people */
+var inbreedingOfChildren = function(graph, partner1, partner2) {
+  return makeInbreeding(graph).kinship(partner1, partner2);
+};
+
+/** F of a person (from the relationship between the parents) */
+var inbreedingOf = function(graph, id) {
+  return makeInbreeding(graph).inbreeding(id);
+};
+
+/**
+ * "1/16 (6.25%)" in English, "1/16 (6,25%)" in Portuguese; a fraction only when it is exact
+ * (powers of two up to 1/4096), otherwise the percentage alone.
+ */
+var formatCoefficient = function(value, lang) {
+  if (!(value > 0)) return '0';
+  var fraction = '';
+  for (var den = 2; den <= 4096; den *= 2) {
+    var num = value * den;
+    if (Math.abs(num - Math.round(num)) < 1e-9) {
+      var n = Math.round(num), d = den;
+      while (n % 2 === 0 && d > 1) { n /= 2; d /= 2; }
+      fraction = n + '/' + d;
+      break;
+    }
+  }
+  var pct = value * 100;
+  var digits = pct >= 10 ? 1 : (pct >= 1 ? 2 : 3);
+  var pctText = parseFloat(pct.toFixed(digits)).toString();
+  if (lang === 'pt-BR') pctText = pctText.replace('.', ',');
+  return fraction ? fraction + ' (' + pctText + '%)' : pctText + '%';
+};
+
+export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents,
+  makeInbreeding, inbreedingOfChildren, inbreedingOf, formatCoefficient };

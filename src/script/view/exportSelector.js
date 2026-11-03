@@ -58,6 +58,7 @@ var ExportSelector = Class.create({
     typeListElement.insert(_addTypeOption(true, 'Invitae/Progeny (XML)', 'invitae'));
     typeListElement.insert(_addTypeOption(false, 'CanRisk (BOADICEA v4)', 'canrisk'));
     typeListElement.insert(_addTypeOption(false, 'SVG', 'svg'));
+    typeListElement.insert(_addTypeOption(false, 'PNG', 'png'));
     typeListElement.insert(_addTypeOption(false, 'PDF', 'pdf'));
 
     var fileDownload = new Element('a', { 'id': 'downloadLink', 'style': 'display:none' });
@@ -153,6 +154,41 @@ var ExportSelector = Class.create({
     bwRow.insert(bwLabel.wrap('td'));
     configListElementPDF.insert(bwRow);
 
+    // SVG: legend (beside the pedigree) and black and white, like the PDF
+    var configListElementSVG = new Element('table', { 'id': 'svgOptions', 'style': 'display:none' });
+    configListElementSVG.insert(new Element('label', { 'class': 'export-config-header' }).insert('Image options:').wrap('td').wrap('tr'));
+    // PNG only: resolution and background
+    var pngRow = _addSelectOption('png-dpi', 'export-subconfig-label png-only', 'Resolution ',
+      [
+        { label: '150 DPI', options: { value: '150' } },
+        { label: '300 DPI', options: { value: '300', selected: true } },
+        { label: '600 DPI', options: { value: '600' } }
+      ]);
+    configListElementSVG.insert(pngRow.addClassName('png-only'));
+    var pngBgRow = new Element('tr', { 'class': 'png-only' });
+    var pngBgInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'png-transparent' });
+    pngBgRow.insert(new Element('label', { 'class': 'export-subconfig-label' }).insert(pngBgInput).insert('Transparent background').wrap('td'));
+    configListElementSVG.insert(pngBgRow);
+    var svgLegendRow = new Element('tr');
+    var svgLegendInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'svg-include-legend', 'checked': 'checked' });
+    svgLegendRow.insert(new Element('label', { 'class': 'export-subconfig-label' }).insert(svgLegendInput).insert('Include legend').wrap('td'));
+    configListElementSVG.insert(svgLegendRow);
+    var svgLegendPosRow = _addSelectOption('svg-legend-pos', 'export-subconfig-label', 'Legend Position ',
+      [
+        { label: 'Top Left', options: { value: 'TopLeft' } },
+        { label: 'Top Right', options: { value: 'TopRight', selected: true } },
+        { label: 'Bottom Left', options: { value: 'BottomLeft' } },
+        { label: 'Bottom Right', options: { value: 'BottomRight' } }
+      ]);
+    configListElementSVG.insert(svgLegendPosRow);
+    svgLegendInput.observe('change', function() {
+      svgLegendPosRow.down('select').disabled = !svgLegendInput.checked;
+    });
+    var svgBwRow = new Element('tr');
+    var svgBwInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'svg-black-white' });
+    svgBwRow.insert(new Element('label', { 'class': 'export-subconfig-label' }).insert(svgBwInput).insert('Black and white (conditions drawn with fill patterns)').wrap('td'));
+    configListElementSVG.insert(svgBwRow);
+
     // CanRisk: who the risk is calculated for; names are always replaced by I-1, II-3...
     var configListElementCanRisk = new Element('table', { 'id': 'canriskOptions', 'style': 'display:none' });
     var crLabel = new Element('label', { 'class': 'export-config-header' }).insert('CanRisk export options:');
@@ -167,7 +203,7 @@ var ExportSelector = Class.create({
 
     var promptConfig = new Element('div', { 'class': 'import-section' }).update('Options:');
     var dataSection3 = new Element('div', { 'class': 'import-block' });
-    dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementCanRisk).insert(configListElementPDF);
+    dataSection3.insert(promptConfig).insert(configListElementPED).insert(configListElementPrivacy).insert(configListElementCanRisk).insert(configListElementSVG).insert(configListElementPDF);
     mainDiv.insert(dataSection3);
 
     var buttons = new Element('div', { 'class': 'buttons import-block-bottom' });
@@ -235,6 +271,11 @@ var ExportSelector = Class.create({
       } else {
         canriskOptionsTable.hide();
       }
+    }
+    var svgOptionsTable = $('svgOptions');
+    if (svgOptionsTable) {
+      svgOptionsTable[(exportType == 'svg' || exportType == 'png') ? 'show' : 'hide']();
+      svgOptionsTable.select('.png-only').each(function(row) { row[exportType == 'png' ? 'show' : 'hide'](); });
     }
     var copyButton = $$('input[name="copy"]')[0];
     if (exportType == 'pdf') {
@@ -314,7 +355,11 @@ var ExportSelector = Class.create({
         // a full copy that can be opened again: closing the page no longer needs a warning
         document.fire('pedigree:exported');
       } else if (exportType == 'svg') {
-        var exportString = PedigreeExport.exportAsSVG(editor.getGraph().DG, privacySetting);
+        var exportString = PedigreeExport.exportAsSVGFile(editor.getGraph().DG, privacySetting, {
+          includeLegend: $$('input[type=checkbox][name="svg-include-legend"]')[0].checked,
+          legendPos: $$('select[name="svg-legend-pos"]')[0].value,
+          blackAndWhite: $$('input[type=checkbox][name="svg-black-white"]')[0].checked
+        });
         var fileName = 'open-pedigree.svg';
         var mimeType = 'image/svg+xml';
         if (isCopy) {
@@ -322,6 +367,15 @@ var ExportSelector = Class.create({
         } else {
           downloadTextFile(exportString, fileName);
         }
+      } else if (exportType == 'png') {
+        var pngOptions = {
+          dpi: parseInt($$('select[name="png-dpi"]')[0].value, 10) || 300,
+          transparent: $$('input[type=checkbox][name="png-transparent"]')[0].checked,
+          includeLegend: $$('input[type=checkbox][name="svg-include-legend"]')[0].checked,
+          legendPos: $$('select[name="svg-legend-pos"]')[0].value,
+          blackAndWhite: $$('input[type=checkbox][name="svg-black-white"]')[0].checked
+        };
+        ExportSelector.exportPNG(privacySetting, pngOptions, isCopy);
       } else if (exportType == 'pdf') {
         var pageSize = $$('select[name="pdf-page-size"]')[0].value;
         var layout = $$('select[name="pdf-page-orientation"]')[0].value;
@@ -396,6 +450,54 @@ ExportSelector.fillCanRiskTargets = function() {
   if (previous === '' || !ids.some(function(id) { return String(id) === previous; })) {
     select.value = String(proband);
   }
+};
+
+/** Short message at the bottom of the chart (falls back to an alert) */
+ExportSelector.notify = function(message) {
+  var shortcuts = (typeof editor !== 'undefined' && editor.getKeyboardShortcuts) ? editor.getKeyboardShortcuts() : null;
+  if (shortcuts && shortcuts.toast) {
+    shortcuts.toast(message);
+  } else {
+    window.alert(message);
+  }
+};
+
+/**
+ * Downloads the pedigree as PNG, or copies it to the clipboard as an image.
+ * @param {Object} options { dpi, transparent, includeLegend, legendPos, blackAndWhite }
+ */
+ExportSelector.exportPNG = function(privacySetting, options, isCopy) {
+  var pedigree = editor.getGraph().DG;
+  var sizeNote = function(r) {
+    return r.width + ' × ' + r.height + ' px, ' + r.dpi + ' DPI' + (r.reduced ? ' — ' + translate('reduced to fit the browser limit') : '');
+  };
+  if (isCopy) {
+    // smaller limit for the clipboard: very large images paste slowly
+    var copyOptions = Object.assign({}, options, { maxDimension: Math.min(options.maxDimension || 16000, 8000) });
+    PedigreeExport.copyAsPNG(pedigree, privacySetting, copyOptions).then(function(r) {
+      ExportSelector.notify(translate('Image copied to the clipboard') + ' (' + sizeNote(r) + ')');
+    }, function(err) {
+      window.alert(translate('Could not copy the image:') + ' ' + translate(err && err.message ? err.message : String(err)));
+    });
+    return;
+  }
+  PedigreeExport.exportAsPNG(pedigree, privacySetting, options).then(function(r) {
+    if (typeof window.saveAs === 'function') {
+      window.saveAs(r.blob, 'open-pedigree.png');
+    } else {
+      var url = URL.createObjectURL(r.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'open-pedigree.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
+    ExportSelector.notify(translate('PNG saved') + ' (' + sizeNote(r) + ')');
+  }, function(err) {
+    window.alert(translate('Could not create the image:') + ' ' + translate(err && err.message ? err.message : String(err)));
+  });
 };
 
 export default ExportSelector;

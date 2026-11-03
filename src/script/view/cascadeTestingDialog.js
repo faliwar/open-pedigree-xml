@@ -1,4 +1,4 @@
-import { findBloodRelatives, relationshipName, isRealPerson } from 'pedigree/model/kinship';
+import { findBloodRelatives, relationshipName, isRealPerson, inbreedingOf, formatCoefficient } from 'pedigree/model/kinship';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
 import getAge from 'pedigree/view/ageCalc';
@@ -88,7 +88,8 @@ var CascadeTestingDialog = Class.create({
    *   onsetFrom / onsetTo  age range in which affected carriers develop signs (0-0: at birth)
    *   usePhenotypes, unrecordedUnaffected, useTests  which evidence to use
    */
-  _getModel: function() {
+  _getModel: function(forMode) {
+    var mode = forMode || this._mode;
     var defaults = {
       AD: { deNovo: 10, penetrance: 100, femalePen: 100 },
       AR: { deNovo: 0, penetrance: 100, femalePen: 100 },
@@ -96,8 +97,8 @@ var CascadeTestingDialog = Class.create({
       XLD: { deNovo: 33.3, penetrance: 100, femalePen: 100 },
       MT: { deNovo: 0, penetrance: 100, femalePen: 100 },
       YL: { deNovo: 0, penetrance: 100, femalePen: 0 }
-    }[this._mode];
-    var m = this._model[this._mode] || {};
+    }[mode];
+    var m = this._model[mode] || {};
     var pick = function(key, def) { return (typeof m[key] === 'number' && isFinite(m[key])) ? m[key] : def; };
     var flag = function(key) { return m[key] !== false; };
     return {
@@ -155,10 +156,16 @@ var CascadeTestingDialog = Class.create({
     return ds.length ? ds[0] : '';
   },
 
-  _buildEvidence: function(model) {
+  /**
+   * @param {Object} model settings from _getModel()
+   * @param {Object} [opts] for the mode ranking: { mode, biallelic, includeIndex } (the index's own
+   *   phenotype then counts too); without opts, the current mode and the counts shown are updated
+   */
+  _buildEvidence: function(model, opts) {
     var graph = editor.getGraph();
-    var mode = this._mode;
-    var biallelic = this._isBiallelic();
+    var mode = opts ? opts.mode : this._mode;
+    var biallelic = opts ? !!opts.biallelic : this._isBiallelic();
+    var includeIndex = !!(opts && opts.includeIndex);
     var condition = this._resolvedCondition();
     var PHENOCOPY = 0.001;   // affected without the familial variant
     var TEST_ERROR = 0.0001;
@@ -196,7 +203,7 @@ var CascadeTestingDialog = Class.create({
     };
 
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
-      if (!isRealPerson(graph, id) || id === this._indexId) continue;
+      if (!isRealPerson(graph, id) || (id === this._indexId && !includeIndex)) continue;
       var node = editor.getNode(id);
       if (!node) continue;
       var info = this._getPersonInfo(id);
@@ -241,8 +248,112 @@ var CascadeTestingDialog = Class.create({
 
       if (used) likelihood[id] = L;
     }
-    this._evidenceCounts = counts;
+    if (!opts) this._evidenceCounts = counts;
+    this._lastCounts = counts;
     return likelihood;
+  },
+
+  /**
+   * How well each mode of inheritance explains what is recorded in the pedigree (affected and
+   * unaffected relatives for the chosen condition, the index's own phenotype and sex, test
+   * results). Each mode is judged over a range of plausible settings rather than one: its fit is
+   * the average likelihood over a grid of penetrance, penetrance in heterozygous women (X-linked:
+   * low for XLR, high for XLD) and de novo proportion (the age at onset and the evidence options
+   * are the mode's own). Averaging rather than taking the best keeps modes with more freedom from
+   * winning by flexibility alone. With equal prior weight for the modes,
+   * P(mode | pedigree) = P(pedigree | mode) / sum over modes. Recessive assumes an affected
+   * (biallelic) index. The best grid point of each mode is returned as its fitted settings.
+   *
+   * Why not the current settings: the X-linked default de novo of 1/3 (Haldane) holds only when
+   * affected men do not reproduce, and then a carrier woman never inherits from her father; in a
+   * family where affected men have affected daughters (e.g. Fabry disease) it would rule X-linked out.
+   *
+   * @return {Object} { ranking: [{ mode, p, incompatible, fitted }] best first, informative: Boolean }
+   */
+  _rankModes: function() {
+    var graph = editor.getGraph();
+    var _this = this;
+    var q = 1 / (2 * this._carrierFreqN);
+    var informative = false;
+    var PEN = [0.5, 0.8, 1];
+    var GRID = {
+      AD: { fpen: [null], dn: [0.02, 0.2, 0.5] },
+      AR: { fpen: [null], dn: [0] },
+      XLR: { fpen: [0, 0.1, 0.25], dn: [0.02, 0.15, 1 / 3] },
+      XLD: { fpen: [0.5, 0.75, 1], dn: [0.02, 0.15, 1 / 3] },
+      MT: { fpen: [null], dn: [0] },
+      YL: { fpen: [null], dn: [0] }
+    };
+    var results = INHERITANCE_OPTIONS.map(function(o) {
+      var mode = o[0];
+      var biallelic = mode === 'AR';
+      var base = _this._getModel(mode);
+      var sum = 0, n = 0, best = null;
+      PEN.forEach(function(pen) {
+        GRID[mode].fpen.forEach(function(fpen) {
+          GRID[mode].dn.forEach(function(dn) {
+            var model = Object.assign({}, base, {
+              penetrance: pen * 100,
+              femalePen: (fpen === null ? pen : fpen) * 100,
+              deNovo: dn * 100
+            });
+            var evidence = _this._buildEvidence(model, { mode: mode, biallelic: biallelic, includeIndex: true });
+            var c = _this._lastCounts;
+            if (c.affected + c.unaffected + c.tested > 1) informative = true;
+            var L = 0;
+            try {
+              var r = computeVariantRisks(graph, _this._indexId, mode, biallelic ? 'biallelic' : 'het', q, {
+                deNovo: dn,
+                likelihood: Object.keys(evidence).length ? evidence : null
+              });
+              L = r.evidenceLikelihood || 0;
+            } catch (e) {
+              L = 0;
+            }
+            sum += L;
+            n++;
+            if (!best || L > best.L) {
+              best = { L: L, penetrance: pen * 100, femalePen: fpen === null ? null : fpen * 100, deNovo: Math.round(dn * 1000) / 10 };
+            }
+          });
+        });
+      });
+      return { mode: mode, L: n ? sum / n : 0, fitted: best };
+    });
+    var total = results.reduce(function(s, r) { return s + r.L; }, 0);
+    var ranking = results.map(function(r) {
+      return { mode: r.mode, p: total > 0 ? r.L / total : 0, incompatible: !(r.L > 0), fitted: r.fitted };
+    }).sort(function(a, b) { return b.p - a.p; });
+    return { ranking: ranking, informative: informative && total > 0 };
+  },
+
+  /** "penetrance 100%, women 75%, de novo 2%" for the fitted settings of a mode */
+  _fittedText: function(mode, fitted) {
+    if (!fitted) return '';
+    var parts = [translate('penetrance') + ' ' + fitted.penetrance + '%'];
+    if ((mode === 'XLR' || mode === 'XLD') && fitted.femalePen !== null) parts.push(translate('women') + ' ' + fitted.femalePen + '%');
+    if (mode === 'AD' || mode === 'XLR' || mode === 'XLD') parts.push(translate('de novo') + ' ' + String(fitted.deNovo).replace('.', getLanguage() === 'pt-BR' ? ',' : '.') + '%');
+    return parts.join(', ');
+  },
+
+  /**
+   * Affected men with children in the pedigree (for the chosen condition): then Haldane's 1/3
+   * de novo, which assumes that affected men do not reproduce, does not apply to X-linked modes.
+   */
+  _affectedMenHaveChildren: function() {
+    var graph = editor.getGraph();
+    var condition = this._resolvedCondition();
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (!isRealPerson(graph, id) || graph.getGender(id) !== 'M') continue;
+      var node = editor.getNode(id);
+      var ds = (node && node.getDisorders && node.getDisorders()) || [];
+      var affected = condition ? ds.indexOf(condition) !== -1 : (node && node.getCarrierStatus && node.getCarrierStatus() === 'affected');
+      if (!affected) continue;
+      var kids = [];
+      try { kids = graph.getAllChildren(id) || []; } catch (e) {}
+      if (kids.some(function(k) { return isRealPerson(graph, k); })) return true;
+    }
+    return false;
   },
 
   _isBiallelic: function() {
@@ -403,8 +514,15 @@ var CascadeTestingDialog = Class.create({
       likelihood: Object.keys(evidence).length ? evidence : null
     });
     this._warning = risks.warning ? translate(risks.warning) : '';
+    // Haldane's 1/3 assumes affected men have no children; then a carrier woman never inherits
+    // from her father, which is wrong when they do (e.g. Fabry disease)
+    this._haldaneFlag = (this._mode === 'XLR' || this._mode === 'XLD') && model.deNovo > 20 && this._affectedMenHaveChildren();
     this._ibd = risks.ibd;
     this._deNovoIndex = risks.deNovoIndex;
+    // Wright's F of the index (from the relationship between the index's parents)
+    this._indexF = inbreedingOf(graph, this._indexId);
+    // how well each mode of inheritance explains the pedigree
+    this._fit = this._rankModes();
     var biallelic = this._isBiallelic();
     var rows = [];
     this._notAtRisk = 0;
@@ -591,6 +709,71 @@ var CascadeTestingDialog = Class.create({
       ['Optional. Printed in the list and the CSV. When the index has positive tests in several genes, naming the gene here selects which one is the familial variant.']));
     content.insert(controls);
 
+    // --- fit of each mode of inheritance to the pedigree (click a mode to use it)
+    var fitBox = new Element('div', { 'class': 'cascade-fit' });
+    content.insert(fitBox);
+    // switches to a mode; with fitted settings from the ranking, applies them to that mode's model
+    var useMode = function(mode, fitted) {
+      _this._mode = mode;
+      if (mode === 'AR') {
+        _this._indexGenotype = 'biallelic'; // the ranking assumes an affected index
+        genotypeSelect.value = 'biallelic';
+      }
+      if (fitted) {
+        _this._setModel('penetrance', fitted.penetrance);
+        if (fitted.femalePen !== null) _this._setModel('femalePen', fitted.femalePen);
+        if (mode === 'AD' || mode === 'XLR' || mode === 'XLD') _this._setModel('deNovo', fitted.deNovo);
+      }
+      modeSelect.value = mode;
+      _this._saveSettings();
+      syncGenotypeField();
+      syncModelFields();
+      recompute(false);
+    };
+    var renderFit = function() {
+      var fit = _this._fit;
+      fitBox.update('');
+      var head = new Element('div', { 'class': 'cascade-fit-head' });
+      head.insert(new Element('span', { 'class': 'cascade-fit-title' }).update(translate('Fit of the modes of inheritance')));
+      head.insert(help([
+        'How well each mode of inheritance explains the affected and unaffected relatives (for the condition chosen in the model), the sex and phenotype of the index and the test results. Each mode is tried over a range of penetrance, penetrance in women (X-linked: low for recessive, high for dominant) and de novo proportion, with the age at onset set for it. Recessive assumes an affected index with two variants.',
+        'The percentages compare the modes with each other (equal weight beforehand). They are a guide for choosing the model, not a diagnosis: few relatives or unknown ages can change them. Choosing a mode here also applies the settings that fit best.'
+      ]));
+      fitBox.insert(head);
+      if (!fit || !fit.informative) {
+        fitBox.insert(new Element('div', { 'class': 'cascade-fit-empty' }).update(
+          translate('Record affected and unaffected relatives (or test results) to compare the modes.')));
+        return;
+      }
+      var chips = new Element('div', { 'class': 'cascade-fit-chips' });
+      fit.ranking.forEach(function(r, i) {
+        var pct = Math.round(r.p * 1000) / 10;
+        var chip = new Element('button', {
+          'type': 'button',
+          'class': 'cascade-fit-chip' + (r.mode === _this._mode ? ' is-current' : '') + (i === 0 && !r.incompatible ? ' is-best' : '') + (r.incompatible ? ' is-incompatible' : ''),
+          'title': translate(INHERITANCE_NAMES[r.mode]) + (r.incompatible ? ' — ' + translate('incompatible with the pedigree')
+            : ' — ' + translate('best fit with') + ' ' + _this._fittedText(r.mode, r.fitted))
+        });
+        chip.setStyle({ '--fit': Math.max(0, Math.min(100, pct)) + '%' });
+        chip.insert(new Element('span', { 'class': 'cascade-fit-mode' }).update(r.mode));
+        chip.insert(new Element('span', { 'class': 'cascade-fit-pct' }).update(r.incompatible ? '0%' : (pct < 0.1 ? '<0.1%' : pct + '%')));
+        chip.observe('click', function() { if (r.mode !== _this._mode && !r.incompatible) useMode(r.mode, r.fitted); });
+        chips.insert(chip);
+      });
+      fitBox.insert(chips);
+      var best = fit.ranking[0];
+      var current = fit.ranking.filter(function(r) { return r.mode === _this._mode; })[0];
+      if (best.mode !== _this._mode && best.p >= 0.5 && (!current || best.p >= 2 * current.p)) {
+        var tip = new Element('div', { 'class': 'cascade-fit-suggestion' });
+        tip.insert(new Element('span').update(translate('Best fit:') + ' <strong>' + translate(INHERITANCE_NAMES[best.mode]).escapeHTML() + '</strong>' +
+          ' <span class="cascade-fit-settings">(' + _this._fittedText(best.mode, best.fitted).escapeHTML() + ')</span>'));
+        var use = new Element('button', { 'type': 'button', 'class': 'cascade-fit-use' }).update(translate('Use this mode'));
+        use.observe('click', function() { useMode(best.mode, best.fitted); });
+        tip.insert(use);
+        fitBox.insert(tip);
+      }
+    };
+
     // --- model: de novo, penetrance, evidence
     var modelBox = new Element('details', { 'class': 'cascade-model' });
     var modelSummary = new Element('span', { 'class': 'cascade-model-summary' });
@@ -702,6 +885,19 @@ var CascadeTestingDialog = Class.create({
     // --- summary and table
     var warningBox = new Element('div', { 'class': 'cascade-warning', 'role': 'alert' });
     content.insert(warningBox);
+    // compact flag: Haldane's 1/3 de novo used although affected men have children
+    var haldaneFlag = new Element('div', { 'class': 'cascade-flag', 'role': 'status' });
+    haldaneFlag.insert(new Element('span', { 'class': 'cascade-flag-icon', 'aria-hidden': 'true' }).update('!'));
+    haldaneFlag.insert(new Element('span').update(translate('De novo 1/3 does not fit: affected men have children')));
+    haldaneFlag.insert(help(['Affected men have children in this family: the de novo proportion of 1/3 (Haldane) applies only when affected men do not reproduce, and it rules out daughters inheriting from their affected father. Lower it in the model (for example to 5%).']));
+    var haldaneFix = new Element('button', { 'type': 'button', 'class': 'cascade-flag-fix' }).update(translate('Use 5%'));
+    haldaneFix.observe('click', function() {
+      _this._setModel('deNovo', 5);
+      syncModelFields();
+      recompute(false);
+    });
+    haldaneFlag.insert(haldaneFix);
+    content.insert(haldaneFlag);
     var summary = new Element('div', { 'class': 'cascade-summary' });
     content.insert(summary);
     var tableWrap = new Element('div', { 'class': 'cascade-table-wrap' });
@@ -712,8 +908,10 @@ var CascadeTestingDialog = Class.create({
       var selectedCount = rows.filter(function(r) { return r.selected; }).length;
       var testedCount = rows.filter(function(r) { return r.tested; }).length;
       var biallelic = _this._isBiallelic();
+      renderFit();
       warningBox.update(_this._warning ? _this._warning.escapeHTML() : '');
       warningBox.setStyle({ display: _this._warning ? '' : 'none' });
+      haldaneFlag.setStyle({ display: _this._haldaneFlag ? '' : 'none' });
 
       summary.update('');
       var chips = [[rows.length, 'at risk'], [selectedCount, 'selected to approach'], [testedCount, 'already tested']];
@@ -725,6 +923,9 @@ var CascadeTestingDialog = Class.create({
       }
       if (_this._deNovoIndex !== null && _this._deNovoIndex !== undefined) {
         chips.push([_this._formatChance(_this._deNovoIndex), 'chance the variant arose de novo in the index']);
+      }
+      if (_this._indexF > 0) {
+        chips.push(['F = ' + formatCoefficient(_this._indexF, getLanguage()), 'inbreeding coefficient of the index (parents related)']);
       }
       // one-line summary of the model, visible while the model box is closed
       var ec = _this._evidenceCounts || {};
@@ -942,6 +1143,14 @@ var CascadeTestingDialog = Class.create({
     ];
     if (this._isBiallelic()) {
       lines.push([translate('Population carrier frequency'), translate('1 in') + ' ' + this._carrierFreqN]);
+    }
+    if (this._indexF > 0) {
+      lines.push([translate("Inbreeding coefficient of the index (Wright's F)"), formatCoefficient(this._indexF, getLanguage())]);
+    }
+    if (this._fit && this._fit.informative) {
+      lines.push([translate('Fit of the modes of inheritance'), this._fit.ranking.map(function(r) {
+        return r.mode + ' ' + (Math.round(r.p * 1000) / 10) + '%';
+      }).join(', ')]);
     }
     var m = this._getModel();
     if (this._mode !== 'AR') {

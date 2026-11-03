@@ -107,6 +107,42 @@ const translations = {
   'Better pedigrees from AI': 'Heredogramas melhores a partir da IA',
   'Clinical notes turned into XML with ages, names and comments in the right fields.': 'Notas clínicas convertidas em XML com idades, nomes e comentários nos campos certos.',
   'Draft saved in this browser': 'Rascunho salvo neste navegador', 'A reload or a closed tab no longer loses your work.': 'Recarregar a página ou fechar a aba não perde mais o trabalho.',
+  // Fit of the modes of inheritance (cascade testing)
+  'Fit of the modes of inheritance': 'Compatibilidade dos padrões de herança',
+  'How well each mode of inheritance explains the affected and unaffected relatives (for the condition chosen in the model), the sex and phenotype of the index and the test results, using the penetrance, de novo proportion and age at onset set for each mode. Recessive assumes an affected index with two variants.': 'Quanto cada padrão de herança explica os parentes afetados e não afetados (pela condição escolhida no modelo), o sexo e o fenótipo do caso índice e os resultados de testes, usando a penetrância, a proporção de novo e a idade de início definidas para cada padrão. A recessiva considera um caso índice afetado com duas variantes.',
+  'The percentages compare the modes with each other (equal weight beforehand). They are a guide for choosing the model, not a diagnosis: few relatives, unknown ages or a wrong penetrance can change them.': 'As porcentagens comparam os padrões entre si (mesmo peso de antemão). Servem de guia para escolher o modelo, não de diagnóstico: poucos parentes, idades desconhecidas ou penetrância inadequada podem alterá-las.',
+  'Record affected and unaffected relatives (or test results) to compare the modes.': 'Registre parentes afetados e não afetados (ou resultados de testes) para comparar os padrões.',
+  'incompatible with the pedigree': 'incompatível com o heredograma',
+  'Best fit:': 'Melhor compatibilidade:', 'Use this mode': 'Usar este padrão',
+  'best fit with': 'melhor ajuste com', 'women': 'mulheres',
+  'De novo 1/3 does not fit: affected men have children': 'De novo 1/3 não se aplica: homens afetados têm filhos', 'Use 5%': 'Usar 5%',
+  'How well each mode of inheritance explains the affected and unaffected relatives (for the condition chosen in the model), the sex and phenotype of the index and the test results. Each mode is tried over a range of penetrance, penetrance in women (X-linked: low for recessive, high for dominant) and de novo proportion, with the age at onset set for it. Recessive assumes an affected index with two variants.': 'Quanto cada padrão de herança explica os parentes afetados e não afetados (pela condição escolhida no modelo), o sexo e o fenótipo do caso índice e os resultados de testes. Cada padrão é testado numa faixa de penetrâncias, penetrância em mulheres (ligada ao X: baixa na recessiva, alta na dominante) e proporção de novo, com a idade de início definida para ele. A recessiva considera um caso índice afetado com duas variantes.',
+  'The percentages compare the modes with each other (equal weight beforehand). They are a guide for choosing the model, not a diagnosis: few relatives or unknown ages can change them. Choosing a mode here also applies the settings that fit best.': 'As porcentagens comparam os padrões entre si (mesmo peso de antemão). Servem de guia para escolher o modelo, não de diagnóstico: poucos parentes ou idades desconhecidas podem alterá-las. Escolher um padrão aqui também aplica os parâmetros de melhor ajuste.',
+  'Affected men have children in this family: the de novo proportion of 1/3 (Haldane) applies only when affected men do not reproduce, and it rules out daughters inheriting from their affected father. Lower it in the model (for example to 5%).': 'Nesta família há homens afetados com filhos: a proporção de novo de 1/3 (Haldane) vale só quando homens afetados não se reproduzem e impede que filhas herdem do pai afetado. Reduza-a no modelo (por exemplo, para 5%).',
+  // Wright's inbreeding coefficient
+  "Inbreeding coefficient of the children (Wright's F)": 'Coeficiente de endogamia dos filhos (F de Wright)',
+  'Coefficient of relationship of the couple:': 'Coeficiente de parentesco do casal:',
+  'Not calculated: the common ancestors are not in the pedigree.': 'Não calculado: os ancestrais comuns não estão no heredograma.',
+  'Inbreeding coefficient (F)': 'Coeficiente de endogamia (F)',
+  "Write Wright's inbreeding coefficient of the children (e.g. F = 1/16 for first cousins) above the line of each consanguineous couple.": 'Mostra o coeficiente de endogamia de Wright dos filhos (ex.: F = 1/16 para primos de primeiro grau) acima da linha de cada casal consanguíneo.',
+  'inbreeding coefficient of the index (parents related)': 'coeficiente de endogamia do caso índice (pais aparentados)',
+  "Inbreeding coefficient of the index (Wright's F)": 'Coeficiente de endogamia do caso índice (F de Wright)',
+  // Family history summary
+  'Family history summary': 'Resumo da história familiar', 'Language': 'Idioma', 'Copy': 'Copiar',
+  'All blood relatives': 'Todos os parentes consanguíneos',
+  'List relatives without conditions': 'Listar parentes sem condições', 'Include first names': 'Incluir primeiros nomes',
+  'Include the proband': 'Incluir o probando',
+  'One line per relative with ages, conditions, test results and comments, ready to paste into the medical record. Review it before use.': 'Uma linha por familiar com idades, condições, resultados de testes e comentários, pronta para colar no prontuário. Revise antes de usar.',
+  // PNG export and copy as image
+  'Image options:': 'Opções da imagem:', 'Resolution ': 'Resolução ', 'Transparent background': 'Fundo transparente',
+  'Copy as image': 'Copiar como imagem', 'Image copied to the clipboard': 'Imagem copiada para a área de transferência',
+  'PNG saved': 'PNG salvo', 'reduced to fit the browser limit': 'reduzida ao limite do navegador',
+  'Could not copy the image:': 'Não foi possível copiar a imagem:', 'Could not create the image:': 'Não foi possível criar a imagem:',
+  'This browser cannot copy images to the clipboard.': 'Este navegador não consegue copiar imagens para a área de transferência.',
+  'The image is too large to draw.': 'A imagem é grande demais para ser desenhada.',
+  'The drawing could not be converted to an image.': 'Não foi possível converter o desenho em imagem.',
+  // SVG export options
+  'SVG export options:': 'Opções de exportação para SVG:', 'Include legend': 'Incluir legenda',
   // Pedigree header and chart notes
   'Family': 'Família', 'Title': 'Título', 'Family (name or ID)': 'Família (nome ou ID)',
   'Notes (printed at the bottom of the PDF)': 'Observações (impressas no rodapé do PDF)',
@@ -401,6 +437,11 @@ const translations = {
 export function getLanguage() {
   var pageLanguage = document.documentElement.getAttribute('lang') || 'en';
   return pageLanguage.toLowerCase().indexOf('pt') === 0 ? 'pt-BR' : 'en';
+}
+
+/** Portuguese text for a key whatever the page language (for documents written in Portuguese) */
+export function toPortuguese(text) {
+  return (text && translations[text]) || text;
 }
 
 export function translate(text) {

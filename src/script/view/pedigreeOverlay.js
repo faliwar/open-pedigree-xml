@@ -1,6 +1,7 @@
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
-import { translate } from 'pedigree/i18n';
+import { getLanguage, translate } from 'pedigree/i18n';
+import { makeInbreeding, formatCoefficient } from 'pedigree/model/kinship';
 
 /**
  * PedigreeOverlay draws non-interactive annotations on top of the pedigree canvas:
@@ -28,16 +29,29 @@ var PedigreeOverlay = Class.create({
   },
 
   _loadSettings: function() {
+    this._showInbreeding = true;
     try {
       var saved = JSON.parse(localStorage.getItem('openpedigree_overlay_v1') || '{}');
       this._showNumbering = !!saved.showNumbering;
+      this._showInbreeding = saved.showInbreeding !== false; // on by default
     } catch (e) {}
   },
 
   _saveSettings: function() {
     try {
-      localStorage.setItem('openpedigree_overlay_v1', JSON.stringify({ showNumbering: this._showNumbering }));
+      localStorage.setItem('openpedigree_overlay_v1', JSON.stringify({ showNumbering: this._showNumbering, showInbreeding: this._showInbreeding }));
     } catch (e) {}
+  },
+
+  isInbreedingVisible: function() {
+    return this._showInbreeding;
+  },
+
+  /** Wright's F written above the line of each consanguineous couple */
+  setInbreedingVisible: function(visible) {
+    this._showInbreeding = !!visible;
+    this._saveSettings();
+    this.redraw();
   },
 
   isNumberingVisible: function() {
@@ -206,6 +220,9 @@ var PedigreeOverlay = Class.create({
       if (this._showNumbering) {
         this._drawNumbering();
       }
+      if (this._showInbreeding) {
+        this._drawInbreeding();
+      }
     } catch (e) {
       console.warn('Overlay redraw failed:', e);
     }
@@ -244,6 +261,41 @@ var PedigreeOverlay = Class.create({
         }), 'numbering');
       });
     });
+  },
+
+  // "F = 1/16" above the junction of each consanguineous couple whose common ancestors are drawn
+  _drawInbreeding: function() {
+    var paper = editor.getPaper();
+    var graph = editor.getGraph();
+    var calc = makeInbreeding(graph);
+    var lang = getLanguage();
+    var _this = this;
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      var consanguineous = false;
+      try {
+        consanguineous = graph.isRelationship(id) && graph.isConsangrRelationship(id);
+      } catch (e) {}
+      if (!consanguineous) continue;
+      var partners = [];
+      try { partners = graph.DG.GG.getParents(id); } catch (e) {}
+      if (partners.length !== 2) continue;
+      var f = calc.kinship(partners[0], partners[1]);
+      var node = editor.getNode(id);
+      if (!(f > 0) || !node || !node.getX) continue;
+      var text = paper.text(node.getX(), node.getY() - 22, 'F = ' + formatCoefficient(f, lang).replace(/ \(.*\)$/, '')).attr({
+        'font-size': 16,
+        'font-family': 'Arial, Helvetica, sans-serif',
+        'font-style': 'italic',
+        'fill': '#1F2937',
+        'text-anchor': 'middle'
+      });
+      // a white background so the text stays readable over lines
+      var box = text.getBBox();
+      var bg = paper.rect(box.x - 4, box.y - 1, box.width + 8, box.height + 2, 3).attr({ 'fill': '#FFFFFF', 'fill-opacity': 0.9, 'stroke': 'none' });
+      text.toFront();
+      _this._tag(bg, 'inbreeding');
+      _this._tag(text, 'inbreeding');
+    }
   },
 
   _drawCascade: function() {
