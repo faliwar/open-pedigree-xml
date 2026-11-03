@@ -32,6 +32,7 @@ import DraftStore from 'pedigree/view/draftStore';
 import FamilySummaryDialog from 'pedigree/view/familySummaryDialog';
 import StartScreen from 'pedigree/view/startScreen';
 import DriveBackend from 'pedigree/DriveBackend';
+import { extractPedigreeXmlFromPdf } from 'pedigree/model/pdfEmbed';
 
 import '../style/editor.css';
 
@@ -389,22 +390,10 @@ var PedigreeEditor = Class.create({
       }
 
       var fr = new FileReader();
-      fr.onload = function(event) {
-        var content = event.target.result;
+      var handleContent = function(content) {
         if (!content || !content.trim()) {
           alert('The file is empty.');
           return;
-        }
-
-        if (ext === '.pdf' || content.startsWith('%PDF')) {
-          var xmlMatch = content.match(/%\s*PedigreeXML:\s*(.*)$/);
-          if (xmlMatch) {
-            content = decodeURIComponent(escape(atob(xmlMatch[1])));
-            ext = '.xml';
-          } else {
-            alert("This PDF does not contain embedded Pedigree data.");
-            return;
-          }
         }
 
         try {
@@ -448,7 +437,23 @@ var PedigreeEditor = Class.create({
         alert('Error reading file "' + file.name + '".');
       };
 
-      fr.readAsText(file, 'UTF-8');
+      if (ext === '.pdf') {
+        // PDFs are read as bytes: the pedigree XML is an embedded file (possibly compressed)
+        fr.onload = function(event) {
+          extractPedigreeXmlFromPdf(event.target.result).then(function(xml) {
+            if (!xml) {
+              alert('This PDF does not contain embedded Pedigree data.');
+              return;
+            }
+            ext = '.xml';
+            handleContent(xml);
+          });
+        };
+        fr.readAsArrayBuffer(file);
+      } else {
+        fr.onload = function(event) { handleContent(event.target.result); };
+        fr.readAsText(file, 'UTF-8');
+      }
     });
   },
 

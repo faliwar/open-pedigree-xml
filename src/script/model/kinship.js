@@ -8,9 +8,12 @@
  *  - the coefficient of relationship r, i.e. the expected chance that the relative shares
  *    an autosomal heterozygous variant carried by the index person (50%, 25%, 12.5%...).
  *
- * r is the sum of (1/2)^(n1+n2) over all paths through the nearest common ancestors,
- * so consanguinity (several paths) is accounted for. Adopted children are not linked
- * to their adoptive parents, since they are not blood relatives.
+ * r follows Wright's definition, r = 2 phi(a, b) / sqrt((1 + F(a)) (1 + F(b))), with the
+ * kinship coefficient phi computed recursively (see makeInbreeding), so several paths
+ * (consanguinity) and inbred common ancestors are both accounted for. The degree of
+ * relationship comes from the shortest path through the nearest common ancestors.
+ * Adopted children are not linked to their adoptive parents, since they are not blood
+ * relatives. Monozygotic twins are treated as one genome.
  */
 
 var isRealPerson = function(graph, id) {
@@ -30,6 +33,33 @@ var getBiologicalParents = function(graph, id) {
   } catch (e) {
     return [];
   }
+};
+
+/**
+ * Maps every member of a monozygotic twin group to one representative (the lowest id), so
+ * that genetic calculations treat identical twins as the same genome. Other persons map to
+ * themselves.
+ */
+var makeTwinCanon = function(graph) {
+  var rep = {};
+  try {
+    var groups = {};
+    var maxId = graph.getMaxNodeId();
+    for (var id = 0; id <= maxId; id++) {
+      if (!isRealPerson(graph, id) || !graph.getProperties) continue;
+      var props = graph.getProperties(id) || {};
+      if (!props.monozygotic || props.twinGroup === undefined || props.twinGroup === null) continue;
+      var key = graph.getParentRelationship(id) + ':' + props.twinGroup;
+      groups[key] = groups.hasOwnProperty(key) ? Math.min(groups[key], id) : id;
+      rep[id] = key;
+    }
+    Object.keys(rep).forEach(function(id) { rep[id] = groups[rep[id]]; });
+  } catch (e) {
+    rep = {};
+  }
+  return function(id) {
+    return rep.hasOwnProperty(id) ? rep[id] : (typeof id === 'string' ? parseInt(id, 10) : id);
+  };
 };
 
 /**
@@ -92,14 +122,16 @@ var describeKinship = function(graph, indexId, relativeId, cache) {
     });
   });
 
-  var r = 0;
+  // Wright's coefficient of relationship from the kinship coefficient (exact with loops and
+  // inbred ancestors); one kinship calculator is shared by all calls with the same cache
+  if (!cache.__inbreeding) {
+    cache.__inbreeding = makeInbreeding(graph);
+  }
+  var inb = cache.__inbreeding;
+  var fi = inb.inbreeding(indexId), fr = inb.inbreeding(relativeId);
+  var r = 2 * inb.kinship(indexId, relativeId) / Math.sqrt((1 + fi) * (1 + fr));
   var best = null; // closest common ancestor: { ancestor, up, down }
   nearest.forEach(function(c) {
-    Object.keys(indexAnc[c]).forEach(function(d1) {
-      Object.keys(relAnc[c]).forEach(function(d2) {
-        r += indexAnc[c][d1] * relAnc[c][d2] * Math.pow(0.5, parseInt(d1, 10) + parseInt(d2, 10));
-      });
-    });
     var up = minDistance(indexAnc[c]);
     var down = minDistance(relAnc[c]);
     if (!best || up + down < best.up + best.down) {
@@ -273,15 +305,22 @@ var findBloodRelatives = function(graph, indexId, maxDegree) {
  *               not an ancestor of the other (unknown parents are unrelated founders)
  *   F(x)      = phi(father of x, mother of x)
  * so inbred common ancestors are accounted for. Adopted people are not linked to their adoptive
- * parents. F of a child of a couple = phi(partner 1, partner 2); the coefficient of relationship
- * of the couple is r = 2 phi (when the partners are not inbred themselves).
+ * parents. Monozygotic twins are one genome: phi(twin 1, twin 2) = (1 + F) / 2, and a twin is
+ * treated as a parent of the co-twin's children. F of a child of a couple = phi(partner 1,
+ * partner 2); the coefficient of relationship of the couple is r = 2 phi (when the partners are
+ * not inbred themselves).
  */
 var makeInbreeding = function(graph) {
   var ancCache = {}, phiMemo = {}, fMemo = {};
+  var canon = makeTwinCanon(graph);
+  // is a (as a genome) an ancestor of b?
   var isAncestor = function(a, b) {
-    return String(a) !== String(b) && buildAncestorMap(graph, b, ancCache).hasOwnProperty(a);
+    if (canon(a) === canon(b)) return false;
+    var anc = buildAncestorMap(graph, b, ancCache);
+    return Object.keys(anc).some(function(k) { return canon(k) === canon(a); });
   };
   var F = function(x) {
+    x = canon(x);
     if (fMemo.hasOwnProperty(x)) return fMemo[x];
     fMemo[x] = 0; // guards against (invalid) cycles
     var p = getBiologicalParents(graph, x);
@@ -290,7 +329,9 @@ var makeInbreeding = function(graph) {
     return v;
   };
   var phi = function(a, b) {
-    if (String(a) === String(b)) return (1 + F(a)) / 2;
+    a = canon(a);
+    b = canon(b);
+    if (a === b) return (1 + F(a)) / 2;
     var key = a < b ? a + '|' + b : b + '|' + a;
     if (phiMemo.hasOwnProperty(key)) return phiMemo[key];
     phiMemo[key] = 0;
@@ -338,4 +379,4 @@ var formatCoefficient = function(value, lang) {
 };
 
 export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents,
-  makeInbreeding, inbreedingOfChildren, inbreedingOf, formatCoefficient };
+  makeInbreeding, makeTwinCanon, inbreedingOfChildren, inbreedingOf, formatCoefficient };

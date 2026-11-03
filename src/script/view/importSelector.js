@@ -6,6 +6,7 @@
 
 import LLM_INSTRUCTIONS from 'pedigree/llmInstructionsContent';
 import InvitaeConverter from 'pedigree/InvitaeConverter';
+import { extractPedigreeXmlFromPdf } from 'pedigree/model/pdfEmbed';
 
 var ImportSelector = Class.create( {
 
@@ -247,25 +248,29 @@ var ImportSelector = Class.create( {
       console.log('loading file: ' + nextFile.name + ', size: ' + nextFile.size);
 
       var _this = this;
+      if (nextFile.name.toLowerCase().endsWith('.pdf')) {
+        // PDFs are read as bytes: the pedigree XML is an embedded file (possibly compressed)
+        var pdfReader = new FileReader();
+        pdfReader.onload = function(e) {
+          extractPedigreeXmlFromPdf(e.target.result).then(function(xml) {
+            if (xml) {
+              _this.importValue.value = xml;
+              $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
+              _this.disableEnableOptions();
+            } else {
+              alert('This PDF does not contain embedded Pedigree data.');
+            }
+          });
+        };
+        pdfReader.readAsArrayBuffer(nextFile);
+        continue;
+      }
       var fr = new FileReader();
       fr.onload = function(e) {
-        var content = e.target.result;
-        if (nextFile.name.toLowerCase().endsWith('.pdf') || content.startsWith('%PDF')) {
-          var xmlMatch = content.match(/%\s*PedigreeXML:\s*(.*)$/);
-          if (xmlMatch) {
-            var decoded = decodeURIComponent(escape(atob(xmlMatch[1])));
-            _this.importValue.value = decoded;
-            $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
-            _this.disableEnableOptions();
-          } else {
-            alert("This PDF does not contain embedded Pedigree data.");
-          }
-        } else {
-          _this.importValue.value = content;
-          if (nextFile.name.toLowerCase().endsWith('.xml')) {
-            $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
-            _this.disableEnableOptions();
-          }
+        _this.importValue.value = e.target.result;
+        if (nextFile.name.toLowerCase().endsWith('.xml')) {
+          $$('input[type=radio][name="select-type"][value="invitae"]')[0].checked = true;
+          _this.disableEnableOptions();
         }
       };
       fr.readAsText(nextFile, 'UTF-8');

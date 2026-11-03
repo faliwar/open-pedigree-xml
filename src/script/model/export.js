@@ -7,6 +7,7 @@ import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { formatInfoDate } from 'pedigree/model/pedigreeInfo';
 import { getLanguage, translate } from 'pedigree/i18n';
+import { PEDIGREE_FILE_NAME, toBase64Utf8 } from 'pedigree/model/pdfEmbed';
 
 var PedigreeExport = function () {
 };
@@ -896,6 +897,10 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     pedigreeImage = PedigreeExport._applyBlackAndWhite(pedigreeImage, legendColours);
   }
 
+  // pedigree data (at the chosen privacy level), attached as a standard embedded file below
+  let embeddedXml = (embedXML && typeof PedigreeExport.exportAsInvitae === 'function')
+    ? PedigreeExport.exportAsInvitae(pedigree, privacySetting) : null;
+
   let compress = false;
   // Margins 0 prevents PDFKit from adding accidental extra pages when elements are near margins
   let doc = new PDFDocument({ compress: compress, size: pageSize, layout: layout, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -903,9 +908,9 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
   let stream = doc.pipe(blobStream());
   stream.on('finish', function () {
     let blob = stream.toBlob('application/pdf');
-    if (embedXML && typeof PedigreeExport.exportAsInvitae === 'function') {
-      let xml = PedigreeExport.exportAsInvitae(pedigree, privacySetting);
-      let finalBlob = new Blob([blob, "\n% PedigreeXML: ", btoa(unescape(encodeURIComponent(xml)))], { type: 'application/pdf' });
+    if (embeddedXml !== null) {
+      // legacy copy as a trailing comment, read by earlier versions of the editor
+      let finalBlob = new Blob([blob, '\n% PedigreeXML: ', toBase64Utf8(embeddedXml)], { type: 'application/pdf' });
       saveAs(finalBlob, 'open-pedigree.pdf');
     } else {
       saveAs(blob, 'open-pedigree.pdf');
@@ -1066,6 +1071,20 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     }
     doc.text(stamp, pageMargin, footerTextY, { width: contentWidth, align: 'right', lineBreak: false });
     doc.restore();
+  }
+
+  if (embeddedXml !== null && typeof doc.file === 'function') {
+    try {
+      doc.file('data:application/xml;base64,' + toBase64Utf8(embeddedXml), {
+        name: PEDIGREE_FILE_NAME,
+        type: 'application/xml',
+        description: 'Open Pedigree X pedigree data (re-open the PDF in Open Pedigree X to edit)',
+        creationDate: new Date(),
+        modifiedDate: new Date()
+      });
+    } catch (e) {
+      console.warn('Could not attach the pedigree XML to the PDF:', e);
+    }
   }
 
   doc.end();

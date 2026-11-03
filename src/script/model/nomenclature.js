@@ -9,7 +9,10 @@ import { romanize } from 'pedigree/model/helpers';
  * every place shows the same identifier for the same person.
  */
 
-var TIER_TOLERANCE = 50; // persons whose Y differs by less than this belong to the same generation
+// Generations come from the layout rank of each person in the graph, so they do not depend on
+// where a node is drawn. When the rank is unavailable, persons whose Y differs by less than
+// TIER_TOLERANCE are grouped instead.
+var TIER_TOLERANCE = 50;
 
 /**
  * Returns the real (non-placeholder, non-virtual) person nodes currently drawn.
@@ -33,7 +36,13 @@ var getNumberablePersons = function(ed) {
     if (!node || (node.isVirtual && node.isVirtual())) {
       continue;
     }
-    result.push({ id: id, x: node.getX(), y: node.getY() });
+    var generation = null;
+    try {
+      generation = graph.getGeneration ? graph.getGeneration(id) : null;
+    } catch (e) {
+      generation = null;
+    }
+    result.push({ id: id, x: node.getX(), y: node.getY(), generation: (typeof generation === 'number' && isFinite(generation)) ? generation : null });
   }
   return result;
 };
@@ -49,25 +58,27 @@ var getNumberablePersons = function(ed) {
 var computeStandardNumbering = function(ed) {
   var persons = getNumberablePersons(ed || (typeof editor !== 'undefined' ? editor : null));
   var tiers = [];
+  var byRank = persons.length > 0 && persons.every(function(p) { return p.generation !== null; });
 
-  persons.sort(function(a, b) { return a.y - b.y; });
+  persons.sort(function(a, b) { return byRank ? (a.generation - b.generation) || (a.y - b.y) : a.y - b.y; });
   persons.forEach(function(p) {
     var tier = null;
     for (var t = 0; t < tiers.length; t++) {
-      if (Math.abs(tiers[t].y - p.y) < TIER_TOLERANCE) {
+      if (byRank ? tiers[t].generation === p.generation : Math.abs(tiers[t].y - p.y) < TIER_TOLERANCE) {
         tier = tiers[t];
         break;
       }
     }
     if (!tier) {
-      tier = { y: p.y, persons: [] };
+      tier = { y: p.y, generation: p.generation, persons: [] };
       tiers.push(tier);
     }
     tier.persons.push(p);
+    // mean drawing height of the generation, used to place its label on the canvas
     tier.y = tier.persons.reduce(function(sum, q) { return sum + q.y; }, 0) / tier.persons.length;
   });
 
-  tiers.sort(function(a, b) { return a.y - b.y; });
+  tiers.sort(function(a, b) { return byRank ? a.generation - b.generation : a.y - b.y; });
 
   var byId = {};
   tiers.forEach(function(tier, g) {
