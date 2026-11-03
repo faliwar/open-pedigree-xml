@@ -332,8 +332,15 @@ var buildFamilySummary = function(options) {
     var first = '';
     var rel = graph.getParentRelationship(probandId);
     if (parents.length === 2 && rel !== null && rel !== undefined) {
+      // the user's choice on the couple (Yes / No) wins over automatic detection, as in the drawing
       var consang = false;
-      try { consang = graph.isConsangrRelationship(rel); } catch (e) {}
+      var relNode = editor.getNode(rel);
+      var pref = (relNode && relNode.getConsanguinity) ? relNode.getConsanguinity() : 'A';
+      if (pref === 'Y') {
+        consang = true;
+      } else if (pref !== 'N') {
+        try { consang = graph.isConsangrRelationship(rel); } catch (e) {}
+      }
       if (consang) {
         var f = inbreedingOf(graph, probandId);
         first = f > 0 ? w.parentsYesF.replace('{f}', formatCoefficient(f, lang)) : w.parentsYes;

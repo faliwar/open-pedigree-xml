@@ -1038,10 +1038,8 @@ var CascadeTestingDialog = Class.create({
         .map(function(d) { return d.name; });
       var name = prompt(translate('Name of the model:'), _this._presetName || (conds.join(' + ') + (conds.length ? ' - ' : '') + _this._mode));
       if (!name || !name.trim()) return;
-      var notes = prompt(translate('Source of the values or notes (optional):'), '');
-      if (notes === null) return;
       _this._presetName = name.trim();
-      var p = _this._currentPreset(name, notes);
+      var p = _this._currentPreset(name, '');
       var fileName = p.name.replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '') || 'cascade';
       _this._download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), fileName + '.opx-model.json');
     }));

@@ -549,7 +549,9 @@ html,
 
   #editor-menu .action-group {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    /* minmax(0, 1fr): columns may shrink below the label width, so long (e.g. Portuguese)
+       labels wrap instead of pushing the second column off narrow screens */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin: 0 0 10px 0;
     padding: 0 0 8px 0;
@@ -577,9 +579,12 @@ html,
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
     min-height: 42px;
-    padding: 8px 12px;
+    padding: 8px 10px;
     margin: 0;
+    white-space: normal;
+    line-height: 1.2;
     font-size: 13px;
     font-weight: 500;
     color: #1e293b;
@@ -593,10 +598,16 @@ html,
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   #editor-menu .menu-item .fa {
+    flex: 0 0 auto;
     font-size: 14px;
     width: 16px;
     text-align: center;
     color: #0089dc;
+  }
+  #editor-menu .menu-item .menu-item-label {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   #editor-menu .menu-item:hover,
   #editor-menu .menu-item:active {
