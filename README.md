@@ -11,6 +11,7 @@
   <a href="https://opensource.org/licenses/LGPL-2.1" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/badge/License-LGPL_v2.1-blue.svg" alt="License: LGPL-2.1">
   </a>
+  <a href="https://doi.org/10.5281/zenodo.23935521"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23935521.svg" alt="DOI"></a>
 </p>
 
 Open Pedigree X is an enhanced fork of [PhenoTips/open-pedigree](https://phenotips.com) built on [Prototype](https://prototypejs.org) and [Raphaël](https://dmitrybaranovskiy.github.io/raphael/). It optimizes genomic pedigree drawing for modern clinical workflows with mobile/touch support, advanced genetic modeling, cloud storage, and bi-directional Invitae/Progeny XML compatibility.
