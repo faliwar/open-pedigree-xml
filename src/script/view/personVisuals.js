@@ -1079,6 +1079,10 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       labels.flatten().insertBefore(this.getHoverBox().getFrontElements().flatten());
     }
 
+    // how far the text reaches below the centre of the symbol (without the selection shift)
+    this._labelsBottom = hasLabels ? (maxY - this.getY() - selectionOffset) : 0;
+    editor.getView && editor.getView() && editor.getView().scheduleLabelSpacing && editor.getView().scheduleLabelSpacing();
+
     if (hasLabels) {
       if (!this._labelsBox) {
         this._labelsBox = editor.getPaper().rect(0, 0, 10, 10).attr({

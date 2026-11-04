@@ -590,6 +590,81 @@ var View = Class.create({
     }
   },
 
+  /**
+   * Checks, shortly after labels change, whether the text under any generation reaches its children's
+   * line (or the next generation) and, if so, moves the lower generations down; also gives back the
+   * space when the text gets shorter.
+   */
+  scheduleLabelSpacing: function() {
+    if (this._labelSpacingBusy) return;
+    var _this = this;
+    clearTimeout(this._labelSpacingTimer);
+    this._labelSpacingTimer = setTimeout(function() {
+      _this.adjustSpacingForLabels();
+    }, 150);
+  },
+
+  adjustSpacingForLabels: function() {
+    if (typeof editor === 'undefined' || !editor.getGraph) return;
+    var graph = editor.getGraph();
+    var DG = graph && graph.DG;
+    if (!DG || !DG.rankY || !DG.ranks) return;
+    var GG = DG.GG;
+    var yscale = PedigreeEditorParameters.attributes.layoutScale.yscale;
+    var MARGIN = 16; // canvas px kept free between the text and the line below it
+
+    var need = {};
+    for (var id in this._nodeMap) {
+      if (!this._nodeMap.hasOwnProperty(id)) continue;
+      var v = parseInt(id, 10);
+      if (!(v <= GG.getMaxRealVertexId()) || !GG.isPerson(v)) continue;
+      var g = this._nodeMap[id].getGraphics && this._nodeMap[id].getGraphics();
+      var bottom = g && g._labelsBottom;
+      if (!(bottom > 0)) continue;
+      var r = DG.ranks[v];
+      // space the layout gives without extra: person centre -> children's line
+      var levels = (DG.vertLevel && DG.vertLevel.rankVerticalLevels) ? DG.vertLevel.rankVerticalLevels[r] : 1;
+      var base = DG.yDistanceNodeToChildhub + DG.yExtraPerHorizontalLine * (Math.max(levels || 1, 1) - 1);
+      // children's lines may be drawn a level or more above the rank's base line
+      var minLevel = 1;
+      (DG.order.order[r + 1] || []).forEach(function(h) {
+        if (GG.isChildhub(h) && DG.vertLevel.childEdgeLevel && typeof DG.vertLevel.childEdgeLevel[h] === 'number') {
+          minLevel = Math.min(minLevel, DG.vertLevel.childEdgeLevel[h]);
+        }
+      });
+      base += (minLevel - 1) * DG.yExtraPerHorizontalLine;
+      var extra = Math.max(0, Math.ceil((bottom + MARGIN) / yscale - base));
+      if (extra > (need[r] || 0)) need[r] = extra;
+    }
+
+    var current = DG.labelExtra || {};
+    var same = true;
+    Object.keys(need).concat(Object.keys(current)).forEach(function(k) {
+      if ((need[k] || 0) !== (current[k] || 0)) same = false;
+    });
+    if (same) return;
+
+    this._labelSpacingBusy = true;
+    try {
+      var positionsBefore = DG.positions.slice(0);
+      var ranksBefore = DG.ranks.slice(0);
+      var vertLevelsBefore = DG.vertLevel.copy();
+      var rankYBefore = DG.rankY.slice(0);
+      DG.labelExtra = need;
+      DG.rankY = DG.computeRankY(ranksBefore, rankYBefore);
+      var moved = graph._findMovedNodes(GG.getMaxRealVertexId(), positionsBefore, ranksBefore, vertLevelsBefore, rankYBefore);
+      if (moved.length) {
+        this.applyChanges({ 'moved': moved }, false);
+      }
+    } catch (e) {
+      console.warn('Label spacing not adjusted:', e);
+    } finally {
+      var _this = this;
+      // labels redrawn by the move above must not start another round
+      setTimeout(function() { _this._labelSpacingBusy = false; }, 0);
+    }
+  },
+
   applyChanges: function( changeSet, markNew ) {
     // applies change set of the form {"new": {list of nodes}, "moved": {list of nodes} }
 

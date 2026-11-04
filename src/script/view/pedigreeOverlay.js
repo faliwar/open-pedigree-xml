@@ -1,7 +1,7 @@
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
-import { makeInbreeding, formatCoefficient } from 'pedigree/model/kinship';
+import { makeInbreeding, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 
 /**
  * PedigreeOverlay draws non-interactive annotations on top of the pedigree canvas:
@@ -273,7 +273,7 @@ var PedigreeOverlay = Class.create({
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
       var consanguineous = false;
       try {
-        consanguineous = graph.isRelationship(id) && graph.isConsangrRelationship(id);
+        consanguineous = graph.isRelationship(id) && coupleIsConsanguineous(graph, id);
       } catch (e) {}
       if (!consanguineous) continue;
       var partners = [];

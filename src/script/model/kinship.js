@@ -351,6 +351,18 @@ var inbreedingOfChildren = function(graph, partner1, partner2) {
 };
 
 /** F of a person (from the relationship between the parents) */
+/**
+ * Whether a couple is shown as consanguineous: the user's choice on the couple (Yes / No) wins over
+ * automatic detection (common ancestors drawn in the pedigree), as in the double relationship line.
+ */
+var coupleIsConsanguineous = function(graph, relId) {
+  var node = (typeof editor !== 'undefined' && editor && editor.getNode) ? editor.getNode(relId) : null;
+  var pref = (node && node.getConsanguinity) ? node.getConsanguinity() : 'A';
+  if (pref === 'Y') return true;
+  if (pref === 'N') return false;
+  try { return graph.isConsangrRelationship(relId); } catch (e) { return false; }
+};
+
 var inbreedingOf = function(graph, id) {
   return makeInbreeding(graph).inbreeding(id);
 };
@@ -379,4 +391,4 @@ var formatCoefficient = function(value, lang) {
 };
 
 export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents,
-  makeInbreeding, makeTwinCanon, inbreedingOfChildren, inbreedingOf, formatCoefficient };
+  makeInbreeding, makeTwinCanon, inbreedingOfChildren, inbreedingOf, formatCoefficient, coupleIsConsanguineous };

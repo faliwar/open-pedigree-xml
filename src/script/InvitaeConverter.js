@@ -1025,8 +1025,17 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       }
     }
 
+    // Yes / No as chosen on the couple; Automatic (or not set) follows the drawn genealogy
+    // (common ancestors in the pedigree), as the double relationship line does
     var consangr = relProps['consangr'];
-    var consanguinity = (consangr === 'Y' || consangr === 'A') ? '1' : '0';
+    var consanguinity;
+    if (consangr === 'Y') {
+      consanguinity = '1';
+    } else if (consangr === 'N') {
+      consanguinity = '0';
+    } else {
+      consanguinity = (pedigree.consangr && pedigree.consangr.hasOwnProperty(i)) ? '1' : '0';
+    }
     var broken = relProps['broken'] ? '1' : '0';
 
     var hasParents = (maleId !== null && idToInvitaeId[maleId] !== undefined) ||

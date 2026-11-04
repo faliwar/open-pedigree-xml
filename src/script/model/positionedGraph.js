@@ -29,6 +29,7 @@ var PositionedGraph = function( baseG,                          // mandatory, Ba
 
   this.vertLevel = undefined;  // class: VerticalLevels
   this.rankY     = undefined;  // 1D aray: index = rank, value = y-coordinate
+  this.labelExtra = {};        // rank of persons -> extra space (graph units) above their children's line, for tall labels
 
   this.ancestors = undefined;  // {}: for each node contains a set of all its ancestors and the closest relationship distance
   this.consangr  = undefined;  // {}: for each node a set of consanguineous relationship IDs
@@ -2981,6 +2982,10 @@ PositionedGraph.prototype = {
       //       horizontal lines (childlines & relationship lines) between two ranks it is good to separate those ranks vertically
       //       more than ranks with less horizontal lines between them
       rankY[r] = rankY[r-1] + yDistance + this.yExtraPerHorizontalLine*(Math.max(this.vertLevel.rankVerticalLevels[r-1],1) - 1);
+      // persons with many lines of text below them: move their children's line (and everything below) down
+      if (this.labelExtra && this.GG.isChildhub(this.order.order[r][0])) {
+        rankY[r] += this.labelExtra[r-1] || 0;
+      }
     }
 
     if (oldRanks && oldRankY) {

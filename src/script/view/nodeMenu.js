@@ -717,7 +717,7 @@ var NodeMenu = Class.create({
     },
     'disease-picker' : function (data) {
       var result = this._generateEmptyField(data);
-      var diseasePicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-omim', name: data.name});
+      var diseasePicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-omim', name: data.name, placeholder: translate('Add a disorder…')});
       result.insert(diseasePicker);
       diseasePicker._getValue = function() {
         var results = [];
@@ -742,7 +742,7 @@ var NodeMenu = Class.create({
     },
     'hpo-picker' : function (data) {
       var result = this._generateEmptyField(data);
-      var hpoPicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-hpo', name: data.name});
+      var hpoPicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-hpo', name: data.name, placeholder: translate('Add a phenotype…')});
       result.insert(hpoPicker);
       hpoPicker._getValue = function() {
         var results = [];
@@ -767,7 +767,7 @@ var NodeMenu = Class.create({
     },
     'gene-picker' : function (data) {
       var result = this._generateEmptyField(data);
-      var genePicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-genes', name: data.name});
+      var genePicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-genes', name: data.name, placeholder: translate('Add a gene…')});
       result.insert(genePicker);
       genePicker._getValue = function() {
         var results = [];

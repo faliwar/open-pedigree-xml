@@ -13,6 +13,8 @@ var HPOLegend = Class.create( Legend, {
 
   initialize: function($super) {
     $super('Phenotypes');
+    // phenotypes have no colour on the chart: the list is left out of exported legends
+    this._legendBox.writeAttribute('data-opx-export', 'omit');
 
     this._termCache = {};
   },

@@ -585,6 +585,7 @@ PedigreeExport._readLegend = function() {
     for (let c of container.childNodes) {
       if (c.tagName !== 'DIV') continue;
       if (c.style && c.style.display === 'none') continue;
+      if (c.getAttribute('data-opx-export') === 'omit') continue; // e.g. phenotypes: no colour on the chart
 
       let h2Array = c.getElementsByTagName('H2');
       let legendSection = {

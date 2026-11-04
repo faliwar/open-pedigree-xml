@@ -1,7 +1,7 @@
 import { ChildlessBehavior } from 'pedigree/view/abstractNode';
 import AbstractNode from 'pedigree/view/abstractNode';
 import PartnershipVisuals from 'pedigree/view/partnershipVisuals';
-import { inbreedingOfChildren, formatCoefficient } from 'pedigree/model/kinship';
+import { inbreedingOfChildren, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 import { getLanguage, translate } from 'pedigree/i18n';
 
 /**
@@ -144,6 +144,7 @@ var Partnership = Class.create(AbstractNode, {
     var partners = [];
     try { partners = graph.DG.GG.getParents(this.getID()); } catch (e) {}
     if (partners.length !== 2) return { value: null, inactive: true };
+    if (!coupleIsConsanguineous(graph, this.getID())) return { value: null, inactive: true };
     var f = inbreedingOfChildren(graph, partners[0], partners[1]);
     if (!(f > 0)) {
       // marked consanguineous, but the common ancestors are not drawn

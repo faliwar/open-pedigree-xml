@@ -1,9 +1,9 @@
-import { findBloodRelatives, relationshipName, isRealPerson, inbreedingOf, formatCoefficient } from 'pedigree/model/kinship';
+import { findBloodRelatives, relationshipName, isRealPerson, inbreedingOf, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
 import getAge from 'pedigree/view/ageCalc';
 import { computeVariantRisks } from 'pedigree/model/inheritance';
-import { parsePenetranceCurve, curveFraction } from 'pedigree/model/penetrance';
+import { parsePenetranceCurve, curveFraction, curveLifetime, activeCurve } from 'pedigree/model/penetrance';
 import { buildPreset, parsePreset, resolvePreset } from 'pedigree/model/cascadePresets';
 import { testLabel as clinicalTestLabel, testResult as clinicalTestResult } from 'pedigree/model/clinicalData';
 
@@ -140,8 +140,9 @@ var CascadeTestingDialog = Class.create({
    *              biallelic individuals for recessive)
    *   femalePen  % of heterozygous females affected (X-linked)
    *   onsetFrom / onsetTo  age range in which affected carriers develop signs (0-0: at birth)
-   *   curve      optional cumulative penetrance by age, "age:% age:% ...": gives the share of
-   *              eventual cases manifest by each age instead of the linear onset range
+   *   curve      cumulative penetrance by age, "age:% age:% ...", used instead of the age range:
+   *              its shape gives the share of eventual cases manifest by each age and its last
+   *              point is the lifetime penetrance (the penetrance field is then not used)
    *   phenocopy  % of non-carriers affected by the condition (sporadic cases)
    *   mutationRatio  male / female mutation rate (X-linked)
    *   usePhenotypes, unrecordedUnaffected, useTests  which evidence to use
@@ -242,15 +243,18 @@ var CascadeTestingDialog = Class.create({
     var num = function(v, def) { return (typeof v === 'number' && isFinite(v)) ? v : def; };
     var make = function(condition, p) {
       p = p || {};
-      var pen = num(p.penetrance, model.penetrance) / 100;
+      var curve = activeCurve(p, model);
+      var pen = (curve ? curveLifetime(curve) : num(p.penetrance, model.penetrance)) / 100;
       var femalePen = num(p.femalePen, model.femalePen) / 100;
       if (multi && typeof model.penScale === 'number') {
         // ranking grid: scale this condition's penetrance; X-linked female penetrance relative to it
         femalePen = (typeof model.femaleFrac === 'number') ? pen * model.femaleFrac : pen * model.penScale;
         pen = pen * model.penScale;
+      } else if (curve && typeof model.penScale === 'number') {
+        // ranking grid with a curve: the grid scales the curve's lifetime penetrance
+        pen = pen * model.penScale;
       }
       var from = num(p.onsetFrom, model.onsetFrom), to = num(p.onsetTo, model.onsetTo);
-      var curve = parsePenetranceCurve(typeof p.curve === 'string' ? p.curve : model.curve);
       var congenital = !curve && !(to > 0) && !(from > 0);
       return {
         condition: condition,
@@ -656,6 +660,11 @@ var CascadeTestingDialog = Class.create({
     this._deNovoIndex = risks.deNovoIndex;
     // Wright's F of the index (from the relationship between the index's parents)
     this._indexF = inbreedingOf(graph, this._indexId);
+    var indexParents = null;
+    try { indexParents = graph.getParentRelationship(this._indexId); } catch (e) {}
+    if (indexParents !== null && indexParents !== undefined && !coupleIsConsanguineous(graph, indexParents)) {
+      this._indexF = 0; // the user marked the parents as not consanguineous
+    }
     // how well each mode of inheritance explains the pedigree
     this._fit = this._rankModes();
     var biallelic = this._isBiallelic();
@@ -933,21 +942,44 @@ var CascadeTestingDialog = Class.create({
     var modelGrid = new Element('div', { 'class': 'cascade-controls cascade-model-grid' });
     modelBox.insert(modelGrid);
 
-    // several conditions can be chosen (Ctrl/Cmd-click) when the variant causes more than one
-    var conditionSelect = new Element('select', { 'class': 'cascade-select cascade-select-multi', 'id': 'cascade-condition', 'multiple': 'multiple' });
+    // several conditions can be chosen when the variant causes more than one: chosen ones are chips
+    // (as for ancestry), the list below adds another one
+    var conditionSelect = new Element('div', { 'class': 'opx-chip-field', 'id': 'cascade-condition' });
+    var conditionChips = new Element('div', { 'class': 'opx-chips' });
+    var conditionAdd = new Element('select', { 'class': 'cascade-select opx-chip-add' });
+    conditionSelect.insert(conditionChips).insert(conditionAdd);
+    var setConditions = function(list) {
+      // "anyone marked as affected" when no specific condition is left
+      _this._condition = (list && list.length) ? list : '';
+      refreshConditions();
+      syncModelFields();
+      recompute(true);
+    };
     var refreshConditions = function() {
       var current = _this._resolvedConditions();
       var disorders = _this._pedigreeDisorders();
-      conditionSelect.update('');
-      var anyOpt = new Element('option', { 'value': '' }).update(translate('Anyone marked as affected'));
-      conditionSelect.insert(anyOpt);
-      disorders.forEach(function(d) {
-        var opt = new Element('option', { 'value': d.id }).update(d.name.escapeHTML());
-        if (current.indexOf(d.id) !== -1) opt.selected = true;
-        conditionSelect.insert(opt);
+      var nameOf = {};
+      disorders.forEach(function(d) { nameOf[d.id] = d.name; });
+      conditionChips.update('');
+      if (!current.length) {
+        conditionChips.insert(new Element('span', { 'class': 'opx-chip opx-chip-neutral' }).update(translate('Anyone marked as affected')));
+      }
+      current.forEach(function(id) {
+        var chip = new Element('span', { 'class': 'opx-chip' }).insert(new Element('span').update(String(nameOf[id] || id).escapeHTML()));
+        var remove = new Element('button', { 'type': 'button', 'class': 'opx-chip-remove', 'title': translate('Remove'), 'aria-label': translate('Remove') }).update('×');
+        remove.observe('click', function() {
+          setConditions(current.filter(function(c) { return c !== id; }));
+        });
+        conditionChips.insert(chip.insert(remove));
       });
-      if (!current.length) anyOpt.selected = true;
-      conditionSelect.size = Math.min(4, disorders.length + 1);
+      conditionAdd.update('');
+      conditionAdd.insert(new Element('option', { 'value': '__add' }).update(translate(current.length ? 'Add another condition…' : 'Choose a condition…')));
+      disorders.forEach(function(d) {
+        if (current.indexOf(d.id) === -1) conditionAdd.insert(new Element('option', { 'value': d.id }).update(d.name.escapeHTML()));
+      });
+      if (current.length) conditionAdd.insert(new Element('option', { 'value': '' }).update(translate('Anyone marked as affected')));
+      conditionAdd.value = '__add';
+      conditionAdd.disabled = conditionAdd.options.length < 2;
     };
     refreshConditions();
 
@@ -965,25 +997,30 @@ var CascadeTestingDialog = Class.create({
 
     var conditionField = field('Condition used for phenotypes', conditionSelect, 'cascade-field-wide',
       ['Relatives with this condition count as affected, the others as unaffected (when that option is on). By default, the condition of the index person.',
-        'Hold Ctrl (Cmd on a Mac) to choose several conditions caused by the same variant, for example breast and ovarian cancer: a relative with any of them counts as affected.']);
+        'Add several conditions caused by the same variant, for example breast and ovarian cancer: a relative with any of them counts as affected.']);
     var deNovoField = field('De novo (% of carriers)', deNovoInput, 'cascade-field-narrow',
       ['Share of carriers whose variant is new, so the parents do not carry it.',
         'De novo examples: about 1/3 of isolated males for lethal X-linked conditions (Haldane); about 50% in NF1; about 80% in achondroplasia; rare in late-onset cancer syndromes.']);
     var penLabel = new Element('span', { 'class': 'cascade-field-label' });
     var penField = new Element('label', { 'class': 'cascade-field cascade-field-narrow' }).insert(penLabel).insert(penInput);
     var femalePenField = field('Penetrance in heterozygous females (%)', femalePenInput, 'cascade-field-narrow');
-    var onsetField = field('Age at onset', onsetWrap, 'cascade-field-onset',
-      ['Age range in which carriers who become affected show signs. 0 to 0 means at birth (congenital). Unaffected relatives younger than the range are less informative.']);
-    var curveInput = new Element('input', { 'type': 'text', 'class': 'cascade-input', 'id': 'cascade-curve', 'placeholder': translate('e.g. 30:3 40:10 50:25 70:55') });
-    var curveField = field('Penetrance by age (optional)', curveInput, 'cascade-field-wide',
-      ['Cumulative penetrance at several ages, as age:% pairs (for example 30:3 40:10 50:25 70:55 from a published curve). When filled in, it replaces the age range above to judge how informative an unaffected relative is. The lifetime penetrance is the field above.']);
+    // age at onset: an age range, or a penetrance curve (whose last point is then the penetrance)
+    var curveInput = new Element('input', { 'type': 'text', 'class': 'cascade-input cascade-curve-input', 'id': 'cascade-curve', 'placeholder': translate('e.g. 30:3 40:10 50:25 70:55') });
+    var onsetModeSelect = new Element('select', { 'class': 'cascade-select cascade-onset-mode' });
+    onsetModeSelect.insert(new Element('option', { 'value': 'range' }).update(translate('Age range')));
+    onsetModeSelect.insert(new Element('option', { 'value': 'curve' }).update(translate('Penetrance curve')));
+    var onsetMode = parsePenetranceCurve(_this._getModel().curve) ? 'curve' : 'range';
+    var onsetBox = new Element('span', { 'class': 'cascade-onset-box' }).insert(onsetModeSelect).insert(onsetWrap).insert(curveInput);
+    var onsetField = field('Age at onset', onsetBox, 'cascade-field-onset',
+      ['Age range: carriers who become affected show signs between these ages, evenly spread (0 to 0 means at birth, congenital). Unaffected relatives younger than the range are less informative.',
+        'Penetrance curve: the cumulative chance of being affected at several ages, as age:% pairs from a published curve (for example 30:3 40:10 50:25 70:55). Its last value is the lifetime penetrance, so the penetrance field follows it.']);
     var phenocopyInput = numberInput('cascade-phenocopy', 0, 100, 'any');
     var phenocopyField = field('Sporadic cases (% of non-carriers affected)', phenocopyInput, 'cascade-field-narrow',
       ['Chance that a relative without the familial variant has the condition anyway (phenocopy). Use the population risk for common conditions, for example about 12% for breast cancer in women, or turn off the use of phenotypes and rely on test results.']);
     var mutationRatioInput = numberInput('cascade-mutation-ratio', 0.1, 100, 'any');
     var mutationRatioField = field('Mutation rate, male / female', mutationRatioInput, 'cascade-field-narrow',
       ['X-linked: how many times more often new variants arise in male than in female germ cells. 1 assumes equal rates (classical Haldane result, 2/3 for the mother of an isolated case). Higher values fit conditions such as hemophilia A, where most mothers of isolated cases are carriers.']);
-    [conditionField, deNovoField, penField, femalePenField, onsetField, curveField, phenocopyField, mutationRatioField].forEach(function(f) { modelGrid.insert(f); });
+    [conditionField, deNovoField, penField, femalePenField, onsetField, phenocopyField, mutationRatioField].forEach(function(f) { modelGrid.insert(f); });
 
     var checks = new Element('div', { 'class': 'cascade-checks' });
     var makeCheck = function(key, text) {
@@ -1062,13 +1099,14 @@ var CascadeTestingDialog = Class.create({
       _this._pedigreeDisorders().forEach(function(d) { names[d.id] = d.name; });
       var head = new Element('div', { 'class': 'cascade-percondition-head' });
       head.insert(new Element('span', { 'class': 'cascade-field-label' }).update(translate('Settings per condition')));
-      head.insert(help(['Each condition has its own penetrance, age at onset (or penetrance curve) and rate of sporadic cases, and the conditions count independently. Empty cells use the general values.']));
+      head.insert(help(['Each condition has its own penetrance, age at onset (or penetrance curve) and rate of sporadic cases, and the conditions count independently. Empty cells use the general values.',
+        'With a penetrance curve, its last value is the penetrance and the onset ages are not used.']));
       perConditionBox.insert(head);
       var table = new Element('table', { 'class': 'cascade-percondition-table' });
       var cols = [['penetrance', xl ? 'Penetrance in hemizygous males (%)' : 'Penetrance (%)', 'number']];
       if (xl) cols.push(['femalePen', 'Penetrance in heterozygous females (%)', 'number']);
       cols.push(['onsetFrom', 'Onset from', 'number'], ['onsetTo', 'Onset to', 'number'],
-        ['curve', 'Penetrance by age (optional)', 'text'], ['phenocopy', 'Sporadic cases (%)', 'number']);
+        ['curve', 'Penetrance curve', 'text'], ['phenocopy', 'Sporadic cases (%)', 'number']);
       var tr = new Element('tr').insert(new Element('th').update(translate('Condition')));
       cols.forEach(function(c) { tr.insert(new Element('th').update(translate(c[1]))); });
       table.insert(new Element('thead').insert(tr));
@@ -1076,12 +1114,24 @@ var CascadeTestingDialog = Class.create({
       conditions.forEach(function(cond) {
         var row = new Element('tr').insert(new Element('td').update((names[cond] || cond).escapeHTML()));
         var own = m.conditionParams[cond] || {};
+        var rowCurve = activeCurve(own, m);
         cols.forEach(function(c) {
           var key = c[0];
           var input = new Element('input', { 'type': c[2], 'class': 'cascade-input', 'step': 'any', 'min': 0 });
-          if (c[2] === 'text') input.setAttribute('placeholder', translate('e.g. 30:3 40:10 50:25 70:55'));
+          if (c[2] === 'text') input.setAttribute('placeholder', m.curve || translate('e.g. 30:3 40:10 50:25 70:55'));
           input.value = own.hasOwnProperty(key) ? own[key] : '';
           input.setAttribute('placeholder', input.getAttribute('placeholder') || String(m[key]));
+          if (rowCurve && key === 'penetrance') {
+            // the curve gives the penetrance
+            input.value = curveLifetime(rowCurve);
+            input.disabled = true;
+            input.title = translate('From the penetrance curve');
+          } else if (rowCurve && (key === 'onsetFrom' || key === 'onsetTo')) {
+            input.value = '';
+            input.setAttribute('placeholder', '—');
+            input.disabled = true;
+            input.title = translate('The penetrance curve is used instead');
+          }
           input.observe('change', function() {
             var all = Object.assign({}, _this._getModel().conditionParams);
             var entry = Object.assign({}, all[cond] || {});
@@ -1117,6 +1167,15 @@ var CascadeTestingDialog = Class.create({
       onsetFromInput.value = m.onsetFrom;
       onsetToInput.value = m.onsetTo;
       curveInput.value = m.curve;
+      var generalCurve = parsePenetranceCurve(m.curve);
+      if (generalCurve) onsetMode = 'curve';
+      onsetModeSelect.value = onsetMode;
+      onsetWrap.setStyle({ display: onsetMode === 'range' ? '' : 'none' });
+      curveInput.setStyle({ display: onsetMode === 'curve' ? '' : 'none' });
+      // with a curve, the penetrance is its last value
+      penInput.disabled = !!generalCurve;
+      penInput.title = generalCurve ? translate('From the penetrance curve') : '';
+      if (generalCurve) penInput.value = curveLifetime(generalCurve);
       phenocopyInput.value = m.phenocopy;
       mutationRatioInput.value = m.mutationRatio;
       mutationRatioField.setStyle({ display: xl ? '' : 'none' });
@@ -1131,7 +1190,7 @@ var CascadeTestingDialog = Class.create({
       // with several conditions, their settings are in the per-condition table instead
       var multi = _this._resolvedConditions().length > 1;
       conditionField.setStyle({ display: phenoUseful ? '' : 'none' });
-      [penField, onsetField, curveField, phenocopyField].forEach(function(f) { f.setStyle({ display: phenoUseful && !multi ? '' : 'none' }); });
+      [penField, onsetField, phenocopyField].forEach(function(f) { f.setStyle({ display: phenoUseful && !multi ? '' : 'none' }); });
       femalePenField.setStyle({ display: xl && !multi ? '' : 'none' });
       renderConditionTable(xl);
       if (!phenoUseful) perConditionBox.setStyle({ display: 'none' });
@@ -1182,15 +1241,26 @@ var CascadeTestingDialog = Class.create({
       // keep only what parses; an invalid curve is cleared
       _this._setModel('curve', parsePenetranceCurve(text) ? text : '');
       curveInput.value = _this._getModel().curve;
-      recompute(true);
-    });
-    conditionSelect.observe('change', function() {
-      var chosen = $A(conditionSelect.options).filter(function(o) { return o.selected; }).map(function(o) { return o.value; });
-      // "anyone marked as affected" excludes the specific conditions
-      _this._condition = (!chosen.length || chosen.indexOf('') !== -1) ? '' : chosen;
-      if (_this._condition === '') refreshConditions();
       syncModelFields();
       recompute(true);
+    });
+    onsetModeSelect.observe('change', function() {
+      onsetMode = onsetModeSelect.value;
+      if (onsetMode === 'range' && _this._getModel().curve) {
+        // back to the age range: the curve no longer applies
+        _this._setModel('curve', '');
+        syncModelFields();
+        recompute(true);
+        return;
+      }
+      syncModelFields();
+      if (onsetMode === 'curve') curveInput.focus();
+    });
+    conditionAdd.observe('change', function() {
+      var value = conditionAdd.value;
+      if (value === '__add') return;
+      // "anyone marked as affected" replaces the specific conditions
+      setConditions(value === '' ? [] : _this._resolvedConditions().concat([value]));
     });
 
     // --- summary and table
@@ -1257,7 +1327,8 @@ var CascadeTestingDialog = Class.create({
       var parts = [];
       if (_this._mode !== 'AR') parts.push(translate('de novo') + ' ' + m.deNovo + '%');
       var nCond = _this._resolvedConditions().length;
-      if (!(_this._mode === 'AR' && !biallelic)) parts.push(nCond > 1 ? nCond + ' ' + translate('conditions') : translate('penetrance') + ' ' + m.penetrance + '%');
+      var summaryCurve = parsePenetranceCurve(m.curve);
+      if (!(_this._mode === 'AR' && !biallelic)) parts.push(nCond > 1 ? nCond + ' ' + translate('conditions') : translate('penetrance') + ' ' + (summaryCurve ? curveLifetime(summaryCurve) + '% (' + translate('curve') + ')' : m.penetrance + '%'));
       parts.push((ec.affected || 0) + ' ' + translate('affected') + ', ' + (ec.unaffected || 0) + ' ' + translate('unaffected') + ', ' + (ec.tested || 0) + ' ' + translate('tested'));
       modelSummary.update(parts.join(' · ').escapeHTML());
 
@@ -1511,14 +1582,16 @@ var CascadeTestingDialog = Class.create({
       conditions.forEach(function(c) {
         var p = m.conditionParams[c] || {};
         var v = function(key) { return p.hasOwnProperty(key) ? p[key] : m[key]; };
-        lines.push([names[c] || c, translate('Penetrance') + ' ' + v('penetrance') + '%' +
+        var rowCurve = activeCurve(p, m);
+        lines.push([names[c] || c, translate('Penetrance') + ' ' + (rowCurve ? curveLifetime(rowCurve) : v('penetrance')) + '%' +
           (xl ? ' / ' + v('femalePen') + '% ' + translate('in heterozygous females') : '') + '; ' +
-          translate('Age at onset') + ' ' + (v('curve') || (v('onsetFrom') + '–' + v('onsetTo'))) + '; ' +
+          translate('Age at onset') + ' ' + (rowCurve ? translate('Penetrance curve') + ' ' + (p.curve || m.curve) : (v('onsetFrom') + '–' + v('onsetTo'))) + '; ' +
           translate('Sporadic cases (%)') + ' ' + v('phenocopy') + '%']);
       });
     } else if (!(this._mode === 'AR' && !this._isBiallelic())) {
-      lines.push([translate('Penetrance'), m.penetrance + '%' + (xl ? ' / ' + m.femalePen + '% ' + translate('in heterozygous females') : '')]);
-      lines.push([translate('Age at onset'), m.curve ? translate('Penetrance by age (optional)').replace(/ \(.*\)$/, '') + ': ' + m.curve : m.onsetFrom + '–' + m.onsetTo]);
+      var reportCurve = parsePenetranceCurve(m.curve);
+      lines.push([translate('Penetrance'), (reportCurve ? curveLifetime(reportCurve) : m.penetrance) + '%' + (xl ? ' / ' + m.femalePen + '% ' + translate('in heterozygous females') : '')]);
+      lines.push([translate('Age at onset'), reportCurve ? translate('Penetrance curve') + ': ' + m.curve : m.onsetFrom + '–' + m.onsetTo]);
       lines.push([translate('Sporadic cases (% of non-carriers affected)'), m.phenocopy + '%']);
     }
     var ap = this._approx || {};

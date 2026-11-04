@@ -1,5 +1,5 @@
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
-import { findBloodRelatives, relationshipName, isRealPerson, getBiologicalParents, inbreedingOf, formatCoefficient } from 'pedigree/model/kinship';
+import { findBloodRelatives, relationshipName, isRealPerson, getBiologicalParents, inbreedingOf, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 import { classificationInfo, compactAge, normalizeAncestry } from 'pedigree/model/clinicalData';
 import getAge from 'pedigree/view/ageCalc';
 import { toPortuguese } from 'pedigree/i18n';
@@ -333,14 +333,7 @@ var buildFamilySummary = function(options) {
     var rel = graph.getParentRelationship(probandId);
     if (parents.length === 2 && rel !== null && rel !== undefined) {
       // the user's choice on the couple (Yes / No) wins over automatic detection, as in the drawing
-      var consang = false;
-      var relNode = editor.getNode(rel);
-      var pref = (relNode && relNode.getConsanguinity) ? relNode.getConsanguinity() : 'A';
-      if (pref === 'Y') {
-        consang = true;
-      } else if (pref !== 'N') {
-        try { consang = graph.isConsangrRelationship(rel); } catch (e) {}
-      }
+      var consang = coupleIsConsanguineous(graph, rel);
       if (consang) {
         var f = inbreedingOf(graph, probandId);
         first = f > 0 ? w.parentsYesF.replace('{f}', formatCoefficient(f, lang)) : w.parentsYes;

@@ -54,4 +54,20 @@ var curveFraction = function(curve, age) {
   return last > 0 ? Math.max(0, Math.min(1, curveValue(curve, age) / last)) : 1;
 };
 
-export { parsePenetranceCurve, curveValue, curveFraction };
+/** Lifetime penetrance (%) of a curve: its last point */
+var curveLifetime = function(curve) {
+  return curve[curve.length - 1][1];
+};
+
+/**
+ * Curve that applies to a condition: its own curve; none when it has its own age range;
+ * otherwise the general curve. Returns the parsed curve or null (age range applies).
+ */
+var activeCurve = function(own, general) {
+  own = own || {};
+  if (typeof own.curve === 'string' && parsePenetranceCurve(own.curve)) return parsePenetranceCurve(own.curve);
+  if (own.hasOwnProperty('onsetFrom') || own.hasOwnProperty('onsetTo')) return null;
+  return parsePenetranceCurve(general && general.curve);
+};
+
+export { parsePenetranceCurve, curveValue, curveFraction, curveLifetime, activeCurve };

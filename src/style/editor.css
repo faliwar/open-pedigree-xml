@@ -1862,20 +1862,6 @@ html,
   display: block;
   font-weight: bold;
 }
-.menu-box .accepted-suggestions li {
-  line-height: 1em;
-  padding: .2em 1em .1em 0;
-  font-size: 85%
-}
-.menu-box .accepted-suggestions li:hover {
-  background-color: #FFEE99;
-}
-.menu-box .accepted-suggestions li .delete-tool {
-  position: absolute;
-  top: .4em;
-  right: 0;
-  display: inline !important;
-}
 .field-values label {
   display: block;
 }
@@ -3682,6 +3668,142 @@ div.suggestItems .hide-button-wrapper {
   }
 }
 
+/* ===== Multiple choice as chips (ancestry, disorders, phenotypes, genes, cascade conditions) ===== */
+.opx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.opx-chips:empty {
+  display: none;
+}
+.opx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: #E0F2FE;
+  color: #075985;
+  font-size: 12px;
+  line-height: 18px;
+}
+.opx-chip-neutral {
+  padding-right: 9px;
+  background: #F1F5F9;
+  color: #475569;
+}
+.opx-chip-remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #0369A1;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.opx-chip-remove:hover {
+  background: #BAE6FD;
+}
+.opx-chip-field .opx-chip-add {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* suggest pickers of the person menu (disorders, phenotypes, genes): chips above the text box */
+.menu-box .field-box:has(> input.suggest.multi) {
+  display: flex;
+  flex-direction: column;
+}
+.menu-box .field-box:has(> input.suggest.multi) > .field-name { order: 0; }
+.menu-box .field-box:has(> input.suggest.multi) > .accepted-suggestions { order: 1; }
+.menu-box .field-box:has(> input.suggest.multi) > input.suggest { order: 2; }
+.menu-box .field-box:has(> input.suggest.multi) > .clear-tool { order: 3; }
+.menu-box .field-box:has(> input.suggest.multi) > .field-inputs:empty { display: none; }
+.menu-box .accepted-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 4px !important;
+  padding: 0 !important;
+  list-style: none;
+}
+.menu-box .accepted-suggestions:empty {
+  display: none;
+}
+.menu-box .accepted-suggestions li,
+.menu-box .accepted-suggestions li:hover {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: #E0F2FE;
+  color: #075985;
+  font-size: 12px;
+  line-height: 18px;
+}
+.menu-box .accepted-suggestions li:hover {
+  background-color: #E0F2FE;
+}
+.menu-box .accepted-suggestions li .disorder-color {
+  flex-shrink: 0;
+  margin: 0;
+  width: 9px;
+  height: 9px;
+}
+.menu-box .accepted-suggestions li .accepted-suggestion {
+  display: inline;
+  margin: 0;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.menu-box .accepted-suggestions li .delete-tool,
+.menu-box .accepted-suggestions li:hover .delete-tool {
+  position: static !important;
+  top: auto;
+  right: auto;
+  float: none;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #0369A1;
+  font-size: 0;
+  cursor: pointer;
+}
+.menu-box .accepted-suggestions li .delete-tool::before {
+  content: '\00D7';
+  font-size: 14px;
+  line-height: 1;
+}
+.menu-box .accepted-suggestions li .delete-tool:hover {
+  background: #BAE6FD;
+}
+.menu-box .field-box > .clear-tool {
+  align-self: flex-end;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #64748B;
+  cursor: pointer;
+}
+.menu-box .field-box > .clear-tool:hover {
+  color: #B91C1C;
+}
+
 /* ===== Ancestry picker in the person menu ===== */
 .menu-box .ancestry-chips {
   display: flex;
@@ -4918,10 +5040,26 @@ textarea.pedigree-info-input {
   font-size: 12px;
   color: #475569;
 }
-.cascade-select-multi {
-  min-height: 3.2em;
-}
 /* model file links (export / import), at the end of "Model and evidence" */
+.cascade-onset-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cascade-onset-box .cascade-onset-mode {
+  width: auto;
+  flex: 0 0 auto;
+}
+.cascade-onset-box .cascade-curve-input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.cascade-percondition-table input:disabled,
+.cascade-field input:disabled {
+  background: #F1F5F9;
+  color: #64748B;
+}
 .cascade-model-file {
   display: flex;
   justify-content: flex-end;
