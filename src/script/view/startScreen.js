@@ -1,6 +1,8 @@
 import { translate } from 'pedigree/i18n';
 
-var APP_VERSION = '1.3';
+/* global __APP_VERSION__ */
+// "1.4" from package.json "1.4.0": What's new is shown once per minor version, not for bug-fix releases
+var APP_VERSION = String(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '').split('.').slice(0, 2).join('.');
 var WELCOME_KEY = 'openpedigree_welcome_v1';
 var VERSION_KEY = 'openpedigree_seen_version';
 
@@ -13,14 +15,14 @@ var store = {
   }
 };
 
-// What's new in this version: [title, description, action]
+// What's new in this version: [title, description, action]. Update it for each minor release.
 var NEWS = [
-  ['Find people', 'Filter by condition, test result, age, ancestry or relationship and see them highlighted on the chart.', function() { editor.getSearchPanel().show(); }],
-  ['Title, header and notes on the chart', 'Family, date and author on screen and in the PDF; free-text notes on the drawing.', function() { editor.getPedigreeHeader().show(); }],
-  ['Ancestry for every person', 'gnomAD groups, founder populations or free text; kept in Progeny XML and used by CanRisk.', null],
-  ['Cleaner cascade testing', 'Explanations behind (?) buttons, a one-line model summary and a shorter table.', function() { editor.getCascadeTestingDialog().show(); }],
-  ['Better pedigrees from AI', 'Clinical notes turned into XML with ages, names and comments in the right fields.', function() { editor.getImportSelector().show(); }],
-  ['Draft saved in this browser', 'A reload or a closed tab no longer loses your work.', null]
+  ['Family history summary', 'Text for the medical record in English or Portuguese, one line per relative (shortcut Y).', function() { editor.getFamilySummaryDialog().show(); }],
+  ['Which mode of inheritance fits', 'Cascade testing compares dominant, recessive, X-linked, mitochondrial and Y-linked inheritance with the family and suggests the best fit.', function() { editor.getCascadeTestingDialog().show(); }],
+  ['Cascade models per condition', 'Penetrance curves, sporadic cases and settings for each condition; save a model and reuse it in other families.', function() { editor.getCascadeTestingDialog().show(); }],
+  ["Inbreeding coefficient (Wright's F)", 'Shown above consanguineous couples, in their menu and in cascade testing.', null],
+  ['PNG and copy as image', 'High-resolution PNG (150 to 600 DPI) and Tools → Copy as image, ready to paste into a report.', function() { editor.getExportSelector().show(); }],
+  ['Easier editing', 'Conditions, phenotypes and genes as chips; generations move apart when the text under a person grows.', null]
 ];
 
 var timeAgo = function(savedAt) {

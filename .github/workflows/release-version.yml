@@ -1,0 +1,32 @@
+# Checks that a published release matches the version in package.json (the single source of the
+# app version). Bump it before releasing with:  npm version 1.5.0  &&  git push --follow-tags
+name: Release version
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v4
+      - name: Compare tag and package.json
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -z "$TAG" ]; then
+            echo "package.json version: $VERSION (no release tag to compare)"
+            exit 0
+          fi
+          if [ "${TAG#v}" != "$VERSION" ]; then
+            echo "::error::Release tag $TAG does not match package.json version $VERSION. Run 'npm version ${TAG#v}' and release again from the new tag."
+            exit 1
+          fi
+          echo "Release $TAG matches package.json $VERSION"

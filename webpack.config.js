@@ -76,6 +76,10 @@ module.exports = {
   },
 
   plugins: [
+    // the app version comes only from package.json (bumped with "npm version")
+    new webpack.DefinePlugin({
+      __APP_VERSION__: JSON.stringify(require('./package.json').version)
+    }),
     {
       apply: (compiler) => {
         const syncLLM = () => {

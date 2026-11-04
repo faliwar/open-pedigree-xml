@@ -1,0 +1,34 @@
+# Citation metadata. The version is not written here: it comes from the release tag
+# (and package.json), so this file never gets out of date.
+cff-version: 1.2.0
+message: "If you use Open Pedigree X, please cite it using the metadata below."
+type: software
+title: "Open Pedigree X"
+abstract: >-
+  A browser-based pedigree editor for clinical genetics, forked from PhenoTips Open Pedigree.
+  It draws pedigrees following the NSGC standardized nomenclature, reads and writes
+  Invitae/Progeny XML, PED, GEDCOM, BOADICEA/CanRisk and GA4GH FHIR, computes cascade-testing
+  risks and Wright's inbreeding coefficient, and exports colour or black-and-white PDFs.
+  Data never leave the user's computer unless exported.
+authors:
+  - family-names: Poswar
+    given-names: Fabiano de Oliveira
+    orcid: "https://orcid.org/0000-0002-0804-2876"
+    affiliation: "Medical Genetics Service, Hospital de Clínicas de Porto Alegre; Postgraduate Program in Genetics and Molecular Biology, Universidade Federal do Rio Grande do Sul"
+repository-code: "https://github.com/faliwar/open-pedigree-xml"
+url: "https://fabianoposwar.com/pedigree/"
+license: LGPL-2.1-only
+keywords:
+  - pedigree
+  - medical genetics
+  - genetic counseling
+  - family history
+  - cascade testing
+  - NSGC nomenclature
+references:
+  - type: software
+    title: "Open Pedigree"
+    authors:
+      - name: "Gene42 Inc. o/a PhenoTips"
+    url: "https://github.com/phenotips/open-pedigree"
+    license: LGPL-2.1-only
