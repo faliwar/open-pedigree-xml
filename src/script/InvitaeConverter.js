@@ -194,6 +194,37 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   var indiElements = treeEl.querySelectorAll(':scope > indi');
   var famElements = treeEl.querySelectorAll(':scope > fam');
 
+  // Merge families that have the same single parent and no other parent: they are one sibship.
+  // Earlier versions could create such duplicates ("add a child" to a single parent), which were
+  // drawn as two lines of descent with one of them raised above the parent.
+  var singleParentFam = {};
+  var mergedAny = false;
+  for (var sf = 0; sf < famElements.length; sf++) {
+    var famEl = famElements[sf];
+    var parentIds = Array.prototype.map.call(famEl.querySelectorAll(':scope > male, :scope > female'), function(p) { return p.getAttribute('id'); });
+    if (parentIds.length !== 1) continue;
+    var key = parentIds[0];
+    if (!singleParentFam[key]) {
+      singleParentFam[key] = famEl;
+      continue;
+    }
+    var target = singleParentFam[key];
+    var targetChildren = target.querySelector(':scope > children');
+    if (!targetChildren) {
+      targetChildren = xmlDoc.createElement('children');
+      target.appendChild(targetChildren);
+    }
+    var moved = famEl.querySelectorAll(':scope > children > child');
+    for (var mc = 0; mc < moved.length; mc++) {
+      targetChildren.appendChild(moved[mc]);
+    }
+    famEl.parentNode.removeChild(famEl);
+    mergedAny = true;
+  }
+  if (mergedAny) {
+    famElements = treeEl.querySelectorAll(':scope > fam');
+  }
+
   if (indiElements.length === 0) {
     throw 'Unable to import pedigree: no individuals found in XML';
   }
@@ -298,8 +329,51 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   var invitaeIdToPedigreeId = {};
   var probandInvitaeId = null;
   var nextPedigreeId = 1; // reserve 0 for the proband
-  var nextTwinGroup = 1;
+  // Twin groups: <sibling type="1"> (dizygotic) or type="2" (monozygotic), declared by either twin.
+  // Twins must share a <fam>; the group is the connected set of such pairs.
+  var famOfChild = {};
+  for (var fc = 0; fc < famElements.length; fc++) {
+    famElements[fc].querySelectorAll(':scope > children > child').forEach(function(ch) {
+      famOfChild[ch.getAttribute('id')] = fc;
+    });
+  }
+  var twinRoot = {};
+  var findTwinRoot = function(x) {
+    while (twinRoot[x] !== undefined && twinRoot[x] !== x) x = twinRoot[x];
+    return x;
+  };
+  var twinPairMz = [];
+  for (var ti = 0; ti < indiElements.length; ti++) {
+    var tIndi = indiElements[ti];
+    var tId = tIndi.getAttribute('id');
+    tIndi.querySelectorAll(':scope > siblings > sibling').forEach(function(sib) {
+      var sType = sib.getAttribute('type');
+      var sId = sib.getAttribute('id');
+      if ((sType !== '1' && sType !== '2') || !indiById[sId] || sId === tId) return;
+      if (dummyMap[sId] || dummyMap[tId]) return;
+      if (famOfChild[tId] === undefined || famOfChild[tId] !== famOfChild[sId]) return;
+      if (twinRoot[tId] === undefined) twinRoot[tId] = tId;
+      if (twinRoot[sId] === undefined) twinRoot[sId] = sId;
+      var ra = findTwinRoot(tId), rb = findTwinRoot(sId);
+      if (ra !== rb) twinRoot[rb] = ra;
+      twinPairMz.push({ a: tId, mz: sType === '2' });
+    });
+  }
   var twinGroupIdMap = {};
+  var twinGroupMz = {};
+  var twinGroupGenders = {};
+  var nextTwinGroup = 1;
+  var rootGroup = {};
+  Object.keys(twinRoot).forEach(function(id) {
+    var r = findTwinRoot(id);
+    if (rootGroup[r] === undefined) rootGroup[r] = nextTwinGroup++;
+    twinGroupIdMap[id] = rootGroup[r];
+    var g = InvitaeConverter._getChildAttr(indiById[id], 'gender', 'value');
+    (twinGroupGenders[rootGroup[r]] = twinGroupGenders[rootGroup[r]] || {})[g] = true;
+  });
+  twinPairMz.forEach(function(p) {
+    if (p.mz) twinGroupMz[twinGroupIdMap[p.a]] = true;
+  });
 
   // First, find the proband (marked_by == 2 on an individual that is NOT a group spouse placeholder)
   // We look for the first individual with marked_by="2" that is not a group
@@ -333,23 +407,12 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var properties = InvitaeConverter._parseIndividual(indi);
 
     // Handle twins
-    if (properties.twinInfo) {
+    delete properties.twinInfo;
+    if (twinGroupIdMap[indiId] !== undefined) {
       var tg = twinGroupIdMap[indiId];
-      if (!tg) {
-        tg = nextTwinGroup++;
-        twinGroupIdMap[indiId] = tg;
-      }
       properties.twinGroup = tg;
-      if (properties.twinInfo.some(t => t.type === '2')) {
-        properties.monozygotic = true;
-      } else {
-        properties.monozygotic = false;
-      }
-      // Map other twins to this group
-      for (var t = 0; t < properties.twinInfo.length; t++) {
-        twinGroupIdMap[properties.twinInfo[t].id] = tg;
-      }
-      delete properties.twinInfo;
+      // monozygotic twins share the sex; a mixed-sex group can only be dizygotic
+      properties.monozygotic = !!twinGroupMz[tg] && Object.keys(twinGroupGenders[tg] || {}).length === 1;
     }
 
     var useId;

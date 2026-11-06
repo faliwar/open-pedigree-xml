@@ -122,6 +122,10 @@ PositionedGraph.prototype = {
     // once all ordering and ranking is done twins in each twin group need to be separated back into separate nodes
     this.reconnectTwins(disconnectedTwins);
 
+    // single-parent relationships of twins all end up to the right of the twin group, in any
+    // order; put them (and their children) in the order of their parents
+    this.orderSingleParentRelsByParent();
+
     // 2.2)
     var ancestors = this.findAllAncestors();
 
@@ -807,6 +811,81 @@ PositionedGraph.prototype = {
     }
 
     return disconnectedTwins;
+  },
+
+  /**
+   * A single-parent relationship is drawn on its parent, but the layout keeps it as a node next
+   * to the parent. When several of them sit side by side (typically right of a twin group) and
+   * are not in the order of their parents, the children of the left parent are pushed right,
+   * past the children of the right one. Sort each such run by parent order and move the
+   * childhubs and children along, so that every sibship ends up under its own parent.
+   */
+  orderSingleParentRelsByParent: function() {
+    var GG = this.GG;
+    var order = this.order;
+    var isSingle = function(w) {
+      return GG.isRelationship(w) && GG.getInEdges(w).length == 1;
+    };
+    var setRank = function(r, list) {
+      order.order[r] = list;
+      for (var i = 0; i < list.length; i++) {
+        order.vOrder[list[i]] = i;
+      }
+    };
+    // places "nodes" back into the slots they occupy on rank r, in the given sequence
+    var reslot = function(r, nodes, sequence) {
+      var slots = nodes.map(function(n) { return order.vOrder[n]; }).sort(function(a, b) { return a - b; });
+      var row = order.order[r].slice(0);
+      for (var i = 0; i < slots.length; i++) {
+        row[slots[i]] = sequence[i];
+      }
+      setRank(r, row);
+    };
+
+    for (var r = 1; r <= this.maxRank; r++) {
+      var row = order.order[r];
+      var i = 0;
+      while (i < row.length) {
+        if (!isSingle(row[i])) {
+          i++;
+          continue;
+        }
+        var run = [];
+        while (i < row.length && isSingle(row[i])) {
+          run.push(row[i]);
+          i++;
+        }
+        if (run.length < 2) {
+          continue;
+        }
+        var parentOrder = function(rel) {
+          var p = GG.getInEdges(rel)[0];
+          return (this.ranks[p] == r) ? order.vOrder[p] : order.vOrder[rel];
+        }.bind(this);
+        var sorted = run.slice(0).sort(function(a, b) { return parentOrder(a) - parentOrder(b); });
+        if (sorted.join(',') == run.join(',')) {
+          continue;
+        }
+        reslot(r, run, sorted);
+
+        // childhubs (next rank) follow their relationships
+        var hubs = sorted.map(function(rel) { return GG.getOutEdges(rel)[0]; });
+        if (hubs.some(function(h) { return h === undefined || this.ranks[h] != r + 1; }.bind(this))) {
+          continue;
+        }
+        reslot(r + 1, hubs, hubs);
+
+        // children (rank below the childhubs) follow their childhubs, keeping their own order
+        var kidsByHub = hubs.map(function(h) {
+          return order.sortByOrder(GG.getOutEdges(h).filter(function(k) { return this.ranks[k] == r + 2; }.bind(this)));
+        }.bind(this));
+        var allKids = [].concat.apply([], kidsByHub);
+        if (allKids.length) {
+          reslot(r + 2, allKids, allKids);
+        }
+        row = order.order[r];
+      }
+    }
   },
 
   reconnectTwins: function(disconnectedTwins) {
@@ -2622,9 +2701,23 @@ PositionedGraph.prototype = {
 
           var vOrder = this.order.vOrder;
 
-          var positionEdgesOnOneSide = function( edges ) {
+          // a single-parent relationship has no partner line (it is drawn on the parent itself):
+          // it takes no attachment port or level, and other lines need not go over it
+          var isSingleParentRel = function(w) {
+            return this.GG.isRelationship(w) && this.GG.getInEdges(w).length == 1;
+          }.bind(this);
+
+          var positionEdgesOnOneSide = function( allEdges ) {
             var nextAttachPort    = 0;      // attachment point of the line connecting the node and it's relationship
             var nextVerticalLevel = 0;      // vertical level of the line
+            var edges = [];
+            for (var s = 0; s < allEdges.length; s++) {
+              if (isSingleParentRel(allEdges[s])) {
+                verticalLevels.outEdgeVerticalLevel[v][allEdges[s]] = { attachlevel: 0, verticalLevel: 0, numAttachLevels: 1 };
+              } else {
+                edges.push(allEdges[s]);
+              }
+            }
             for (var k = 0; k < edges.length; k++) {
               var u    = this.GG.downTheChainUntilNonVirtual( edges[k] );    // final destination for the edge - possibly at another rank
               var dest = edges[k];                                           // immediate target - on the same rank
@@ -2633,11 +2726,15 @@ PositionedGraph.prototype = {
               // (nothing, relationship nodes, real nodes)
               var minOrder = Math.min(vOrder[dest], vOrder[v]) + 1;
               var maxOrder = Math.max(vOrder[dest], vOrder[v]);
-              var minLevel = (minOrder == maxOrder) ? 0 : 1;  // 0 if next to each other, 1 if at least anything inbetween
+              var minLevel = 0;  // 0 if next to each other, 1 if at least anything inbetween
               var otherVirtualEdge = false;
               var goesOver         = [];
               for (var o = minOrder; o < maxOrder; o++) {
                 var w = this.order.order[r][o];
+                if (isSingleParentRel(w)) {
+                  continue;
+                }
+                minLevel = Math.max(minLevel, 1);
                 if (this.GG.isRelationship(w)) {
                   minLevel = Math.max(minLevel, 2);
                 }

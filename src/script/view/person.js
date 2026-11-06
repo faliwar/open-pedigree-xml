@@ -4,6 +4,8 @@ import AbstractPerson from 'pedigree/view/abstractPerson';
 import PersonVisuals from 'pedigree/view/personVisuals';
 import HPOTerm from 'pedigree/hpoTerm';
 import Disorder from 'pedigree/disorder';
+import { computeStandardNumbering } from 'pedigree/model/nomenclature';
+import { translate } from 'pedigree/i18n';
 import { clone, normalizeTests, normalizeDetails, testResult, normalizeAncestry, hasAshkenaziAncestry } from 'pedigree/model/clinicalData';
 
 /**
@@ -1101,6 +1103,36 @@ var Person = Class.create(AbstractPerson, {
       this.getGraphics().getHoverBox().regenerateHandles();
     }
     return this.getChildlessStatus();
+  },
+
+  /**
+   * Siblings this person can be made a twin of (same parents), for "Twin of" in the sibling bubble.
+   * current: a sibling already in this person's twin group, or ''.
+   */
+  _twinOfOptions: function(twins) {
+    var graph = editor.getGraph();
+    var id = this.getID();
+    var result = { current: '', options: [] };
+    var parentRel = graph.getParentRelationship(id);
+    if (parentRel === null || parentRel === undefined || this.isFetus()) {
+      return result;
+    }
+    var numbering = computeStandardNumbering(editor);
+    graph.getAllChildren(parentRel).forEach(function(sib) {
+      if (sib == id || !graph.isPerson(sib) || graph.isPlaceholder(sib)) {
+        return;
+      }
+      var props = graph.getProperties(sib) || {};
+      var name = [props.fName, props.lName].filter(function(s) { return s; }).join(' ');
+      var std = numbering.byId[sib] ? numbering.byId[sib].label : '';
+      var kin = translate(props.gender === 'F' ? 'Sister' : props.gender === 'M' ? 'Brother' : 'Sibling');
+      var label = std ? std + ' · ' + (name || kin.toLowerCase()) : (name || kin);
+      result.options.push({ id: String(sib), label: label });
+    });
+    if (twins.length > 1) {
+      result.current = String(twins.filter(function(t) { return t != id; })[0]);
+    }
+    return result;
   },
 
   /**

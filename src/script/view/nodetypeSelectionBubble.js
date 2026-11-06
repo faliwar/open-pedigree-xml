@@ -1,4 +1,5 @@
 import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
+import { translate } from 'pedigree/i18n';
 
 /**
  * The UI element ("bubble") that contains options for the creation of a new node.
@@ -52,6 +53,17 @@ var NodetypeSelectionBubble = Class.create({
       params: { 'twins': true, 'parameters': {'gender': 'U'} },
       expandsTo: 'expandTwins',
       inSiblingMode: true
+    }, {
+      key: 'W',
+      type: 'person',
+      label: 'Twin of',
+      tip  : 'Make this person a twin of an existing sibling',
+      symbol: '⋀⇠',
+      cssclass: 'twin-of-option',
+      callback : 'expand',
+      expandsTo: 'expandTwinOf',
+      siblingModeOnly: true,
+      inSiblingMode: true
     },
     {
       key: 'm',
@@ -102,6 +114,9 @@ var NodetypeSelectionBubble = Class.create({
 
     var _this = this;
     this.buttonsDefs.each(function(def) {
+      if (def.siblingModeOnly && !siblingMode) {
+        return;
+      }
       if (!siblingMode || (def.hasOwnProperty('inSiblingMode') && def.inSiblingMode)) {
         container.insert(def.type == 'separator' ? _this._generateSeparator() : _this._createOption(def));
       }
@@ -145,6 +160,12 @@ var NodetypeSelectionBubble = Class.create({
         return;
       }
       console.log('observe nodetype click: ' + data.callback);
+      if (data.callback == 'expand') {
+        // the button only opens its list of choices
+        var arrow = container.down('.expand-arrow');
+        arrow && (arrow.hasClassName('collapsed') ? arrow.expand() : arrow.collapse());
+        return;
+      }
       if (data.callback == 'setProperty') {
         var event = { 'nodeID': _this._node.getID(), 'properties': data.params };
         document.fire('pedigree:node:setproperty', event);
@@ -311,6 +332,13 @@ var NodetypeSelectionBubble = Class.create({
     this._node.onWidgetShow();
     this.element.show();
     this.expandedOptionsContainer.update('');
+    // "Twin of" only when there is a sibling to pair with
+    var twinOf = this.element.down('.twin-of-option');
+    if (twinOf) {
+      var hasSiblings = this._node.getType() == 'Person' && this._node._twinOfOptions &&
+        this._node._twinOfOptions(editor.getGraph().getAllTwinsSortedByOrder(this._node.getID())).options.length > 0;
+      twinOf.up('span')[hasSiblings ? 'show' : 'hide']();
+    }
     this._positionAt(x, y);
     if (!this._boundOnClickOutside) {
       this._boundOnClickOutside = this._onClickOutside.bind(this);
@@ -453,6 +481,41 @@ var NodetypeSelectionBubble = Class.create({
     //            duration: 0.8 // Core Effect properties
     //        });
     //this.element.morph('background:#00ff00; height:' + (height + 20) + 'px;');
+  },
+
+  /**
+   * Lists the siblings this person can be made a twin of ("Not a twin" when already a twin)
+   */
+  expandTwinOf: function() {
+    var me = this;
+    var node = this._node;
+    if (!node || !node._twinOfOptions) {
+      return;
+    }
+    var id = node.getID();
+    var info = node._twinOfOptions(editor.getGraph().getAllTwinsSortedByOrder(id));
+    var groupOf = function(sib) {
+      return editor.getGraph().DG.GG.getTwinGroupId(parseInt(sib, 10));
+    };
+    var myGroup = editor.getGraph().DG.GG.getTwinGroupId(id);
+    var list = new Element('div', {'class': 'twin-of-list'});
+    list.insert(new Element('div', {'class': 'twin-of-title'}).update(translate('Twin of')));
+    var choose = function(value) {
+      me.hide();
+      document.fire('pedigree:node:modify', { 'nodeID': id, 'modifications': { 'setTwinOf': value } });
+    };
+    info.options.forEach(function(o) {
+      var current = myGroup !== null && groupOf(o.id) === myGroup;
+      var b = new Element('button', {'type': 'button', 'class': 'twin-of-choice' + (current ? ' is-current' : '')}).update(String(o.label).escapeHTML());
+      b.observe('click', function(e) { e.stop(); if (!current) choose(o.id); });
+      list.insert(b);
+    });
+    if (myGroup !== null) {
+      var none = new Element('button', {'type': 'button', 'class': 'twin-of-choice is-remove'}).update(translate('Not a twin'));
+      none.observe('click', function(e) { e.stop(); choose(''); });
+      list.insert(none);
+    }
+    this.expandedOptionsContainer.insert(list);
   },
 
   /**

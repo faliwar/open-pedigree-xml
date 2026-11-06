@@ -611,7 +611,7 @@ var View = Class.create({
     if (!DG || !DG.rankY || !DG.ranks) return;
     var GG = DG.GG;
     var yscale = PedigreeEditorParameters.attributes.layoutScale.yscale;
-    var MARGIN = 16; // canvas px kept free between the text and the line below it
+    var MARGIN = 24; // canvas px kept free between the text and the line below it
 
     var need = {};
     for (var id in this._nodeMap) {
@@ -869,6 +869,9 @@ var View = Class.create({
     } catch(err) {
       console.error('applyChanges error:', err);
     } finally {
+      // a new layout (re-layout, undo, twins...) starts without the extra room for tall text under
+      // people: measure it again, as labels that did not change are not redrawn
+      this.scheduleLabelSpacing();
       // keep chart annotations (standard numbering, cascade highlight) in sync with the new layout
       if (typeof editor !== 'undefined' && editor && editor.getOverlay && editor.getOverlay()) {
         editor.getOverlay().onGraphChanged(changeSet);

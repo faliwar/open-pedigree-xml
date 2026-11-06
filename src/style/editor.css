@@ -2128,6 +2128,33 @@ html,
     vertical-align: middle;
 }
 
+/* "Twin of" in the sibling bubble: one button per sibling */
+.twin-of-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 260px;
+  padding: 4px 2px 2px;
+}
+.twin-of-title {
+  width: 100%;
+  font-size: 11px;
+  color: #666;
+}
+.twin-of-choice {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+}
+.twin-of-choice:hover { border-color: #0074cc; color: #0074cc; }
+.twin-of-choice.is-current { background: #e8f1fb; border-color: #0074cc; cursor: default; }
+.twin-of-choice.is-remove { color: #a33; }
+
 .value-control-button {
   border: 1px solid #FFF;
   border-radius: 3px;

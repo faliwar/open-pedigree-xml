@@ -332,6 +332,13 @@ var Controller = Class.create({
             node.assignProperties(editor.getGraph().getProperties(nodeID));
           }
 
+          if (modificationType == 'setTwinOf') {
+            if (!Controller._setTwinOf(nodeID, modValue)) {
+              editor.getNodeMenu().update();
+              return;  // nothing changed: no undo step
+            }
+          }
+
           if (modificationType == 'makePlaceholder') {
           // TODO
           }
@@ -537,6 +544,24 @@ var Controller = Class.create({
       var numTwins    = event.memo.twins ? event.memo.twins : 1;
       var numPersons  = event.memo.groupSize ? event.memo.groupSize : 0;
 
+      // a person who already has children with no partner drawn gets the new child in that same
+      // sibship; a second single-parent family would draw two separate lines of descent (and the
+      // layout raises one of them above the person)
+      var GG = editor.getGraph().DG.GG;
+      var singleParentRel = (GG.getAllRelationships(personID) || []).filter(function(rel) {
+        return GG.getParents(rel).length === 1;
+      })[0];
+      if (singleParentRel !== undefined) {
+        var childEvent = { 'partnershipID': singleParentRel, 'childParams': event.memo.childParams ? cloneObject(event.memo.childParams) : {}, 'noUndoRedo': true };
+        if (event.memo.twins) childEvent['twins'] = event.memo.twins;
+        if (event.memo.groupSize) childEvent['groupSize'] = event.memo.groupSize;
+        editor.getController().handleRelationshipNewChild({ 'memo': childEvent });
+        if (!event.memo.noUndoRedo) {
+          editor.getActionStack().addState( event );
+        }
+        return;
+      }
+
       if (numPersons > 0) {
         childParams['numPersons'] = numPersons;
       }
@@ -680,6 +705,72 @@ var Controller = Class.create({
     }
   }
 });
+
+/**
+ * Makes nodeID a twin of siblingID (joins siblingID's twin group), or not a twin when
+ * siblingID is ''. Twins are drawn next to each other, so the chart is re-laid out.
+ * Returns false when nothing changed.
+ */
+Controller._setTwinOf = function(nodeID, siblingID) {
+  var graph = editor.getGraph();
+  var GG = graph.DG.GG;
+  var parentRel = graph.getParentRelationship(nodeID);
+  if (parentRel === null || parentRel === undefined) {
+    return false;
+  }
+  var target = (siblingID === '' || siblingID === null || siblingID === undefined) ? null : parseInt(siblingID, 10);
+  if (target !== null && (target == nodeID || graph.getParentRelationship(target) != parentRel)) {
+    return false;
+  }
+
+  var oldGroup = GG.getTwinGroupId(nodeID);
+  var oldTwins = graph.getAllTwinsSortedByOrder(nodeID).filter(function(t) { return t != nodeID; });
+  if (target === null && oldGroup === null) {
+    return false;
+  }
+  if (target !== null && oldGroup !== null && GG.getTwinGroupId(target) === oldGroup) {
+    return false;
+  }
+
+  // the view node holds its own copy of the properties: keep both in sync
+  var setTwin = function(id, group, mz) {
+    var node = editor.getView().getNode(id);
+    node.setTwinGroup(group);
+    node.setMonozygotic(!!mz);
+    graph.setProperties(id, node.getProperties());
+  };
+
+  // leave the old group; a twin left alone is no longer a twin
+  if (oldGroup !== null) {
+    setTwin(nodeID, null, false);
+    if (oldTwins.length === 1) {
+      setTwin(oldTwins[0], null, false);
+    }
+  }
+
+  if (target !== null) {
+    var group = GG.getTwinGroupId(target);
+    if (group === null) {
+      group = GG.getUnusedTwinGroupId(parentRel);
+      setTwin(target, group, false);
+    }
+    // monozygotic twins share the sex: keep it only if this person matches
+    var groupTwins = graph.getAllTwinsSortedByOrder(target);
+    var mz = !!GG.properties[target].monozygotic && graph.getGender(nodeID) == graph.getGender(target);
+    setTwin(nodeID, group, mz);
+    if (!mz) {
+      groupTwins.forEach(function(t) { setTwin(t, group, false); });
+    }
+  }
+
+  var changeSet = graph.relayout();
+  if (changeSet && changeSet.moved) {
+    editor.getView().applyChanges(changeSet, false);
+    editor.getWorkspace().adjustSizeToScreen();
+  }
+  editor.getNodeMenu().update();
+  return true;
+};
 
 Controller._validatePropertyValue = function( nodeID, propertySetFunction, propValue) {
   if (propertySetFunction == 'setGender') {

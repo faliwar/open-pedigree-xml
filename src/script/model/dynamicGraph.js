@@ -297,6 +297,11 @@ DynamicPositionedGraph.prototype = {
         (this.DG.vertLevel.outEdgeVerticalLevel[partners[1]].hasOwnProperty(v) ? this.DG.vertLevel.outEdgeVerticalLevel[partners[1]][v].attachlevel : 0) : attach1;
       var attach   = Math.min(attach1, attach2);
       y = this.DG.computeRelLineY(rank, attach, level).relLineY;
+      // a single parent has no partner line: the line of descent starts at the parent itself
+      // (layout levels, e.g. when the parent is a twin, would otherwise lift it above the person)
+      if (partners.length === 1 && this.DG.ranks[partners[0]] == rank) {
+        y = this.getPosition(partners[0]).y;
+      }
     }
 
     return {'x': x, 'y': y};
@@ -3031,6 +3036,9 @@ Heuristics.prototype = {
 
     // 2. check where the partner stands among its siblings
     var partnerChildhubId   = this.DG.GG.getInEdges(partnerId)[0];
+    if (!this.DG.GG.isChildhub(partnerChildhubId)) {
+      return;
+    }  // partner's parents are on another rank (long edge): too complicated for this heuristic
     var partnerSibglingInfo = this.analizeChildren(partnerChildhubId);
 
     //if (partnerSibglingInfo.orderedChildren.length == 1) return; // just one sibling, nothing to do
@@ -3060,10 +3068,15 @@ Heuristics.prototype = {
     // 2. check how many partners partner's parents have. if both have more than one the case
     //    is too complicated and skip moving nodes around
     var partnerParents = this.DG.GG.getInEdges(this.DG.GG.getInEdges(partnerChildhubId)[0]);
+    if (partnerParents.length == 0) {
+      return;
+    }
+    // a single parent counts as both the left and the right one
+    var otherParent = partnerParents.length > 1 ? partnerParents[1] : partnerParents[0];
     var order0 = this.DG.order.vOrder[partnerParents[0]];
-    var order1 = this.DG.order.vOrder[partnerParents[1]];
-    var leftParent  = (order0 > order1) ? partnerParents[1] : partnerParents[0];
-    var rightParent = (order0 > order1) ? partnerParents[0] : partnerParents[1];
+    var order1 = this.DG.order.vOrder[otherParent];
+    var leftParent  = (order0 > order1) ? otherParent : partnerParents[0];
+    var rightParent = (order0 > order1) ? partnerParents[0] : otherParent;
     var numLeftPartners  = this.DG.GG.getOutEdges(leftParent).length;
     var numRightPartners = this.DG.GG.getOutEdges(rightParent).length;
     if (numLeftPartners > 1 && numRightPartners > 1) {

@@ -120,7 +120,13 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
 * **`<smoker value="3"/>`, `<obese value="0"/>`, `<fertilization value="0"/>`, `<multiple value="0">0</multiple>`:**
   * Keep these exact default values unless the clinical history explicitly specifies otherwise.
 * **`<siblings>`:**
-  * If an individual shares a `<fam><children>` block with other individuals, list every sibling inside `<siblings><sibling id="X" type="0"/></siblings>`.
+  * If an individual shares a `<fam><children>` block with other individuals, list every sibling inside `<siblings><sibling id="X" type="..."/></siblings>`.
+  * The `type` attribute says how the two are related:
+    * `"0"`: ordinary sibling (not a twin).
+    * `"1"`: **twin**, dizygotic (fraternal) or zygosity not stated. Use it for every mention of twins ("gêmeos", "gêmeas", "twin", "irmã gêmea") unless identical twins are stated.
+    * `"2"`: **monozygotic (identical) twin** ("idênticos", "univitelinos", "monozigóticos", "identical"). Only for twins of the same sex.
+  * Twins are siblings born in the same pregnancy, so they **must** be `<child>` elements of the **same** `<fam>`, and each twin lists the other with the same type (`1` or `2`) on **both** sides. Triplets: each of the three lists the other two with type `1` (or `2`). Each twin keeps `type="0"` toward the non-twin siblings.
+  * Twins are two separate `<indi>` (never one `<indi>` with `<multiple>`, which is for a group of unspecified people such as "3 brothers"). Do not write "twin" in `<comments>`: the `type` already draws the twin symbol.
   * **Omit** the `<siblings>` tag entirely if the individual has no siblings in the pedigree.
 * **`<conditions>`:**
   * **Omit** the `<conditions>` tag entirely if the individual is unaffected/healthy.
@@ -210,7 +216,7 @@ Each parental union or connected single-parent offspring group is represented by
    * The proband is the index individual undergoing clinical evaluation (`pat="1"`; `<marked_by value="0"/>` unless a test result is stated), not necessarily the first person mentioned or the most severely affected relative.
    * If the proband is not clearly identifiable from the text, **do not guess silently**—ask the user to confirm before finalizing the XML.
 8. **Kinship & Consanguinity Interpretation:**
-   * **Siblings:** Share `<children>` within the same `<fam>` block AND must have reciprocal `<sibling id="X" type="0"/>` entries under `<siblings>` in each sibling's `<indi>` block. Never represent a sibling relationship as parent-child.
+   * **Siblings:** Share `<children>` within the same `<fam>` block AND must have reciprocal `<sibling id="X" type="0"/>` entries under `<siblings>` in each sibling's `<indi>` block (`type="1"` between twins, `type="2"` between identical twins). Never represent a sibling relationship as parent-child.
    * **Cousins / Extended relatives (aunts, uncles, nephews, great-uncles, etc.):** Every such person **must** be attached to the pedigree through their stated biological relationship, using anonymous placeholder intermediates when the connecting relatives are not described (see "Connectivity Rule"). Never leave them as isolated individuals or isolated sub-trees: Open Pedigree rejects the file.
    * **Consanguinity:** Do not confuse geographical proximity ("from the same small town") with biological consanguinity. Only mark consanguinity when biological kinship between partners is stated.
 
@@ -272,6 +278,7 @@ When the input is an image of a pedigree, the hard part is seeing **which line e
 5. **Separation (`ex="1"`) only where it is drawn:** set it only when `//` crosses that couple's own relationship line. A `//` on a person's other relationship does not apply here.
 6. **Do not invent partners to hold children** of a person drawn without one: use a single-parent `<fam>` for that person (see "Family Element"). Never pair two siblings, or two people who are not drawn as a couple, to hold children.
 7. **Labels belong to the nearest symbol above them**, in the same column: names, ages and notes are written under (or beside) the person they describe.
+8. **Twins in a drawing:** two (or three) diagonal lines that start from the **same point** on the sibship line are twins: `type="1"`. If a short horizontal bar joins those diagonal lines, they are identical twins: `type="2"`. A "?" between them means zygosity unknown: `type="1"`.
 
 ---
 
@@ -311,7 +318,7 @@ Verify all of the following before outputting the XML:
 2. Every `<indi id="..."/>` is a unique integer, and only the proband has `pat="1"`. `<first_name>`/`<last_name>` contain only personal names stated in the text — never relationship words ("Mãe", "Tio paterno", "Probando", "Filho"...); otherwise they are empty. `<marked_by>` is `"0"` for everyone (proband included) unless a test result or documented evaluation is stated for that person.
 3. Gender codes match `<fam>` roles (`gender="0"` for `<male>`, `gender="1"` for `<female>`), except in same-sex couples.
 4. Every ID referenced in `<fam><male>`, `<fam><female>`, `<fam><children><child>`, and `<indi><siblings><sibling>` points to an existing `<indi>`.
-5. Sibling lists in `<indi><siblings>` are 100% reciprocal and match the `<children>` lists in `<fam>`.
+5. Sibling lists in `<indi><siblings>` are 100% reciprocal and match the `<children>` lists in `<fam>`. Every pair of twins mentioned in the text has `type="1"` (or `"2"` if identical) on both sides, and both twins are in the same `<fam>`.
 6. Vital status (`status="1"` for deceased), age at death, age of onset, and current age are properly separated: every stated current age is in `<age>` (`"N yrs"` / `"N mo"` / `"N wk"`), and **no `<comments>` contains an age, a condition name already in `<conditions>`, or words like "healthy"/"hígido"**.
 7. **Connectivity (most common cause of import failure):** starting at the proband (id 0) and walking through every `<fam>` (parents ↔ children, both directions, and partner links), **every `<indi>` is reached**. Verify each `<indi>` id and the `<fam>` it belongs to; if any id is reached by no path, add placeholders or fix links before delivering.
 8. No `<fam>` lacks both `<male>` and `<female>`; every `<fam>` with a single parent has that parent also present in another `<fam>` (connected).

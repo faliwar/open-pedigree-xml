@@ -397,6 +397,7 @@ const translations = {
   , 'Create a person of unknown gender': 'Criar uma pessoa de sexo desconhecido'
   , 'Create twins (expandable to triplets or more)': 'Criar gêmeos (expansível para trigêmeos ou mais)'
   , 'Create a node representing multiple siblings': 'Criar um elemento que representa vários irmãos'
+  , 'Make this person a twin of an existing sibling': 'Tornar esta pessoa gêmea de um irmão já existente'
   , 'No children': 'Sem filhos', 'Multiple': 'Múltiplos', 'Twins': 'Gêmeos', 'Infertile': 'Infértil'
   , 'Mark as childless by choice': 'Marcar como sem filhos por opção', 'Mark as infertile': 'Marcar como infértil'
   , 'Choose which information to display directly in the label box below individuals:': 'Escolha quais informações exibir diretamente no rótulo abaixo das pessoas:'
@@ -443,7 +444,8 @@ const translations = {
   , 'Unborn': 'Não nascido', 'Aborted': 'Aborto induzido', 'Gestation age': 'Idade gestacional'
   , 'Heredity options': 'Opções reprodutivas', 'None': 'Nenhum', 'Childless': 'Sem filhos', 'Adopted': 'Adotado',
   'Adoption': 'Adoção', 'Not adopted': 'Não adotado', 'Adopted in': 'Adotado pela família', 'Placed for adoption': 'Dado em adoção'
-  , 'Monozygotic twin': 'Gêmeo monozigótico', 'Not in contact with proband': 'Sem contato com o probando'
+  , 'Monozygotic twin': 'Gêmeo monozigótico', 'Twin of': 'Gêmeo de', 'Not a twin': 'Não é gêmeo'
+  , 'Sister': 'Irmã', 'Brother': 'Irmão', 'Sibling': 'Irmão(ã)','Not in contact with proband': 'Sem contato com o probando'
   , 'Proband': 'Probando', 'Placeholder node': 'Pessoa fictícia', 'Comments': 'Comentários'
   , 'Number of persons in this group': 'Número de pessoas neste grupo', 'Identifier(s)': 'Identificador(es)'
   , 'Known disorders': 'Condições conhecidas', '(common to all individuals in the group)': '(comuns a todas as pessoas do grupo)'
