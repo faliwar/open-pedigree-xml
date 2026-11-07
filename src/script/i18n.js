@@ -335,9 +335,9 @@ const translations = {
   'Open XML': 'Abrir XML', 'Save XML': 'Salvar XML', 'Rename XML': 'Renomear XML', 'Templates': 'Modelos',
   'Import': 'Importar', 'Undo': 'Desfazer', 'Redo': 'Refazer', 'Re-layout': 'Reorganizar',
   'Labels': 'Rótulos', 'Clear all': 'Limpar tudo', 'Menu': 'Menu', 'Google Drive': 'Google Drive',
-  'Powered by ': 'Com tecnologia ', 'Powered by PhenoTips®': 'Com tecnologia PhenoTips®',
+  'Based on ': 'Baseado no ', ' by PhenoTips': ' da PhenoTips',
   'Pan': 'Mover', 'Zoom': 'Zoom', 'Drag to zoom': 'Arraste para ajustar o zoom',
-  'Maintained by Fabiano Poswar': 'Mantido por Fabiano Poswar',
+  'Maintained by Fabiano de Oliveira Poswar': 'Mantido por Fabiano de Oliveira Poswar',
   'Based on PhenoTips (2019–22)': 'Baseado no editor da PhenoTips (2019–22)',
   'Zoom in': 'Aumentar zoom', 'Zoom out': 'Diminuir zoom',
   'Drop pedigree file here to import': 'Solte aqui o arquivo de heredograma para importar',
@@ -414,7 +414,7 @@ const translations = {
   , 'Done': 'Concluído', 'Select an XML file from Google Drive:': 'Selecione um arquivo XML do Google Drive:'
   , 'The file is empty.': 'O arquivo está vazio.', 'Please select a pedigree template': 'Selecione um modelo de heredograma'
   , 'The following formats are supported:': 'Os seguintes formatos são compatíveis:'
-  , 'To edit: upload PDF to Open Pedigree X.': 'Para editar: envie o PDF para o Open Pedigree X.'
+  , 'To edit: upload PDF to OPX.': 'Para editar: envie o PDF para o OPX.'
   , 'Your browser does not support all the features required for Pedigree Editor, so pedigree is displayed in read-only mode (and may have quirks).\n\nSupported browsers include Firefox v3.5+, Internet Explorer v9+, Chrome, Safari v4+, Opera v10.5+ and most mobile browsers.': 'Seu navegador não oferece suporte a todos os recursos necessários para o Editor de Heredogramas. O heredograma será exibido em modo somente leitura e pode apresentar limitações.\n\nNavegadores compatíveis incluem Firefox v3.5+, Internet Explorer v9+, Chrome, Safari v4+, Opera v10.5+ e a maioria dos navegadores móveis.'
   , 'Your browser is not supported and is unable to load and display any pedigrees.\n\nPlease use a modern browser such as Chrome, Firefox, Safari or Edge.': 'Seu navegador não é compatível e não consegue carregar nem exibir heredogramas.\n\nUse um navegador moderno, como Chrome, Firefox, Safari ou Edge.'
   , 'Shared children': 'Filhos em comum', 'children': 'filhos', ' child': ' filho', ' children': ' filhos'
@@ -492,7 +492,7 @@ const translations = {
   , 'Copy instructions and run them with your clinical notes in your institution\'s HIPAA/GDPR-compliant AI (or ensure data is de-identified), then paste the generated XML above.': 'Copie as instruções e use-as com suas anotações clínicas em uma IA aprovada pela sua instituição para dados de saúde (ou desidentifique os dados). Depois, cole o XML gerado acima.'
   , 'Loading list of templates...': 'Carregando lista de modelos...', 'Loading...': 'Carregando...'
   , 'There is no pedigree to export.': 'Não há heredograma para exportar.'
-  , 'To edit: upload PDF to Open Pedigree X.': 'Para editar: envie o PDF para o Open Pedigree X.'
+  , 'To edit: upload PDF to OPX.': 'Para editar: envie o PDF para o OPX.'
   , 'has multiple children. Please select which children are shared with this partner:': 'tem vários filhos. Selecione quais filhos são deste parceiro:'
   , 'Generate pedigree XML from clinical notes': 'Gerar heredograma XML de notas clínicas'
   , 'Use these instructions with de-identified notes in an institution-approved AI, then paste the XML above.': 'Use as instruções com dados desidentificados em uma IA aprovada pela instituição; depois, cole o XML acima.'

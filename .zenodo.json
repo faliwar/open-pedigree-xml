@@ -1,5 +1,5 @@
 {
-  "title": "Open Pedigree X",
+  "title": "OPX: a browser-based pedigree editor for clinical genetics",
   "upload_type": "software",
   "description": "<p>A browser-based pedigree editor for clinical genetics, forked from PhenoTips Open Pedigree. It draws pedigrees following the NSGC standardized nomenclature, reads and writes Invitae/Progeny XML, PED, GEDCOM, BOADICEA/CanRisk and GA4GH FHIR, computes cascade-testing risks and Wright's inbreeding coefficient, and exports colour or black-and-white PDFs. Data never leave the user's computer unless exported.</p><p>Based on Open Pedigree by Gene42 Inc. o/a PhenoTips (LGPL-2.1).</p>",
   "creators": [

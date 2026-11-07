@@ -1,7 +1,9 @@
-# Open Pedigree X
+# OPX — Open Pedigree X
+
+*A browser-based pedigree editor for clinical genetics.*
 
 <p align="center">
-  <img src="./assets/opx-logo.png" width="500px" alt="Open Pedigree X logo"/>
+  <img src="./assets/opx-logo.png" width="500px" alt="OPX (Open Pedigree X) logo"/>
 </p>
 
 <p align="center">
@@ -14,9 +16,9 @@
   <a href="https://doi.org/10.5281/zenodo.23935521"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23935521.svg" alt="DOI"></a>
 </p>
 
-Open Pedigree X is an enhanced fork of [PhenoTips/open-pedigree](https://phenotips.com) built on [Prototype](https://prototypejs.org) and [Raphaël](https://dmitrybaranovskiy.github.io/raphael/). It optimizes genomic pedigree drawing for modern clinical workflows with mobile/touch support, advanced genetic modeling, cloud storage, and bi-directional Invitae/Progeny XML compatibility.
+OPX (Open Pedigree X) is an enhanced fork of [Open Pedigree by PhenoTips](https://github.com/phenotips/open-pedigree) built on [Prototype](https://prototypejs.org) and [Raphaël](https://dmitrybaranovskiy.github.io/raphael/). It optimizes genomic pedigree drawing for modern clinical workflows with mobile/touch support, advanced genetic modeling, cloud storage, and bi-directional Invitae/Progeny XML compatibility.
 
-<img width="960" alt="Open Pedigree X Demo" src="./assets/demo-1.4.gif">
+<img width="960" alt="OPX demo" src="./assets/demo-1.4.gif">
 
 ---
 
@@ -70,7 +72,7 @@ Open [http://localhost:9000/](http://localhost:9000/) in your browser.
   <head>
     <meta charset="UTF-8">
     <base target="_top">
-    <title>Open Pedigree X</title>
+    <title>OPX · Pedigree editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.3/prototype.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/effects.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/scriptaculous/1.9.0/dragdrop.js"></script>
@@ -100,7 +102,7 @@ const FOLDER_ID = 'YOUR_FOLDER_ID_HERE';
 function doGet() {
   return HtmlService.createTemplateFromFile('index')
       .evaluate()
-      .setTitle('Open Pedigree X')
+      .setTitle('OPX · Pedigree editor')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -134,13 +136,13 @@ function createXmlFile(name, content) {
 
 ## Contributing & Support
 
-Contributions are welcome! Fork the repository and open a pull request (first-time contributors will be asked to sign a CLA).
+Contributions are welcome! Fork the repository and open a pull request.
 
-For bug reports or feature suggestions, open an issue on GitHub. For commercial and enterprise editions, contact [PhenoTips](https://phenotips.com/).
+For bug reports or feature suggestions, open an issue on GitHub. OPX is maintained independently and is not endorsed by PhenoTips; the original Open Pedigree is at [phenotips/open-pedigree](https://github.com/phenotips/open-pedigree).
 
 ## License
 
 - Copyright (c) 2019-2022 Gene42 Inc. o/a PhenoTips
-- Copyright (c) 2026 Fabiano Poswar
+- Copyright (c) 2026 Fabiano de Oliveira Poswar
 
 Licensed under the [LGPL-2.1](https://opensource.org/licenses/LGPL-2.1).

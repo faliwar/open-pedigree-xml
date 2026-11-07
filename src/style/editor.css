@@ -118,6 +118,10 @@ html,
 #editor-menu .powered-by sup {
   font-size: 0.6em;
 }
+#editor-menu .powered-by-desktop {
+  color: #64748b;
+  font-size: 12px;
+}
 #editor-menu .powered-by-mobile {
   display: none;
 }

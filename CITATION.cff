@@ -1,9 +1,9 @@
 # Citation metadata. The version is not written here: it comes from the release tag
 # (and package.json), so this file never gets out of date.
 cff-version: 1.2.0
-message: "If you use Open Pedigree X, please cite it using the metadata below."
+message: "If you use OPX, please cite it using the metadata below."
 type: software
-title: "Open Pedigree X"
+title: "OPX: a browser-based pedigree editor for clinical genetics"
 abstract: >-
   A browser-based pedigree editor for clinical genetics, forked from PhenoTips Open Pedigree.
   It draws pedigrees following the NSGC standardized nomenclature, reads and writes

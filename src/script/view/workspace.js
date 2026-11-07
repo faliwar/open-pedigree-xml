@@ -40,7 +40,7 @@ var Workspace = Class.create({
     this.background.node.setAttribute('class', 'panning-background');
 
     this.workArea.insert(new Element('div', {'id': 'attribution'})
-      .insert('&copy; 2019-2022 Gene42 Inc. | &copy; 2026 Fabiano Poswar'));
+      .insert('&copy; 2019–2022 Gene42 Inc. o/a PhenoTips · &copy; 2026 Fabiano de Oliveira Poswar'));
 
     this.adjustSizeToScreen = this.adjustSizeToScreen.bind(this);
     Event.observe (window, 'resize', me.adjustSizeToScreen);
@@ -545,15 +545,17 @@ var Workspace = Class.create({
     });
     submenus.each(_createSubmenu);
 
+    // credit to the original project (LGPL-2.1); worded so it does not suggest an endorsement
+    var originLink = function() {
+      return new Element('a', {'href': 'https://github.com/phenotips/open-pedigree', 'target': '_blank', 'rel': 'noopener noreferrer'}).update('Open Pedigree');
+    };
     actions.insert(new Element('div', {'class': 'powered-by'})
       .insert(new Element('span', {'class': 'powered-by-desktop'})
-        .insert('Powered by ')
-        .insert(new Element('a', {'href': 'https://phenotips.com/'})
-          .update('PhenoTips')
-          .insert(new Element('sup').update('&reg;'))))
+        .insert('Based on ').insert(originLink()).insert(' by PhenoTips'))
       .insert(new Element('span', {'class': 'powered-by-mobile'})
-        .insert(new Element('span', {'class': 'powered-by-current'}).update('Maintained by Fabiano Poswar'))
-        .insert(new Element('span', {'class': 'powered-by-origin'}).update('Powered by PhenoTips®'))));
+        .insert(new Element('span', {'class': 'powered-by-current'}).update('Maintained by Fabiano de Oliveira Poswar'))
+        .insert(new Element('span', {'class': 'powered-by-origin'})
+          .insert('Based on ').insert(originLink()).insert(' by PhenoTips'))));
 
     this._setupMobileMenu(menu, mobileBar, actions);
   },

@@ -1,7 +1,7 @@
 {
-  "name": "@phenotips/open-pedigree",
+  "name": "opx-pedigree",
   "version": "1.5.0",
-  "description": "A pedigree editor based on the PhenoTips pedigree editor",
+  "description": "OPX (Open Pedigree X): a browser-based pedigree editor for clinical genetics, based on Open Pedigree by PhenoTips",
   "main": "index.js",
   "repository": {
     "type": "git",

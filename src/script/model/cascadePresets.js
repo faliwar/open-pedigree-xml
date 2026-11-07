@@ -58,7 +58,7 @@ var buildPreset = function(s) {
 var validatePreset = function(p) {
   var problems = [];
   if (!p || typeof p !== 'object') return ['not a model'];
-  if (p.format !== FORMAT) problems.push('not an Open Pedigree X model');
+  if (p.format !== FORMAT) problems.push('not an OPX model');
   if (!p.name) problems.push('missing name');
   if (MODES.indexOf(p.mode) === -1) problems.push('unknown mode of inheritance');
   if (p.model && typeof p.model !== 'object') problems.push('invalid model settings');

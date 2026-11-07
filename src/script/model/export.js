@@ -1068,7 +1068,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
     doc.save();
     doc.font('Helvetica').fontSize(footerTextSize).fillColor('#666666');
     if (embedXML) {
-      doc.text('To edit: upload PDF to Open Pedigree X.', pageMargin, footerTextY, { width: contentWidth, align: 'left', lineBreak: false });
+      doc.text(translate('To edit: upload PDF to OPX.'), pageMargin, footerTextY, { width: contentWidth, align: 'left', lineBreak: false });
     }
     doc.text(stamp, pageMargin, footerTextY, { width: contentWidth, align: 'right', lineBreak: false });
     doc.restore();
@@ -1079,7 +1079,7 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
       doc.file('data:application/xml;base64,' + toBase64Utf8(embeddedXml), {
         name: PEDIGREE_FILE_NAME,
         type: 'application/xml',
-        description: 'Open Pedigree X pedigree data (re-open the PDF in Open Pedigree X to edit)',
+        description: 'OPX pedigree data (re-open the PDF in OPX to edit)',
         creationDate: new Date(),
         modifiedDate: new Date()
       });
