@@ -337,7 +337,7 @@ const translations = {
   'Labels': 'Rótulos', 'Clear all': 'Limpar tudo', 'Menu': 'Menu', 'Google Drive': 'Google Drive',
   'Based on ': 'Baseado no ', ' by PhenoTips': ' da PhenoTips',
   'Pan': 'Mover', 'Zoom': 'Zoom', 'Drag to zoom': 'Arraste para ajustar o zoom',
-  'Maintained by Fabiano de Oliveira Poswar': 'Mantido por Fabiano de Oliveira Poswar',
+  'Maintained by Fabiano Poswar': 'Mantido por Fabiano Poswar',
   'Based on PhenoTips (2019–22)': 'Baseado no editor da PhenoTips (2019–22)',
   'Zoom in': 'Aumentar zoom', 'Zoom out': 'Diminuir zoom',
   'Drop pedigree file here to import': 'Solte aqui o arquivo de heredograma para importar',

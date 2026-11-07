@@ -40,7 +40,7 @@ var Workspace = Class.create({
     this.background.node.setAttribute('class', 'panning-background');
 
     this.workArea.insert(new Element('div', {'id': 'attribution'})
-      .insert('&copy; 2019–2022 Gene42 Inc. o/a PhenoTips · &copy; 2026 Fabiano de Oliveira Poswar'));
+      .insert('&copy; 2019–2022 Gene42 Inc. o/a PhenoTips · &copy; 2026 Fabiano Poswar'));
 
     this.adjustSizeToScreen = this.adjustSizeToScreen.bind(this);
     Event.observe (window, 'resize', me.adjustSizeToScreen);
@@ -553,7 +553,7 @@ var Workspace = Class.create({
       .insert(new Element('span', {'class': 'powered-by-desktop'})
         .insert('Based on ').insert(originLink()).insert(' by PhenoTips'))
       .insert(new Element('span', {'class': 'powered-by-mobile'})
-        .insert(new Element('span', {'class': 'powered-by-current'}).update('Maintained by Fabiano de Oliveira Poswar'))
+        .insert(new Element('span', {'class': 'powered-by-current'}).update('Maintained by Fabiano Poswar'))
         .insert(new Element('span', {'class': 'powered-by-origin'})
           .insert('Based on ').insert(originLink()).insert(' by PhenoTips'))));
 

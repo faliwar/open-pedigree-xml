@@ -143,6 +143,6 @@ For bug reports or feature suggestions, open an issue on GitHub. OPX is maintain
 ## License
 
 - Copyright (c) 2019-2022 Gene42 Inc. o/a PhenoTips
-- Copyright (c) 2026 Fabiano de Oliveira Poswar
+- Copyright (c) 2026 Fabiano Poswar
 
 Licensed under the [LGPL-2.1](https://opensource.org/licenses/LGPL-2.1).
