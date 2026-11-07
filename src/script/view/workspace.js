@@ -40,7 +40,7 @@ var Workspace = Class.create({
     this.background.node.setAttribute('class', 'panning-background');
 
     this.workArea.insert(new Element('div', {'id': 'attribution'})
-      .insert('&copy; 2019–2022 Gene42 Inc. o/a PhenoTips · &copy; 2026 Fabiano Poswar'));
+      .insert('&copy; 2019–2022 Gene42 Inc. · &copy; 2026 Fabiano Poswar'));
 
     this.adjustSizeToScreen = this.adjustSizeToScreen.bind(this);
     Event.observe (window, 'resize', me.adjustSizeToScreen);
