@@ -93,7 +93,8 @@ html,
   margin: 0 .7em;
 
   padding-left: 28px; /* for background image */
-  background-image: url(../assets/open-pedigree-icon.png);
+  /* embedded (837 bytes) so it shows wherever the page is served from, e.g. /pedigree/ with the bundle in /opx/ */
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAALaSURBVFhH7ZhLyE1RFMd/6KNQXyEDBjIgrxR5TJEBA0byGFAeSYoUJQYMZCLJOwbyKMn7PVQS5W3MgLxKKUyQV7RqH6373/vc+53Dd86X/GrVPXuv/1nr7ue6F/7TNZgFLHXP9nm2e66NEcBR4CfwFRgA9Ae+hLZjwEgVVcm8kEhme4E90rZARVVzXRLyZn3dVFA1k4AfieSsbaI610W2Dr0dUqc6GQZ8dsl9AoaoU52sBL67BO3zMnWqi4HA28QUvwH6qXMd7Ewkl9l2da4aO4T92rsD3HbP1jdcRVVyXkZsPDBB2s6pqCqmSCJnXd8F6Zvq+iqhO3DXJWDHip/K0e4+NrsfNJWxSEZomzoAu8RnsTp0Fr2Apy7w65zjpC/w3Pm9BNrVqSw2HdOALcAJ4DJwBFgTKhY/MstVDKwCzgAvxPdh2FiXOmAW02JFzAEeyIvz7EbO2rJ7WH3L2BP/UiuLdiecmllq7Rk6ymXNRvw3BxIO74GbYchtJ1rV7Pu/5Sx+n6BdgxfDlLUyO55s1KIEF0pgS2QzMLgxLmNDGe99PybKep/gPelrxQ5NsI8sZjvTZqpK2ChJnpZ+n2DDNHWASKu/K9apIgd/zdmhPNT1RUEKEGkPu4ZXQG9V5DBZSn2/FqMgBYi0t1yDTlUzegLPnNbv6ChIASLtI9eQPBibYBsg09opkBEFKUCk9SN4Sr2b0FbVCJZdg/pzc4nri4IUINLOdw1ma1WRgxWimaZTd7FVHXoOzlCVsEG+lBUGnihIAZJare9sRDYBgxq1jAlVjfe1m2SU+Pkgf3yTZByUwGbvQsVid6lV0L5KzsyvvQz/B5LdxXbHajmVMjv8H+claNWM/+atzH6xrfAvcOxL+Jex5PKYK2djyq6GXZyHFbmqKWMN9aCnBzAd2AqcDAlZFbMeGKfOCY67IB+AK4nSqpWZZr+++G/hK2pbU12O1cC1YLb5/l1+AfDN4KRJElZSAAAAAElFTkSuQmCC");
   background-repeat: no-repeat;
   background-position: left center;
   background-size: 20px 20px;

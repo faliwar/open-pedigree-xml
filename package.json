@@ -10,7 +10,7 @@
   "scripts": {
     "start": "webpack-dev-server --mode=development --open",
     "test": "node --import ./tests/setup.mjs --test \"tests/*.test.mjs\"",
-    "build": "webpack --mode=production && powershell -Command \"Copy-Item -Path dist\\pedigree.min.js -Destination .\\ -Force; New-Item -ItemType Directory -Force -Path assets; Copy-Item -Path dist\\assets\\* -Destination assets\\ -Recurse -Force\"",
+    "build": "webpack --mode=production && powershell -Command \"Copy-Item -Path dist\\pedigree.min.js -Destination .\\ -Force; New-Item -ItemType Directory -Force -Path assets; if (Test-Path dist\\assets) { Copy-Item -Path dist\\assets\\* -Destination assets\\ -Recurse -Force }\"",
     "version": "npm run build && git add pedigree.min.js version.json src/script/llmInstructionsContent.js assets",
     "start-docker": "webpack-dev-server --mode=production --output-public-path=dist --host=0.0.0.0"
   },
