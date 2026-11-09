@@ -2574,6 +2574,12 @@ PositionedGraph.prototype = {
 
         var realationship = this.GG.getInEdges(v)[0];
         var top_x         = this.positions[realationship];  // x cooordinate of the line going up
+        // a single-parent family is drawn from the parent itself, not from its hidden relationship node
+        // (see DynamicGraph.getPosition), so measure overlaps from where the line is actually drawn
+        var singleParent  = this.GG.getParents(realationship);
+        if (singleParent.length == 1) {
+          top_x = this.positions[singleParent[0]];
+        }
         var left_x        = top_x;                          // the leftmost edge of the horizontal part
         var right_x       = top_x;                          // the rightmost edge of the horizontal part
         var childCoords   = [];
