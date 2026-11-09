@@ -27,6 +27,8 @@ var XML_TITLES = {
   notes: 'Pedigree notes'
 };
 var ANNOTATION_TITLE = 'Chart annotation';
+// cascade testing settings and choices, as JSON (see CascadeTestingDialog.getPedigreeState)
+var CASCADE_TITLE = 'OPX cascade testing';
 
 var str = function(v) {
   return (v === undefined || v === null) ? '' : String(v);
@@ -202,10 +204,15 @@ var escapeXml = function(s) {
  * Tree-level <notes> element for the information (or "<notes/>" when there is none).
  * @param {Object} info as returned by PedigreeInfo.get()
  * @param {String} privacySetting 'all' keeps the family name; other settings drop it
+ * @param {Object} cascadeState optional cascade testing state of the pedigree (see
+ *   CascadeTestingDialog.getPedigreeState), kept as JSON in a note of its own
  */
-var infoToInvitaeNotes = function(info, privacySetting) {
+var infoToInvitaeNotes = function(info, privacySetting, cascadeState) {
   info = normalize(info);
   var notes = [];
+  if (cascadeState) {
+    notes.push({ title: CASCADE_TITLE, value: JSON.stringify(cascadeState), type: 'multiline' });
+  }
   FIELDS.forEach(function(f) {
     if (!info[f]) return;
     if (f === 'family' && privacySetting && privacySetting !== 'all') return;
@@ -259,6 +266,9 @@ var infoFromInvitaeXML = function(xmlText) {
       var title = str(n.getAttribute('string_title')).trim().toLowerCase();
       var value = str(n.getAttribute('string_value') || n.getAttribute('value'));
       if (!value) continue;
+      if (title === CASCADE_TITLE.toLowerCase()) {
+        continue; // read by cascadeStateFromInvitaeXML
+      }
       if (title === ANNOTATION_TITLE.toLowerCase()) {
         data.annotations.push({ id: 'a' + (data.annotations.length + 1), x: n.getAttribute('x'), y: n.getAttribute('y'), text: value });
         found = true;
@@ -275,6 +285,21 @@ var infoFromInvitaeXML = function(xmlText) {
   } catch (e) {
     return null;
   }
+};
+
+/** Reads the cascade testing state saved in Invitae/Progeny XML text; null when there is none */
+var cascadeStateFromInvitaeXML = function(xmlText) {
+  try {
+    var doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    var notes = doc.querySelectorAll('tree > notes > note');
+    for (var i = 0; i < notes.length; i++) {
+      var title = str(notes[i].getAttribute('string_title')).trim().toLowerCase();
+      if (title !== CASCADE_TITLE.toLowerCase()) continue;
+      var state = JSON.parse(str(notes[i].getAttribute('string_value') || notes[i].getAttribute('value')));
+      return (state && typeof state === 'object') ? state : null;
+    }
+  } catch (e) {}
+  return null;
 };
 
 /**
@@ -294,4 +319,4 @@ var todayISO = function() {
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 };
 
-export { PedigreeInfo, normalize as normalizePedigreeInfo, infoToInvitaeNotes, infoFromInvitaeXML, formatInfoDate, todayISO };
+export { PedigreeInfo, normalize as normalizePedigreeInfo, infoToInvitaeNotes, infoFromInvitaeXML, cascadeStateFromInvitaeXML, formatInfoDate, todayISO };

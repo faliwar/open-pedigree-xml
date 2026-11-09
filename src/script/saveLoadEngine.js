@@ -1,6 +1,7 @@
 import TemplateSelector from 'pedigree/view/templateSelector';
 import PedigreeTemplates from 'pedigree/view/templates';
-import { infoFromInvitaeXML } from 'pedigree/model/pedigreeInfo';
+import { infoFromInvitaeXML, cascadeStateFromInvitaeXML } from 'pedigree/model/pedigreeInfo';
+import InvitaeConverter from 'pedigree/InvitaeConverter';
 
 /**
  * SaveLoadEngine is responsible for automatic and manual save and load operations.
@@ -192,6 +193,12 @@ var SaveLoadEngine = Class.create( {
       editor.getWorkspace().adjustSizeToScreen();
     }
 
+    // a different pedigree (template, file, draft): drop cascade choices made for the previous one
+    // (undo and redo pass noUndo and keep them)
+    if (!noUndo && editor.getCascadeTestingDialog) {
+      editor.getCascadeTestingDialog().loadPedigreeState(null);
+    }
+
     if (centerAround0) {
       // appear centred with a short fade, rather than sliding in from the side
       editor.getWorkspace().centerAroundNode(0, true);
@@ -230,6 +237,12 @@ var SaveLoadEngine = Class.create( {
 
     if (editor.getView().applyChanges(changeSet, false)) {
       editor.getWorkspace().adjustSizeToScreen();
+    }
+
+    // cascade testing settings and choices saved with the pedigree (Invitae/Progeny XML only)
+    if (editor.getCascadeTestingDialog) {
+      var cascadeState = importType === 'invitae' ? cascadeStateFromInvitaeXML(importString) : null;
+      editor.getCascadeTestingDialog().loadPedigreeState(cascadeState, InvitaeConverter.lastImportIdMap || null);
     }
 
     if (centerAround0) {

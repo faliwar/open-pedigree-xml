@@ -327,6 +327,8 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   // Pass 1: Parse all individuals from <indi> elements
   // -------------------------------------------------------------------
   var invitaeIdToPedigreeId = {};
+  // kept for the importer: cascade testing choices saved in the file refer to people by XML id
+  InvitaeConverter.lastImportIdMap = invitaeIdToPedigreeId;
   var probandInvitaeId = null;
   var nextPedigreeId = 1; // reserve 0 for the proband
   // Twin groups: <sibling type="1"> (dizygotic) or type="2" (monozygotic), declared by either twin.
@@ -961,7 +963,9 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
   xml += '<metainformation/>';
   // pedigree title, family, author, date, notes and chart annotations
   var pedigreeInfo = (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo) ? editor.getPedigreeInfo().get() : null;
-  xml += infoToInvitaeNotes(pedigreeInfo, privacySetting);
+  // cascade testing settings and choices, so the work can continue after the file is loaded again
+  var cascadeState = (typeof editor !== 'undefined' && editor && editor.getCascadeTestingDialog) ? editor.getCascadeTestingDialog().getPedigreeState() : null;
+  xml += infoToInvitaeNotes(pedigreeInfo, privacySetting, cascadeState);
 
   // --- Orders section (simplified) ---
   xml += '<orders/>';

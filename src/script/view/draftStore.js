@@ -64,7 +64,8 @@ var DraftStore = Class.create({
         savedAt: new Date().getTime(), // not Date.now(): a vendor script replaces it
         label: this._label(info),
         people: this._countPeople(),
-        json: editor.getGraph().toJSON()
+        json: editor.getGraph().toJSON(),
+        cascade: editor.getCascadeTestingDialog ? editor.getCascadeTestingDialog().getPedigreeState() : null
       };
       localStorage.setItem(KEY, JSON.stringify(draft));
       return true;
@@ -97,6 +98,9 @@ var DraftStore = Class.create({
       json = editor.getVersionUpdater().updateToCurrentVersion(json);
     } catch (e) {}
     editor.getSaveLoadEngine().createGraphFromSerializedData(json, false, true);
+    if (editor.getCascadeTestingDialog) {
+      editor.getCascadeTestingDialog().loadPedigreeState(draft.cascade || null, null);
+    }
   },
 
   _countPeople: function() {

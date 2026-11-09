@@ -21,6 +21,8 @@ INHERITANCE_OPTIONS.forEach(function(o) { INHERITANCE_NAMES[o[0]] = o[1]; });
 
 var MIN_RISK = 0.0005; // below this a relative is considered not at risk
 
+var PEDIGREE_STATE_FORMAT = 'open-pedigree-x/cascade-state';
+
 var DEGREE_COLORS = { 1: '#DC2626', 2: '#EA580C', 3: '#CA8A04' };
 
 var DEGREE_LABELS = { 1: '1st degree', 2: '2nd degree', 3: '3rd degree' };
@@ -67,6 +69,7 @@ var CascadeTestingDialog = Class.create({
     this._ascertainment = true;
     this._approx = null;
     this._presetName = null;   // name of the model last imported or exported
+    this._inUse = false;       // cascade testing was used for this pedigree: save its state with it
     try {
       var saved = JSON.parse(localStorage.getItem('openpedigree_cascade_v1') || '{}');
       if (INHERITANCE_NAMES[saved.mode]) this._mode = saved.mode;
@@ -101,8 +104,91 @@ var CascadeTestingDialog = Class.create({
     this._condition = r.condition;
     this._ascertainment = r.ascertainment;
     this._presetName = preset.name;
+    this._inUse = true;
     this._saveSettings();
     return r.unmatched;
+  },
+
+  // -------------------------------------------------------------------------------------------
+  // Cascade work of this pedigree, saved in its XML file (and so in PDFs that embed the XML)
+
+  /**
+   * The cascade settings and choices of this pedigree, or null when cascade testing was not used.
+   * People are referred to by node id, which is also their id in the exported XML.
+   */
+  getPedigreeState: function() {
+    if (!this._inUse) return null;
+    var overrides = {};
+    var own = this._overrides;
+    Object.keys(own).forEach(function(id) { overrides[id] = !!own[id]; });
+    return {
+      format: PEDIGREE_STATE_FORMAT,
+      version: 1,
+      mode: this._mode,
+      indexGenotype: this._indexGenotype,
+      carrierFreqN: this._carrierFreqN,
+      model: this._model,
+      condition: this._condition,
+      ascertainment: this._ascertainment,
+      presetName: this._presetName,
+      indexId: this._indexId,
+      maxDegree: this._maxDegree,
+      minAge: this._minAge,
+      finding: this._finding,
+      overrides: overrides,
+      highlighted: !!(editor.getOverlay && editor.getOverlay().hasCascadeHighlight())
+    };
+  },
+
+  /**
+   * Restores the state saved with a pedigree that was just loaded. Without a saved state, the
+   * choices tied to the previous pedigree (index person, selection, finding) are cleared; the model
+   * settings stay as they are.
+   * @param {Object} state as returned by getPedigreeState(), or null
+   * @param {Object} idMap optional {saved id: current node id}, when the people were renumbered
+   */
+  loadPedigreeState: function(state, idMap) {
+    this.hide();
+    this._indexId = null;
+    this._overrides = {};
+    this._condition = null;
+    this._finding = '';
+    this._presetName = null;
+    this._rows = [];
+    this._inUse = false;
+    if (!state || typeof state !== 'object' || state.format !== PEDIGREE_STATE_FORMAT) return;
+
+    var mapId = function(id) {
+      var key = String(id);
+      var mapped = idMap ? idMap[key] : parseInt(key, 10);
+      return (typeof mapped === 'number' && !isNaN(mapped)) ? mapped : null;
+    };
+    if (INHERITANCE_NAMES[state.mode]) this._mode = state.mode;
+    this._indexGenotype = state.indexGenotype === 'biallelic' ? 'biallelic' : 'het';
+    if (typeof state.carrierFreqN === 'number' && state.carrierFreqN > 1) this._carrierFreqN = state.carrierFreqN;
+    if (state.model && typeof state.model === 'object' && !Array.isArray(state.model)) this._model = state.model;
+    if (state.condition === '' || typeof state.condition === 'string' || Array.isArray(state.condition)) this._condition = state.condition;
+    this._ascertainment = state.ascertainment !== false;
+    if (typeof state.presetName === 'string' && state.presetName) this._presetName = state.presetName;
+    if (state.indexId !== null && state.indexId !== undefined) this._indexId = mapId(state.indexId);
+    if ([1, 2, 3].indexOf(state.maxDegree) !== -1) this._maxDegree = state.maxDegree;
+    if (typeof state.minAge === 'number' && state.minAge >= 0) this._minAge = state.minAge;
+    if (typeof state.finding === 'string') this._finding = state.finding;
+    var overrides = this._overrides;
+    if (state.overrides && typeof state.overrides === 'object') {
+      Object.keys(state.overrides).forEach(function(id) {
+        var mapped = mapId(id);
+        if (mapped !== null) overrides[mapped] = !!state.overrides[id];
+      });
+    }
+    this._inUse = true;
+    this._saveSettings();
+    if (state.highlighted) {
+      try {
+        this._computeRows();
+        this.highlight();
+      } catch (e) {}
+    }
   },
 
   /** Saves a file (Blob) with the editor's download helper, or a plain link */
@@ -736,6 +822,7 @@ var CascadeTestingDialog = Class.create({
     if (this.dialog) {
       this.hide();
     }
+    this._inUse = true;
     this._computeRows();
 
     var content = new Element('div', { 'class': 'cascade-dialog-content' });
@@ -1514,6 +1601,7 @@ var CascadeTestingDialog = Class.create({
    * Highlights the index person and the selected relatives on the chart.
    */
   highlight: function() {
+    this._inUse = true;
     if (!this._rows.length && this._indexId === null) {
       this._computeRows();
     }
