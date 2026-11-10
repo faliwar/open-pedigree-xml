@@ -8,7 +8,7 @@ import RelationshipTracker from 'pedigree/model/relationshipTracker';
  * @returns UUID
  */
 function uuidv4() {
-  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
 }
@@ -43,14 +43,14 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
   let compositionResource = undefined;
   let containedResources = undefined;
 
-  if (inputResource.resourceType === 'Composition' && inputResource.meta  && inputResource.meta.profile
+  if (inputResource.resourceType === 'Composition' && inputResource.meta && inputResource.meta.profile
     && inputResource.meta.profile.includes('http://purl.org/ga4gh/pedigree-fhir-ig/StructureDefinition/Pedigree')) {
     compositionResource = inputResource;
     containedResources = inputResource.contained;
-  } else if (inputResource.resourceType === 'Bundle' && inputResource.type === 'document' ) {
+  } else if (inputResource.resourceType === 'Bundle' && inputResource.type === 'document') {
     compositionResource = inputResource.entry[0].resource;
-    if (compositionResource && compositionResource.resourceType === 'Composition' && compositionResource.meta  && compositionResource.meta.profile
-      && compositionResource.meta.profile.includes('http://purl.org/ga4gh/pedigree-fhir-ig/StructureDefinition/Pedigree')){
+    if (compositionResource && compositionResource.resourceType === 'Composition' && compositionResource.meta && compositionResource.meta.profile
+      && compositionResource.meta.profile.includes('http://purl.org/ga4gh/pedigree-fhir-ig/StructureDefinition/Pedigree')) {
       containedResources = inputResource.entry.map(entry => entry.resource);
     } else {
       compositionResource = null;
@@ -62,7 +62,7 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
   }
 
 
-  let twinTracker = {'nextTwinGroupId': 1, 'lookup': {}, 'groupIdLookup': {}};
+  let twinTracker = { 'nextTwinGroupId': 1, 'lookup': {}, 'groupIdLookup': {} };
   let containedResourcesLookup = {};
   let patientResources = [];
   let familyHistoryResources = [];
@@ -72,7 +72,7 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
   if (containedResources) {
     let containedArr = containedResources;
     for (let i = 0; i < containedResources.length; i++) {
-      if (containedArr[i] && containedArr[i].hasOwnProperty('id')){
+      if (containedArr[i] && containedArr[i].hasOwnProperty('id')) {
         containedResourcesLookup[this.getReference(containedArr[i].id)] = containedArr[i];
         if (containedArr[i].resourceType === 'Patient') {
           patientResources.push(containedArr[i]);
@@ -105,22 +105,22 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
 
   let nodeData = [];
   let nodeDataLookup = {};
-  for (const patientResource of patientResources){
+  for (const patientResource of patientResources) {
     const node = this.extractDataFromPatient(patientResource, containedResourcesLookup, twinTracker);
     node.nodeId = nodeData.size();
     nodeData.push(node);
     nodeDataLookup[this.getReference(node.properties.id)] = node;
   }
 
-  for (const fmhResource of familyHistoryResources){
+  for (const fmhResource of familyHistoryResources) {
     this.extractDataFromFMH(fmhResource, nodeDataLookup, containedResourcesLookup, twinTracker);
   }
 
-  for (const conditionResource of conditionResources){
+  for (const conditionResource of conditionResources) {
     this.extractDataFromCondition(conditionResource, nodeDataLookup, containedResourcesLookup, twinTracker);
   }
 
-  for (const observationResource of observationResources){
+  for (const observationResource of observationResources) {
     this.extractDataFromObservation(observationResource, nodeDataLookup, containedResourcesLookup, twinTracker);
   }
 
@@ -128,9 +128,9 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
 
 
   // first pass: add all vertices and assign vertex IDs
-  for (const nextPerson of nodeData){
+  for (const nextPerson of nodeData) {
     // add twin groups
-    if (nextPerson.nodeId in twinTracker.lookup){
+    if (nextPerson.nodeId in twinTracker.lookup) {
       nextPerson.properties.twinGroup = twinTracker.lookup[nextPerson.nodeId];
     }
 
@@ -263,30 +263,30 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
   newG.validate();
 
   // set any partner relationships
-  for (const nextPerson of nodeData){
-    if (nextPerson.partners){
+  for (const nextPerson of nodeData) {
+    if (nextPerson.partners) {
       let nextPersonId = undefined;
-      for (let i=0; i < nextPerson.partners.length; i++){
+      for (let i = 0; i < nextPerson.partners.length; i++) {
         const partner = nextPerson.partners[i];
-        if (partner < nextPerson.nodeId){
+        if (partner < nextPerson.nodeId) {
           continue; // should have already been processed.
         }
 
         const partnerType = nextPerson.partnerType[i];
-        if (!partnerType.consangr && !partnerType.broken){
+        if (!partnerType.consangr && !partnerType.broken) {
           // nothing to set
           continue;
         }
 
-        if (nextPersonId === undefined){
+        if (nextPersonId === undefined) {
           nextPersonId = findReferencedPerson(nextPerson.properties.id, 'partner');
         }
         const partnerId = findReferencedPerson(nodeData[partner].properties.id, 'partner');
         let relNode = newG.getRelationshipNode(nextPersonId, partnerId);
-        if (relNode){
+        if (relNode) {
           let relProperties = newG.properties[relNode];
-          if (partnerType.consangr){
-            if (relProperties['consangr'] !== 'Y'){
+          if (partnerType.consangr) {
+            if (relProperties['consangr'] !== 'Y') {
               relProperties['consangr'] = 'Y';
               // check if we can make it 'A'
               let nextGreatGrandParents = newG.getParentGenerations(nextPersonId, 3);
@@ -300,7 +300,7 @@ GA4GHFHIRConverter.initFromFHIR = function (inputText) {
               }
             }
           }
-          if (partnerType.broken){
+          if (partnerType.broken) {
             relProperties['broken'] = true;
           }
         }
@@ -319,9 +319,9 @@ GA4GHFHIRConverter.extractDataFromFMH = function (familyHistoryResource,
   let secondFamilyMember = undefined;
   let rel = undefined;
 
-  if (familyHistoryResource.extension){
-    for (const ext of familyHistoryResource.extension){
-      if (ext.url === 'http://hl7.org/fhir/StructureDefinition/familymemberhistory-patient-record'){
+  if (familyHistoryResource.extension) {
+    for (const ext of familyHistoryResource.extension) {
+      if (ext.url === 'http://hl7.org/fhir/StructureDefinition/familymemberhistory-patient-record') {
         secondFamilyMember = ext.valueReference.reference;
         break;
       }
@@ -330,15 +330,15 @@ GA4GHFHIRConverter.extractDataFromFMH = function (familyHistoryResource,
   if (!firstFamilyMember || !secondFamilyMember) {
     return;
   }
-  if (familyHistoryResource.relationship && familyHistoryResource.relationship.coding){
-    for (const coding of familyHistoryResource.relationship.coding){
-      if (coding.system === 'http://purl.org/ga4gh/kin.fhir'){
+  if (familyHistoryResource.relationship && familyHistoryResource.relationship.coding) {
+    for (const coding of familyHistoryResource.relationship.coding) {
+      if (coding.system === 'http://purl.org/ga4gh/kin.fhir') {
         rel = coding.code;
         break;
       }
     }
   }
-  if (!rel){
+  if (!rel) {
     return; // didn't have a relationship
   }
 
@@ -350,71 +350,71 @@ GA4GHFHIRConverter.extractDataFromFMH = function (familyHistoryResource,
 
   if (rel === 'KIN:027') {
     // NMTH
-    if ('mother' in firstNodeData && !('father' in firstNodeData)){
+    if ('mother' in firstNodeData && !('father' in firstNodeData)) {
       // we already think we have a mother, may be a parent
       firstNodeData.father = firstNodeData.mother;
     }
     firstNodeData.mother = secondNodeData.nodeId;
-  } else if (rel === 'KIN:028'){
+  } else if (rel === 'KIN:028') {
     // NFTH
-    if ('father' in firstNodeData && !('mother' in firstNodeData)){
+    if ('father' in firstNodeData && !('mother' in firstNodeData)) {
       // we already think we have a father, may be a parent
       firstNodeData.mother = firstNodeData.father;
     }
     firstNodeData.father = secondNodeData.nodeId;
-  } else if (rel === 'KIN:003' || rel === 'KIN:022'){
+  } else if (rel === 'KIN:003' || rel === 'KIN:022') {
     // NPRN or ADOPTPRN
-    if (secondNodeData.gender === 'M' && !('father' in firstNodeData)){
+    if (secondNodeData.gender === 'M' && !('father' in firstNodeData)) {
       firstNodeData.father = secondNodeData.nodeId;
-    } else if (secondNodeData.gender === 'F' && !('mother' in firstNodeData)){
+    } else if (secondNodeData.gender === 'F' && !('mother' in firstNodeData)) {
       firstNodeData.mother = secondNodeData.nodeId;
-    } else if (!('father' in firstNodeData)){
+    } else if (!('father' in firstNodeData)) {
       firstNodeData.father = secondNodeData.nodeId;
-    } else if (!('mother' in firstNodeData)){
+    } else if (!('mother' in firstNodeData)) {
       firstNodeData.mother = secondNodeData.nodeId;
     }
-  } else if (rel === 'KIN:026' || rel === 'KIN:030' || rel === 'KIN:048'  || rel === 'KIN:049'){
+  } else if (rel === 'KIN:026' || rel === 'KIN:030' || rel === 'KIN:048' || rel === 'KIN:049') {
     // SIGOTHR
     let isConsang = (rel === 'KIN:030' || rel === 'KIN:049');
     let isBroken = (rel === 'KIN:048' || rel === 'KIN:049');
-    if ('partners' in firstNodeData){
+    if ('partners' in firstNodeData) {
       firstNodeData.partners.push(secondNodeData.nodeId);
-      firstNodeData.partnerType.push({consangr: isConsang, broken: isBroken});
+      firstNodeData.partnerType.push({ consangr: isConsang, broken: isBroken });
     } else {
       firstNodeData.partners = [secondNodeData.nodeId];
-      firstNodeData.partnerType = [{consangr: isConsang, broken: isBroken}];
+      firstNodeData.partnerType = [{ consangr: isConsang, broken: isBroken }];
     }
-    if ('partners' in secondNodeData){
+    if ('partners' in secondNodeData) {
       secondNodeData.partners.push(firstNodeData.nodeId);
-      secondNodeData.partnerType.push({consangr: isConsang, broken: isBroken});
+      secondNodeData.partnerType.push({ consangr: isConsang, broken: isBroken });
     } else {
       secondNodeData.partners = [firstNodeData.nodeId];
-      secondNodeData.partnerType = [{consangr: isConsang, broken: isBroken}];
+      secondNodeData.partnerType = [{ consangr: isConsang, broken: isBroken }];
     }
-  } else if (rel === 'KIN:009' || rel === 'KIN:010' || rel === 'KIN:011'){
+  } else if (rel === 'KIN:009' || rel === 'KIN:010' || rel === 'KIN:011') {
     // TWIN or Monozygotic twin or Polyzygotic twin
     firstNodeData.properties.monozygotic = (rel === 'KIN:010');
     secondNodeData.properties.monozygotic = (rel === 'KIN:010');
     let firstNodeTwinGroup = twinTracker.lookup[firstNodeData.nodeId];
     let secondNodeTwinGroup = twinTracker.lookup[secondNodeData.nodeId];
 
-    if (!firstNodeTwinGroup && !secondNodeTwinGroup){
+    if (!firstNodeTwinGroup && !secondNodeTwinGroup) {
       // new twin group
       twinTracker.lookup[firstNodeData.nodeId] = twinTracker.nextTwinGroupId;
       twinTracker.lookup[secondNodeData.nodeId] = twinTracker.nextTwinGroupId;
       twinTracker.groupIdLookup[twinTracker.nextTwinGroupId] = [firstNodeData.nodeId, secondNodeData.nodeId];
       twinTracker.nextTwinGroupId = twinTracker.nextTwinGroupId + 1;
-    } else if (!firstNodeTwinGroup){
+    } else if (!firstNodeTwinGroup) {
       // secondNode is already in a twin group
       twinTracker.lookup[firstNodeData.nodeId] = secondNodeTwinGroup;
       twinTracker.groupIdLookup[secondNodeTwinGroup].push(firstNodeData.nodeId);
-    } else if (!secondNodeTwinGroup){
+    } else if (!secondNodeTwinGroup) {
       // firstNode is already in a twin group
       twinTracker.lookup[secondNodeData.nodeId] = firstNodeTwinGroup;
       twinTracker.groupIdLookup[firstNodeTwinGroup].push(secondNodeData.nodeId);
-    } else if (firstNodeTwinGroup !== secondNodeTwinGroup){
+    } else if (firstNodeTwinGroup !== secondNodeTwinGroup) {
       // they seem to exist to different twin groups, need to merge them
-      for (const n of twinTracker.groupIdLookup[secondNodeTwinGroup]){
+      for (const n of twinTracker.groupIdLookup[secondNodeTwinGroup]) {
         twinTracker.lookup[n] = firstNodeTwinGroup;
         twinTracker.groupIdLookup[firstNodeTwinGroup].push(n);
       }
@@ -425,7 +425,7 @@ GA4GHFHIRConverter.extractDataFromFMH = function (familyHistoryResource,
 };
 
 GA4GHFHIRConverter.extractDataFromCondition = function (conditionResource, nodeDataLookup, containedResourcesLookup, twinTracker) {
-  if (!conditionResource.subject || !(conditionResource.subject.reference in nodeDataLookup) || !conditionResource.code){
+  if (!conditionResource.subject || !(conditionResource.subject.reference in nodeDataLookup) || !conditionResource.code) {
     // condition doesn't link to a subject in our list or has no code
     return;
   }
@@ -434,16 +434,16 @@ GA4GHFHIRConverter.extractDataFromCondition = function (conditionResource, nodeD
 
   let fhirTerminologyHelper = editor.getFhirTerminologyHelper();
 
-  if (!(familyMember in nodeDataLookup)){
+  if (!(familyMember in nodeDataLookup)) {
     console.log('Failed to find node for ' + familyMember);
   }
   let nodeData = nodeDataLookup[familyMember];
 
-  if (conditionResource.code){
+  if (conditionResource.code) {
     let conditionToAdd = fhirTerminologyHelper.getDisorderFromCodeableConcept(conditionResource.code, false);
 
-    if (conditionToAdd){
-      if ('disorders' in nodeData.properties){
+    if (conditionToAdd) {
+      if ('disorders' in nodeData.properties) {
         nodeData.properties.disorders.push(conditionToAdd);
       } else {
         nodeData.properties.disorders = [conditionToAdd];
@@ -456,7 +456,7 @@ GA4GHFHIRConverter.extractDataFromCondition = function (conditionResource, nodeD
 
 GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, nodeDataLookup, containedResourcesLookup, twinTracker) {
 
-  if (!observationResource.subject || !(observationResource.subject.reference in nodeDataLookup)){
+  if (!observationResource.subject || !(observationResource.subject.reference in nodeDataLookup)) {
     // observation doesn't link to a subject in our list or has no code
     return;
   }
@@ -466,9 +466,9 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
   let nodeData = nodeDataLookup[familyMember];
 
   let fhirTerminologyHelper = editor.getFhirTerminologyHelper();
-  
+
   let foundCode = false;
-  
+
   if (observationResource.valueCodeableConcept) {
     for (const coding of observationResource.valueCodeableConcept.coding) {
       if (coding.system === 'http://snomed.info/sct' && coding.code === '87955000') {
@@ -496,7 +496,7 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
       let gene = fhirTerminologyHelper.getGeneFromCodeableConcept(observationResource.valueCodeableConcept, true);
       if (gene) {
         foundCode = true;
-        if ('candidateGenes' in nodeData.properties){
+        if ('candidateGenes' in nodeData.properties) {
           nodeData.properties.candidateGenes.push(gene);
         } else {
           nodeData.properties.candidateGenes = [gene];
@@ -504,7 +504,7 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
       }
     }
   }
-  if (!foundCode){
+  if (!foundCode) {
     if (observationResource.code && observationResource.code.coding) {
       for (const coding of observationResource.code.coding) {
         if (coding.system === 'http://snomed.info/sct' && coding.code === '8619003') {
@@ -539,35 +539,35 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
       }
     }
   }
-  if (!foundCode){
-    if (observationResource.valueString){
+  if (!foundCode) {
+    if (observationResource.valueString) {
       const phenotypePrefix = 'phenotype: ';
       const genePrefix = 'gene: ';
-      if (observationResource.valueString.startsWith(phenotypePrefix)){
+      if (observationResource.valueString.startsWith(phenotypePrefix)) {
         foundCode = true;
-        if ('hpoTerms' in nodeData.properties){
+        if ('hpoTerms' in nodeData.properties) {
           nodeData.properties.hpoTerms.push(observationResource.valueString.substring(phenotypePrefix.length));
         } else {
           nodeData.properties.hpoTerms = [observationResource.valueString.substring(phenotypePrefix.length)];
         }
-      } else if (observationResource.valueString.startsWith(genePrefix)){
+      } else if (observationResource.valueString.startsWith(genePrefix)) {
         foundCode = true;
-        if ('candidateGenes' in nodeData.properties){
+        if ('candidateGenes' in nodeData.properties) {
           nodeData.properties.candidateGenes.push(observationResource.valueString.substring(genePrefix.length));
         } else {
           nodeData.properties.candidateGenes = [observationResource.valueString.substring(genePrefix.length)];
         }
-      } else if (observationResource.id){
-        if (observationResource.id.includes('_clinical_')){
+      } else if (observationResource.id) {
+        if (observationResource.id.includes('_clinical_')) {
           foundCode = true;
-          if ('hpoTerms' in nodeData.properties){
+          if ('hpoTerms' in nodeData.properties) {
             nodeData.properties.hpoTerms.push(observationResource.valueString);
           } else {
             nodeData.properties.hpoTerms = [observationResource.valueString];
           }
-        } else if (observationResource.id.includes('_gene_')){
+        } else if (observationResource.id.includes('_gene_')) {
           foundCode = true;
-          if ('candidateGenes' in nodeData.properties){
+          if ('candidateGenes' in nodeData.properties) {
             nodeData.properties.candidateGenes.push(observationResource.valueString);
           } else {
             nodeData.properties.candidateGenes = [observationResource.valueString];
@@ -955,8 +955,8 @@ GA4GHFHIRConverter.exportAsFHIR = function (pedigree, privacySetting, knownFhirP
     containedResources.push(pedigreeImageDocumentReference);
   }
 
-  let bundleEntries = containedResources.map(resource => ({'fullUrl': resource.id, 'resource': resource}) );
-  let bundleLinks = containedResources.map(resource => ({'relation': 'item', 'url': resource.id}) );
+  let bundleEntries = containedResources.map(resource => ({ 'fullUrl': resource.id, 'resource': resource }));
+  let bundleLinks = containedResources.map(resource => ({ 'relation': 'item', 'url': resource.id }));
 
   let bundle = {
     'resourceType': 'Bundle',
@@ -966,7 +966,7 @@ GA4GHFHIRConverter.exportAsFHIR = function (pedigree, privacySetting, knownFhirP
     },
     'type': 'document',
     'timestamp': dateTime,
-    'entry': [{'link': bundleLinks, 'fullUrl': composition.id, 'resource': composition}, ...bundleEntries]
+    'entry': [{ 'link': bundleLinks, 'fullUrl': composition.id, 'resource': composition }, ...bundleEntries]
   };
 
 
@@ -1030,21 +1030,21 @@ GA4GHFHIRConverter.familyHistoryLookup = {
 
 
 GA4GHFHIRConverter.relationshipMap = {
-  'NMTH':      'KIN:027',
-  'NFTH':      'KIN:028',
-  'NPRN':      'KIN:003',
-  'ADOPTMTH':  'KIN:022',
-  'ADOPTFTH':  'KIN:022',
-  'ADOPTPRN':  'KIN:022',
-  'SIGOTHR':   'KIN:026',
-  'BROKEN_SIGOTHR':   'KIN:048',
-  'CONSANG':   'KIN:030',
-  'BROKEN_CONSANG':   'KIN:049',
-  'TWIN':      'KIN:009',
-  'TWINSIS':   'KIN:010',
-  'TWINBRO':   'KIN:010',
-  'FTWINSIS':  'KIN:011',
-  'FTWINBRO':  'KIN:011',
+  'NMTH': 'KIN:027',
+  'NFTH': 'KIN:028',
+  'NPRN': 'KIN:003',
+  'ADOPTMTH': 'KIN:022',
+  'ADOPTFTH': 'KIN:022',
+  'ADOPTPRN': 'KIN:022',
+  'SIGOTHR': 'KIN:026',
+  'BROKEN_SIGOTHR': 'KIN:048',
+  'CONSANG': 'KIN:030',
+  'BROKEN_CONSANG': 'KIN:049',
+  'TWIN': 'KIN:009',
+  'TWINSIS': 'KIN:010',
+  'TWINBRO': 'KIN:010',
+  'FTWINSIS': 'KIN:011',
+  'FTWINBRO': 'KIN:011',
 };
 
 GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, knownFhirPatienReference,
@@ -1059,7 +1059,7 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
   if (!nodeProperties) {
     return null;
   }
-  const externalId = nodeProperties['externalID'];
+  const externalId = (privacySetting === 'all') ? nodeProperties['externalID'] : undefined;
   let ref = (knownFhirPatienReference && externalId && knownFhirPatienReference[externalId]) ? knownFhirPatienReference[externalId] : generateUUID();
   nodeIndexToRef[index] = ref;
   pedigreeIndividuals[index] = this.buildPedigreeIndividual(ref, nodeProperties, privacySetting);
@@ -1116,7 +1116,7 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
         console.log('relProperties', relProperties);
 
         let consangr = relProperties['consangr'] ? relProperties['consangr'] : 'A';
-        if (consangr === 'Y'){
+        if (consangr === 'Y') {
           relationshipsToBuild[partners[i]] = 'CONSANG';
         } else if (consangr === 'A') {
           // spec says second cousins or closer, A second cousin is a someone who shares a great-grandparent with you
@@ -1131,7 +1131,7 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
             }
           }
         }
-        if (relProperties['broken']){
+        if (relProperties['broken']) {
           relationshipsToBuild[partners[i]] = 'BROKEN_' + relationshipsToBuild[partners[i]];
         }
       }
@@ -1169,8 +1169,8 @@ GA4GHFHIRConverter.processTreeNode = function (index, pedigree, privacySetting, 
   return ref;
 };
 
-GA4GHFHIRConverter.getReference = function(id) {
-  if (id.startsWith('urn:uuid:')){
+GA4GHFHIRConverter.getReference = function (id) {
+  if (id.startsWith('urn:uuid:')) {
     return id;
   }
   return '#' + id;
@@ -1364,7 +1364,7 @@ GA4GHFHIRConverter.addObservations = function (nodeProperties, ref, observations
         'subject': { 'reference': this.patRefAsRef(ref) }
       };
       let cc = fhirTerminologyHelper.getCodeableConceptFromPhenotype(hpoTerms[j]);
-      if (cc.coding){
+      if (cc.coding) {
         fhirObservation['valueCodeableConcept'] = cc;
       } else {
         fhirObservation['valueString'] = phenotypePrefix + hpoTerms[j];
@@ -1381,10 +1381,10 @@ GA4GHFHIRConverter.addObservations = function (nodeProperties, ref, observations
         'resourceType': 'Observation',
         'id': generateUUID(),
         'status': 'preliminary',
-        'subject': { 'reference': this.patRefAsRef(ref)}
+        'subject': { 'reference': this.patRefAsRef(ref) }
       };
       let cc = fhirTerminologyHelper.getCodeableConceptFromGene(candidateGenes[j]);
-      if (cc.coding){
+      if (cc.coding) {
         fhirObservation['valueCodeableConcept'] = cc;
       } else {
         fhirObservation['valueString'] = genePrefix + candidateGenes[j];
@@ -1467,7 +1467,7 @@ GA4GHFHIRConverter.addObservations = function (nodeProperties, ref, observations
         'code': childlessCode,
         'subject': { 'reference': this.patRefAsRef(ref) }
       };
-      if (addZeroValue){
+      if (addZeroValue) {
         fhirObservation.valueInteger = 0;
       }
       observationsForRef.push(fhirObservation);

@@ -124,6 +124,14 @@ function removeOverlay(dom, kind) {
 }
 
 PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
+  var restoredPrivacyLabels = false;
+  if (privacySetting !== 'all' && typeof editor !== 'undefined' && editor && editor.getView && editor.getView() && editor.getView().updateAllLabels) {
+    PedigreeEditorParameters.attributes._hidePersonalInExport = true;
+    PedigreeEditorParameters.attributes._hideCommentsInExport = (privacySetting === 'minimal');
+    editor.getView().updateAllLabels();
+    restoredPrivacyLabels = true;
+  }
+  try {
   var image = $('canvas');
   var background = image.getElementsByClassName('panning-background')[0];
   var backgroundPosition = background ? background.nextSibling : null;
@@ -219,13 +227,28 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
   }
   if (privacySetting !== 'all' ){
     removeText(dom, '20px');
+    var personalFields = dom.querySelectorAll('[data-opx-field="name"], [data-opx-field="age"], [data-opx-field="externalID"]');
+    for (var pf = 0; pf < personalFields.length; pf++) {
+      personalFields[pf].parentNode && personalFields[pf].parentNode.removeChild(personalFields[pf]);
+    }
   }
   if (privacySetting === 'minimal'){
     removeText(dom, '19px');
+    var commentFields = dom.querySelectorAll('[data-opx-field="comments"]');
+    for (var cf = 0; cf < commentFields.length; cf++) {
+      commentFields[cf].parentNode && commentFields[cf].parentNode.removeChild(commentFields[cf]);
+    }
   }
 
   const serializer = new XMLSerializer();
   return serializer.serializeToString(dom);
+  } finally {
+    if (restoredPrivacyLabels) {
+      delete PedigreeEditorParameters.attributes._hidePersonalInExport;
+      delete PedigreeEditorParameters.attributes._hideCommentsInExport;
+      editor.getView().updateAllLabels();
+    }
+  }
 };
 
 

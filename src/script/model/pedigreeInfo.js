@@ -29,6 +29,8 @@ var XML_TITLES = {
 var ANNOTATION_TITLE = 'Chart annotation';
 // cascade testing settings and choices, as JSON (see CascadeTestingDialog.getPedigreeState)
 var CASCADE_TITLE = 'OPX cascade testing';
+// custom condition colours chosen by the user, as JSON { disorderID: '#RRGGBB' }
+var CONDITION_COLORS_TITLE = 'OPX condition colors';
 
 var str = function(v) {
   return (v === undefined || v === null) ? '' : String(v);
@@ -213,6 +215,9 @@ var infoToInvitaeNotes = function(info, privacySetting, cascadeState) {
   if (cascadeState) {
     notes.push({ title: CASCADE_TITLE, value: JSON.stringify(cascadeState), type: 'multiline' });
   }
+  if (info.conditionColors && Object.keys(info.conditionColors).length > 0) {
+    notes.push({ title: CONDITION_COLORS_TITLE, value: JSON.stringify(info.conditionColors), type: 'multiline' });
+  }
   FIELDS.forEach(function(f) {
     if (!info[f]) return;
     if (f === 'family' && privacySetting && privacySetting !== 'all') return;
@@ -248,10 +253,17 @@ var infoFromInvitaeXML = function(xmlText) {
     var colourOwner = {};
     for (var c = 0; c < condEls.length; c++) {
       var cTitle = condEls[c].getAttribute('title') || condEls[c].getAttribute('code');
-      var cIdx = parseInt(condEls[c].getAttribute('color'), 10);
-      if (!cTitle || isNaN(cIdx) || cIdx < 0 || cIdx >= INVITAE_PALETTE.length) continue;
+      if (!cTitle) continue;
       var cId = Disorder.sanitizeID(cTitle);
       if (data.conditionColors.hasOwnProperty(cId)) continue;
+      var cHex = normalizeHex(condEls[c].getAttribute('color_hex') || condEls[c].getAttribute('color'));
+      if (cHex) {
+        data.conditionColors[cId] = cHex;
+        found = true;
+        continue;
+      }
+      var cIdx = parseInt(condEls[c].getAttribute('color'), 10);
+      if (isNaN(cIdx) || cIdx < 0 || cIdx >= INVITAE_PALETTE.length) continue;
       if (colourOwner.hasOwnProperty(cIdx) && colourOwner[cIdx] !== cId) continue;
       colourOwner[cIdx] = cId;
       data.conditionColors[cId] = INVITAE_PALETTE[cIdx];
@@ -268,6 +280,23 @@ var infoFromInvitaeXML = function(xmlText) {
       if (!value) continue;
       if (title === CASCADE_TITLE.toLowerCase()) {
         continue; // read by cascadeStateFromInvitaeXML
+      }
+      if (title === CONDITION_COLORS_TITLE.toLowerCase()) {
+        try {
+          var parsedColors = JSON.parse(value);
+          if (parsedColors && typeof parsedColors === 'object') {
+            Object.keys(parsedColors).forEach(function(k) {
+              var hex = normalizeHex(parsedColors[k]);
+              if (k && hex) {
+                data.conditionColors[String(k)] = hex;
+                var sk = Disorder.sanitizeID(String(k));
+                if (sk) data.conditionColors[sk] = hex;
+                found = true;
+              }
+            });
+          }
+        } catch (err) {}
+        continue;
       }
       if (title === ANNOTATION_TITLE.toLowerCase()) {
         data.annotations.push({ id: 'a' + (data.annotations.length + 1), x: n.getAttribute('x'), y: n.getAttribute('y'), text: value });

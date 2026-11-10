@@ -8,12 +8,12 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
  */
 var LabelOptionsSelector = Class.create({
 
-  initialize: function() {
+  initialize: function () {
     this.dialog = null;
     this.loadSettings();
   },
 
-  loadSettings: function() {
+  loadSettings: function () {
     try {
       var saved = JSON.parse(localStorage.getItem('openpedigree_label_options_v2') || '{}');
       PedigreeEditorParameters.attributes.nameDisplayFormat = saved.nameDisplayFormat || 'full';
@@ -23,6 +23,7 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showCommentsInLabel = saved.showComments !== undefined ? !!saved.showComments : true; // true by default
       PedigreeEditorParameters.attributes.showLabelPrefixes = !!saved.showPrefixes; // false by default
       PedigreeEditorParameters.attributes.showTestsInLabel = saved.showTests !== undefined ? !!saved.showTests : true; // true by default
+      PedigreeEditorParameters.attributes.showIdentifierInLabel = saved.showIdentifier !== undefined ? !!saved.showIdentifier : true; // true by default
       PedigreeEditorParameters.attributes.colorByGene = saved.colorByGene !== undefined ? !!saved.colorByGene : true; // true by default
       PedigreeEditorParameters.attributes.showAncestryInLabel = !!saved.showAncestry; // false by default
       if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
@@ -33,7 +34,7 @@ var LabelOptionsSelector = Class.create({
     }
   },
 
-  saveSettings: function(settings) {
+  saveSettings: function (settings) {
     PedigreeEditorParameters.attributes.nameDisplayFormat = settings.nameDisplayFormat || 'full';
     PedigreeEditorParameters.attributes.showDisordersInLabel = !!settings.showDisorders;
     PedigreeEditorParameters.attributes.showHPOInLabel = !!settings.showHPO;
@@ -41,6 +42,7 @@ var LabelOptionsSelector = Class.create({
     PedigreeEditorParameters.attributes.showCommentsInLabel = settings.showComments !== undefined ? !!settings.showComments : true;
     PedigreeEditorParameters.attributes.showLabelPrefixes = !!settings.showPrefixes;
     PedigreeEditorParameters.attributes.showTestsInLabel = settings.showTests !== undefined ? !!settings.showTests : true;
+    PedigreeEditorParameters.attributes.showIdentifierInLabel = settings.showIdentifier !== undefined ? !!settings.showIdentifier : true;
     PedigreeEditorParameters.attributes.showAncestryInLabel = !!settings.showAncestry;
     var colorByGene = settings.colorByGene !== undefined ? !!settings.colorByGene : true;
     var colorChanged = colorByGene !== (PedigreeEditorParameters.attributes.colorByGene !== false);
@@ -54,14 +56,14 @@ var LabelOptionsSelector = Class.create({
 
     try {
       localStorage.setItem('openpedigree_label_options_v2', JSON.stringify(settings));
-    } catch (e) {}
+    } catch (e) { }
 
     if (window.editor && editor.getView && editor.getView().updateAllLabels) {
       editor.getView().updateAllLabels();
     }
   },
 
-  show: function() {
+  show: function () {
     var _this = this;
 
     var mainDiv = new Element('div', { 'class': 'label-options-dialog-content' });
@@ -69,7 +71,7 @@ var LabelOptionsSelector = Class.create({
     // Compact layout: short labels in two columns; the longer explanations are tooltips
     var optionsList = new Element('div', { 'class': 'label-options-list label-options-compact' });
 
-    var createOptionRow = function(id, title, desc, checked) {
+    var createOptionRow = function (id, title, desc, checked) {
       var row = new Element('label', { 'class': 'label-option-chip', 'for': id, 'title': desc });
       var cb = new Element('input', {
         'type': 'checkbox',
@@ -81,6 +83,10 @@ var LabelOptionsSelector = Class.create({
       row.insert(new Element('span', { 'class': 'label-option-title' }).update(title));
       return { row: row, input: cb };
     };
+
+    var identifierOpt = createOptionRow('cb-show-identifier', 'Identifier',
+      'Display the external identifier (e.g. [ID-123]) under each person.',
+      PedigreeEditorParameters.attributes.showIdentifierInLabel !== false);
 
     var disordersOpt = createOptionRow('cb-show-disorders', 'Diagnoses',
       'Display clinical diagnoses (e.g. Fabry disease, Down syndrome) on affected individuals.',
@@ -123,8 +129,10 @@ var LabelOptionsSelector = Class.create({
       "Write Wright's inbreeding coefficient of the children (e.g. F = 1/16 for first cousins) above the line of each consanguineous couple.",
       !!(overlay && overlay.isInbreedingVisible()));
 
-    var nameCard = new Element('label', { 'class': 'label-option-name-row', 'for': 'select-name-format',
-      'title': "Choose how much of each individual's name to display on the pedigree chart." });
+    var nameCard = new Element('label', {
+      'class': 'label-option-name-row', 'for': 'select-name-format',
+      'title': "Choose how much of each individual's name to display on the pedigree chart."
+    });
     var nameTitle = new Element('span', { 'class': 'label-option-section' }).update('Name');
 
     var nameSelect = new Element('select', {
@@ -138,7 +146,7 @@ var LabelOptionsSelector = Class.create({
       { value: 'none', text: 'Hide Names' }
     ];
     var currentFormat = PedigreeEditorParameters.attributes.nameDisplayFormat || 'full';
-    nameOptions.forEach(function(opt) {
+    nameOptions.forEach(function (opt) {
       var optEl = new Element('option', { 'value': opt.value }).update(opt.text);
       if (opt.value === currentFormat) {
         optEl.selected = true;
@@ -149,30 +157,31 @@ var LabelOptionsSelector = Class.create({
     nameCard.insert(nameTitle);
     nameCard.insert(nameSelect);
 
-    var section = function(title, rows) {
+    var section = function (title, rows) {
       var box = new Element('div', { 'class': 'label-options-group' });
       box.insert(new Element('div', { 'class': 'label-option-section' }).update(title));
       var grid = new Element('div', { 'class': 'label-options-grid' });
-      rows.forEach(function(r) { grid.insert(r.row); });
+      rows.forEach(function (r) { grid.insert(r.row); });
       box.insert(grid);
       return box;
     };
 
     optionsList.insert(nameCard);
-    optionsList.insert(section('Show under each person', [disordersOpt, hpoOpt, testsOpt, ancestryOpt, commentsOpt, prefixesOpt, genesOpt]));
+    optionsList.insert(section('Show under each person', [identifierOpt, disordersOpt, hpoOpt, testsOpt, ancestryOpt, commentsOpt, prefixesOpt, genesOpt]));
     optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt, inbreedingOpt]));
     mainDiv.insert(optionsList);
 
-    numberingOpt.input.observe('change', function() {
+    numberingOpt.input.observe('change', function () {
       overlay && overlay.setNumberingVisible(numberingOpt.input.checked);
     });
-    inbreedingOpt.input.observe('change', function() {
+    inbreedingOpt.input.observe('change', function () {
       overlay && overlay.setInbreedingVisible(inbreedingOpt.input.checked);
     });
 
-    var applyCurrentValues = function() {
+    var applyCurrentValues = function () {
       _this.saveSettings({
         nameDisplayFormat: nameSelect.value || (nameSelect.getValue ? nameSelect.getValue() : 'full'),
+        showIdentifier: identifierOpt.input.checked,
         showDisorders: disordersOpt.input.checked,
         showHPO: hpoOpt.input.checked,
         showGenes: genesOpt.input.checked,
@@ -185,6 +194,7 @@ var LabelOptionsSelector = Class.create({
     };
 
     nameSelect.observe('change', applyCurrentValues);
+    identifierOpt.input.observe('change', applyCurrentValues);
     disordersOpt.input.observe('change', applyCurrentValues);
     hpoOpt.input.observe('change', applyCurrentValues);
     genesOpt.input.observe('change', applyCurrentValues);
@@ -203,9 +213,9 @@ var LabelOptionsSelector = Class.create({
     buttons.insert(new Element('span', { 'class': 'buttonwrapper' }).insert(closeBtn));
     mainDiv.insert(buttons);
 
-    var onDone = function(event) {
+    var onDone = function (event) {
       if (event) {
-        try { event.stop(); } catch (err) {}
+        try { event.stop(); } catch (err) { }
       }
       applyCurrentValues();
       _this.hide();
@@ -217,7 +227,7 @@ var LabelOptionsSelector = Class.create({
       mainDiv,
       {
         close: {
-          method: function() { _this.hide(); },
+          method: function () { _this.hide(); },
           keys: ['Esc']
         }
       },
@@ -232,7 +242,7 @@ var LabelOptionsSelector = Class.create({
     this.dialog.show();
   },
 
-  hide: function() {
+  hide: function () {
     if (this.dialog) {
       var d = this.dialog;
       this.dialog = null;

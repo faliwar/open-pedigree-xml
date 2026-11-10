@@ -99,6 +99,47 @@ var NodeMenu = Class.create({
       }
     });
 
+    // Optional toggle for distinct sex assigned at birth vs. gender so standard view stays clean
+    if (this.fieldMap['gender'] && this.fieldMap['sex_at_birth']) {
+      var toggleBox = new Element('div', {'class': 'field-box field-distinct_sex_gender'});
+      var toggleLabel = new Element('label', {'class': 'field-name'}).update(translate('Distinct sex at birth / gender'));
+      var toggleCheckbox = new Element('input', {type: 'checkbox', name: 'distinct_sex_gender', value: '1'});
+      toggleLabel.insert({'top': toggleCheckbox});
+      toggleBox.insert(toggleLabel);
+      this._distinctSexGenderBox = toggleBox;
+      this._distinctSexGenderCheckbox = toggleCheckbox;
+      this._distinctSexGenderExpanded = false;
+      this._lastSexGenderTarget = null;
+
+      var personalTab = this.tabs['Personal'] || this.form;
+      if (this.fieldMap['history_unknown'] && this.fieldMap['history_unknown'].element.parentNode === personalTab) {
+        personalTab.insertBefore(toggleBox, this.fieldMap['history_unknown'].element);
+      } else {
+        personalTab.insert(toggleBox);
+      }
+
+      toggleCheckbox.observe('click', function() {
+        if (_this._updating) return;
+        if (toggleCheckbox.checked) {
+          _this._distinctSexGenderExpanded = true;
+          _this._syncSexGenderView();
+          _this.reposition();
+        } else {
+          _this._distinctSexGenderExpanded = false;
+          if (_this.targetNode && _this.fieldMap['sex_at_birth'].crtValue) {
+            _this.fieldMap['sex_at_birth'].crtValue = '';
+            _this._setFieldValue['select'].call(_this, _this.fieldMap['sex_at_birth'].element, '');
+            document.fire('pedigree:node:setproperty', {
+              'nodeID': _this.targetNode.getID(),
+              'properties': { 'setSexAtBirth': '' }
+            });
+          }
+          _this._syncSexGenderView();
+          _this.reposition();
+        }
+      });
+    }
+
     // Insert in document
     this.hide();
     editor.getWorkspace().getWorkArea().insert(this.menuBox);
@@ -1041,6 +1082,35 @@ var NodeMenu = Class.create({
       _this._setFieldInactive[_this.fieldMap[name].type].call(_this, _this.fieldMap[name].element, _this.fieldMap[name].inactive);
       _this._setFieldDisabled[_this.fieldMap[name].type].call(_this, _this.fieldMap[name].element, _this.fieldMap[name].disabled);
     });
+    if (this._distinctSexGenderBox) {
+      if (this.targetNode !== this._lastSexGenderTarget) {
+        this._lastSexGenderTarget = this.targetNode;
+        this._distinctSexGenderExpanded = !!(this.fieldMap['sex_at_birth'] && this.fieldMap['sex_at_birth'].crtValue);
+      } else if (this.fieldMap['sex_at_birth'] && this.fieldMap['sex_at_birth'].crtValue) {
+        this._distinctSexGenderExpanded = true;
+      }
+      this._syncSexGenderView();
+    }
+  },
+
+  _syncSexGenderView : function () {
+    if (!this.fieldMap['gender'] || !this.fieldMap['sex_at_birth']) return;
+    var sexAtBirthField = this.fieldMap['sex_at_birth'];
+    var genderField = this.fieldMap['gender'];
+    var isInactive = !!sexAtBirthField.inactive;
+    var hasValue = !!sexAtBirthField.crtValue;
+    var showDistinct = !isInactive && (hasValue || !!this._distinctSexGenderExpanded);
+    if (this._distinctSexGenderBox) {
+      this._toggleFieldVisibility(this._distinctSexGenderBox, isInactive);
+      if (this._distinctSexGenderCheckbox) {
+        this._distinctSexGenderCheckbox.checked = showDistinct;
+      }
+    }
+    this._toggleFieldVisibility(sexAtBirthField.element, !showDistinct);
+    var genderLabel = genderField.element.down('label.field-name');
+    if (genderLabel) {
+      genderLabel.update(translate(showDistinct ? 'Gender' : 'Sex'));
+    }
   },
 
   _setFieldValue : {

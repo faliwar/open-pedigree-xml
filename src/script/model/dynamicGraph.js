@@ -169,7 +169,13 @@ DynamicPositionedGraph.prototype = {
   },
 
   setProperties: function( id, newSetOfProperties ) {
+    var oldProps = this.DG.GG.properties[id] || {};
+    var hadArt = !!(oldProps.artLink || oldProps.artRole);
     this.DG.GG.properties[id] = newSetOfProperties;
+    var hasArt = !!(newSetOfProperties && (newSetOfProperties.artLink || newSetOfProperties.artRole));
+    if (hadArt !== hasArt && this._heuristics) {
+      this._heuristics.improvePositioning(this.DG.ranks.slice(0), this.DG.rankY.slice(0));
+    }
   },
 
   // returns the ID of the proband: the person flagged with 'probandFlag', or node 0 by default
@@ -3358,6 +3364,9 @@ Heuristics.prototype = {
       if (!this.DG.GG.isRelationship(v)) {
         continue;
       }
+      if (this.DG.GG.properties[v] && this.DG.GG.properties[v].artLink) {
+        continue;
+      }
       var childhub  = this.DG.GG.getRelationshipChildhub(v);
       var parents   = this.DG.GG.getInEdges(v);
       // For single-parent relationships (child without partner), align childhub
@@ -3366,6 +3375,12 @@ Heuristics.prototype = {
       var targetX;
       if (parents.length == 1) {
         targetX = xcoord.xcoord[parents[0]];
+        var relTargetX = (this.DG.order.vOrder[v] > this.DG.order.vOrder[parents[0]])
+          ? (targetX + xcoord.halfWidth[parents[0]])
+          : (targetX - xcoord.halfWidth[parents[0]]);
+        if (xcoord.xcoord[v] != relTargetX) {
+          xcoord.moveNodeAsCloseToXAsPossible(v, relTargetX);
+        }
       } else {
         targetX = xcoord.xcoord[v];
       }
@@ -3424,6 +3439,9 @@ Heuristics.prototype = {
       // fix relative positioning of relationships to their children
       for (var k = 0; k < orderedRelationships.length; k++) {
         var v = orderedRelationships[k];
+        if (this.DG.GG.properties[v] && this.DG.GG.properties[v].artLink) {
+          continue;
+        }
 
         var parents   = this.DG.GG.getInEdges(v);
         var childhub  = this.DG.GG.getRelationshipChildhub(v);
@@ -3628,6 +3646,9 @@ Heuristics.prototype = {
       iter++;
       for (var k = 0; k < orderedRelationships.length; k++) {
         var v = orderedRelationships[k];
+        if (this.DG.GG.properties[v] && this.DG.GG.properties[v].artLink) {
+          continue;
+        }
 
         var parents        = this.DG.GG.getInEdges(v);
         var orderedParents = this.DG.order.sortByOrder(parents);
@@ -3677,6 +3698,7 @@ Heuristics.prototype = {
     //xcoord.normalize();
 
     this._straightenOnlyChildren(xcoord);
+    this._pullDonorsCloseToParents(xcoord);
 
     this.DG.positions = xcoord.xcoord;
 
@@ -3744,6 +3766,79 @@ Heuristics.prototype = {
         for (var node in moves) {
           if (moves.hasOwnProperty(node)) {
             xcoord.xcoord[node] = moves[node];
+          }
+        }
+      }
+    }
+  },
+
+  /**
+   * Pull rootless ART donors/surrogates (connected via an artLink relationship) as close
+   * to their anchor parent as possible, and keep their hidden childhub and dummy child
+   * aligned at the artLink x-coordinate so they never push or pull real nodes.
+   */
+  _pullDonorsCloseToParents: function( xcoord ) {
+    var GG = this.DG.GG;
+    // First ensure any single-parent relationship node sits flush against its single parent
+    // so it cannot block an adjacent artLink / donor from pulling in.
+    for (var s = 0; s <= GG.getMaxRealVertexId(); s++) {
+      if (!GG.isRelationship(s) || (GG.properties[s] && GG.properties[s].artLink)) {
+        continue;
+      }
+      var sParents = GG.getInEdges(s);
+      if (sParents.length == 1 && this.DG.ranks[s] == this.DG.ranks[sParents[0]]) {
+        if (this.DG.order.vOrder[s] > this.DG.order.vOrder[sParents[0]]) {
+          xcoord.shiftLeftOneVertex(s, Infinity);
+        } else {
+          xcoord.shiftRightOneVertex(s, Infinity);
+        }
+      }
+    }
+    for (var v = 0; v <= GG.getMaxRealVertexId(); v++) {
+      if (!GG.isRelationship(v) || !(GG.properties[v] && GG.properties[v].artLink)) {
+        continue;
+      }
+      var parents = GG.getParents(v);
+      if (parents.length == 2) {
+        var p0Props = GG.properties[parents[0]] || {};
+        var p1Props = GG.properties[parents[1]] || {};
+        var donor = null;
+        var anchor = null;
+        if (p0Props.artRole && !p1Props.artRole && GG.getInEdges(parents[0]).length == 0 && GG.getOutEdges(parents[0]).length == 1) {
+          donor = parents[0];
+          anchor = parents[1];
+        } else if (p1Props.artRole && !p0Props.artRole && GG.getInEdges(parents[1]).length == 0 && GG.getOutEdges(parents[1]).length == 1) {
+          donor = parents[1];
+          anchor = parents[0];
+        }
+        if (donor !== null && anchor !== null && this.DG.ranks[donor] == this.DG.ranks[anchor]) {
+          if (this.DG.order.vOrder[donor] > this.DG.order.vOrder[anchor]) {
+            if (this.DG.order.vOrder[v] < this.DG.order.vOrder[donor]) {
+              xcoord.shiftLeftOneVertex(v, Infinity);
+              xcoord.shiftLeftOneVertex(donor, Infinity);
+            } else {
+              xcoord.shiftLeftOneVertex(donor, Infinity);
+              xcoord.shiftLeftOneVertex(v, Infinity);
+            }
+          } else {
+            if (this.DG.order.vOrder[v] > this.DG.order.vOrder[donor]) {
+              xcoord.shiftRightOneVertex(v, Infinity);
+              xcoord.shiftRightOneVertex(donor, Infinity);
+            } else {
+              xcoord.shiftRightOneVertex(donor, Infinity);
+              xcoord.shiftRightOneVertex(v, Infinity);
+            }
+          }
+        }
+      }
+      var chHub = GG.getRelationshipChildhub(v);
+      if (chHub !== null && chHub !== undefined) {
+        xcoord.xcoord[chHub] = xcoord.xcoord[v];
+        var kids = GG.getOutEdges(chHub);
+        for (var k = 0; k < kids.length; k++) {
+          var kProps = GG.properties[kids[k]] || {};
+          if (kProps.isVirtualDummyChild || kProps.isPlaceholder) {
+            xcoord.xcoord[kids[k]] = xcoord.xcoord[v];
           }
         }
       }
@@ -3860,6 +3955,10 @@ Heuristics.prototype = {
             if (!this.DG.GG.isChildhub(v)) {
               continue;
             }  // childhub rank may have long edges in addition to childhubs
+            var inRels = this.DG.GG.getInEdges(v);
+            if (inRels.length == 1 && this.DG.GG.properties[inRels[0]] && this.DG.GG.properties[inRels[0]].artLink) {
+              continue;
+            }
 
             var childhubX = xcoord.xcoord[v];
 
@@ -4367,6 +4466,23 @@ Heuristics.prototype = {
 
     var xcoord = new XCoord(this.DG.positions, this.DG);
 
+    // If newNodeId is the second parent being added to a formerly single-parent relationship,
+    // ensure the relationship node's position respects its new non-zero width and separation
+    // from the existing parent before computing newNodeId's position.
+    var checkRelDisturb = false;
+    if (nodeToKeepEdgeStraightTo != newNodeId &&
+        this.DG.GG.isRelationship(nodeToKeepEdgeStraightTo) &&
+        this.DG.GG.getInEdges(nodeToKeepEdgeStraightTo).length == 2 &&
+        this.DG.ranks[nodeToKeepEdgeStraightTo] == originalDisturbRank) {
+      if (this.DG.order.vOrder[newNodeId] > this.DG.order.vOrder[nodeToKeepEdgeStraightTo]) {
+        var relLeftMin = xcoord.getLeftMostNoDisturbPosition(nodeToKeepEdgeStraightTo);
+        if (xcoord.xcoord[nodeToKeepEdgeStraightTo] < relLeftMin) {
+          xcoord.xcoord[nodeToKeepEdgeStraightTo] = relLeftMin;
+        }
+      } else {
+        checkRelDisturb = true;
+      }
+    }
 
     var leftBoundary  = xcoord.getLeftMostNoDisturbPosition(newNodeId);
     var rightBoundary = xcoord.getRightMostNoDisturbPosition(newNodeId);
@@ -4408,6 +4524,9 @@ Heuristics.prototype = {
     // the process after some time.
     var disturbedNodes = new Queue();
     disturbedNodes.push([newNodeId, shiftAmount]);
+    if (checkRelDisturb) {
+      disturbedNodes.push([nodeToKeepEdgeStraightTo, 0]);
+    }
 
     var iterOuter = 0;
     var iter      = 0;

@@ -356,6 +356,8 @@ const translations = {
   'External ID': 'ID externo', 'Name': 'Nome', 'None, generate new numeric ID for everyone': 'Nenhum; gerar novos IDs numéricos',
   'Privacy export options:': 'Opções de privacidade da exportação:', 'All data': 'Todos os dados',
   'Remove personal information (name and age)': 'Remover informações pessoais (nome e idade)',
+  'Remove personal information (name, age, and identifier)': 'Remover informações pessoais (nome, idade e identificador)',
+  'Display the external identifier (e.g. [ID-123]) under each person.': 'Exibir o identificador externo (por exemplo, [ID-123]) abaixo de cada pessoa.',
   'Remove personal information and free-form comments': 'Remover informações pessoais e comentários livres',
   'PDF export options:': 'Opções de exportação para PDF:', 'Page Size ': 'Tamanho da página ',
   'Page Orientation ': 'Orientação da página ', 'Landscape': 'Paisagem', 'Portrait': 'Retrato',
@@ -433,7 +435,7 @@ const translations = {
   , 'Select a local file to be imported': 'Selecione um arquivo local para importar'
   , 'Select a template': 'Selecione um modelo'
   , 'Choose Common Children': 'Escolher filhos em comum'
-  , 'Personal': 'Pessoal', 'Clinical': 'Clínico', 'Gender': 'Sexo', 'Identifier': 'Identificador'
+  , 'Personal': 'Pessoal', 'Clinical': 'Clínico', 'Gender': 'Gênero', 'Identifier': 'Identificador'
   , 'Carrier status': 'Estado de portador', 'Not affected': 'Não afetado', 'Carrier': 'Portador'
   , 'Affected': 'Afetado', 'Pre-symptomatic': 'Pré-sintomático', 'Documented evaluation': 'Avaliação documentada'
   , 'Documented (*)': 'Documentado (*)', 'Positive +': 'Positivo +', 'Negative -': 'Negativo -'
@@ -445,6 +447,7 @@ const translations = {
   , 'Heredity options': 'Opções reprodutivas', 'None': 'Nenhum', 'Childless': 'Sem filhos', 'Adopted': 'Adotado',
   'Adoption': 'Adoção', 'Not adopted': 'Não adotado', 'Adopted in': 'Adotado pela família', 'Placed for adoption': 'Dado em adoção'
   , 'Monozygotic twin': 'Gêmeo monozigótico', 'Twin of': 'Gêmeo de', 'Not a twin': 'Não é gêmeo'
+  , 'Distinct sex at birth / gender': 'Sexo ao nascer distinto do gênero'
   // Bennett et al. 2008 / 2022 additions
   , 'Sex assigned at birth': 'Sexo designado ao nascer', 'Not stated': 'Não informado'
   , 'AMAB (assigned male)': 'AMAB (designado masculino)', 'AFAB (assigned female)': 'AFAB (designado feminino)', 'UAAB (unassigned)': 'UAAB (não designado)'
@@ -458,7 +461,7 @@ const translations = {
   , 'Deleted a donor / surrogate line of descent': 'Linha de descendência do doador / gestante substituta excluída'
   , 'Family history not available (?)': 'História familiar não disponível (?)'
   , 'Degree of relationship, if not obvious': 'Grau de parentesco, se não for óbvio', 'e.g. third cousins': 'ex.: primos em terceiro grau'
-  , 'Sister': 'Irmã', 'Brother': 'Irmão', 'Sibling': 'Irmão(ã)','Not in contact with proband': 'Sem contato com o probando'
+  , 'Sister': 'Irmã', 'Brother': 'Irmão', 'Sibling': 'Irmão(ã)', 'Not in contact with proband': 'Sem contato com o probando'
   , 'Proband': 'Probando', 'Placeholder node': 'Pessoa fictícia', 'Comments': 'Comentários'
   , 'Number of persons in this group': 'Número de pessoas neste grupo', 'Identifier(s)': 'Identificador(es)'
   , 'Known disorders': 'Condições conhecidas', '(common to all individuals in the group)': '(comuns a todas as pessoas do grupo)'
@@ -526,12 +529,12 @@ export function translate(text) {
   var exact = translations[text];
   if (exact) return exact;
   // Translate known fragments in interpolated status and error messages.
-  return Object.keys(translations).filter(function(key) { return key.length > 8 && text.indexOf(key) !== -1; })
-    .reduce(function(result, key) { return result.split(key).join(translations[key]); }, text);
+  return Object.keys(translations).filter(function (key) { return key.length > 8 && text.indexOf(key) !== -1; })
+    .reduce(function (result, key) { return result.split(key).join(translations[key]); }, text);
 }
 
 // Text typed by the user (pedigree header, chart notes) is marked data-no-translate
-var isUserText = function(el) {
+var isUserText = function (el) {
   return !!(el && el.closest && el.closest('[data-no-translate]'));
 };
 
@@ -549,7 +552,7 @@ function translateNode(node) {
     // "value" is visible text only on buttons; on radios, checkboxes, options and text fields it
     // is data (e.g. "alive", "Left", "Positive test") and must never be translated
     var valueIsText = node.tagName === 'INPUT' && /^(button|submit|reset)$/i.test(node.getAttribute('type') || '');
-    ['title', 'aria-label', 'placeholder', 'value'].forEach(function(attribute) {
+    ['title', 'aria-label', 'placeholder', 'value'].forEach(function (attribute) {
       if (attribute === 'value' && !valueIsText) {
         return;
       }
@@ -566,8 +569,8 @@ function translateNode(node) {
 export function observeTranslations(root) {
   if (!root || getLanguage() !== 'pt-BR' || typeof MutationObserver === 'undefined') return;
   translateNode(root);
-  var observer = new MutationObserver(function(records) {
-    records.forEach(function(record) {
+  var observer = new MutationObserver(function (records) {
+    records.forEach(function (record) {
       if (record.type === 'childList') Array.prototype.slice.call(record.addedNodes).forEach(translateNode);
       else if (record.type === 'characterData') translateNode(record.target);
       else if (record.type === 'attributes') translateNode(record.target);
@@ -581,7 +584,7 @@ export function installNativeDialogTranslations() {
   var originalAlert = window.alert;
   var originalConfirm = window.confirm;
   var originalPrompt = window.prompt;
-  window.alert = function(message) { return originalAlert.call(window, translate(String(message))); };
-  window.confirm = function(message) { return originalConfirm.call(window, translate(String(message))); };
-  window.prompt = function(message, defaultValue) { return originalPrompt.call(window, translate(String(message)), defaultValue); };
+  window.alert = function (message) { return originalAlert.call(window, translate(String(message))); };
+  window.confirm = function (message) { return originalConfirm.call(window, translate(String(message))); };
+  window.prompt = function (message, defaultValue) { return originalPrompt.call(window, translate(String(message)), defaultValue); };
 }

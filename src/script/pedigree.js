@@ -845,7 +845,7 @@ var PedigreeEditor = Class.create({
       },
       {
         'name' : 'gender',
-        'label' : 'Gender',
+        'label' : 'Sex',
         'type' : 'radio',
         'tab': 'Personal',
         'columns': 3,
@@ -870,19 +870,6 @@ var PedigreeEditor = Class.create({
         ],
         'default' : '',
         'function' : 'setSexAtBirth'
-      },
-      {
-        'name' : 'art_role',
-        'label' : 'Assisted reproduction',
-        'type' : 'select',
-        'tab': 'Personal',
-        'values' : [
-          { 'actual' : '', 'displayed' : 'None' },
-          { 'actual' : 'donor', 'displayed' : 'Gamete donor (D)' },
-          { 'actual' : 'surrogate', 'displayed' : 'Surrogate (S)' }
-        ],
-        'default' : '',
-        'function' : 'setArtRole'
       },
       {
         'name' : 'name',
@@ -1043,6 +1030,19 @@ var PedigreeEditor = Class.create({
         'type' : 'ancestry-picker',
         'tab': 'Personal',
         'function' : 'setAncestry'
+      },
+      {
+        'name' : 'art_role',
+        'label' : 'Assisted reproduction',
+        'type' : 'select',
+        'tab': 'Personal',
+        'values' : [
+          { 'actual' : '', 'displayed' : 'None' },
+          { 'actual' : 'donor', 'displayed' : 'Gamete donor (D)' },
+          { 'actual' : 'surrogate', 'displayed' : 'Surrogate (S)' }
+        ],
+        'default' : '',
+        'function' : 'setArtRole'
       },
       {
         'name' : 'monozygotic',

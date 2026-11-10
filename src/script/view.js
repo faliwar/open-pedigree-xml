@@ -570,7 +570,7 @@ var View = Class.create({
   },
 
   // Redraws the colour sectors of every person (e.g. after turning colouring by gene on/off)
-  updateAllNodeColors: function() {
+  updateAllNodeColors: function () {
     for (var id in this._nodeMap) {
       if (this._nodeMap.hasOwnProperty(id)) {
         var node = this._nodeMap[id];
@@ -581,13 +581,15 @@ var View = Class.create({
     }
   },
 
-  updateAllLabels: function() {
+  updateAllLabels: function () {
     for (var id in this._nodeMap) {
       if (this._nodeMap.hasOwnProperty(id)) {
         var node = this._nodeMap[id];
-        if (node && node.getType && node.getType() == 'Person' && node.getGraphics()) {
+        if (node && node.getType && (node.getType() == 'Person' || node.getType() == 'PersonGroup') && node.getGraphics()) {
           var g = node.getGraphics();
           if (g.updateNameLabel) g.updateNameLabel();
+          if (g.updateAgeLabel) g.updateAgeLabel();
+          if (g.updateExternalIDLabel) g.updateExternalIDLabel();
           if (g.updateDisordersLabel) g.updateDisordersLabel();
           if (g.updateHPOLabel) g.updateHPOLabel();
           if (g.updateGenesLabel) g.updateGenesLabel();
@@ -608,16 +610,16 @@ var View = Class.create({
    * line (or the next generation) and, if so, moves the lower generations down; also gives back the
    * space when the text gets shorter.
    */
-  scheduleLabelSpacing: function() {
+  scheduleLabelSpacing: function () {
     if (this._labelSpacingBusy) return;
     var _this = this;
     clearTimeout(this._labelSpacingTimer);
-    this._labelSpacingTimer = setTimeout(function() {
+    this._labelSpacingTimer = setTimeout(function () {
       _this.adjustSpacingForLabels();
     }, 150);
   },
 
-  adjustSpacingForLabels: function() {
+  adjustSpacingForLabels: function () {
     if (typeof editor === 'undefined' || !editor.getGraph) return;
     var graph = editor.getGraph();
     var DG = graph && graph.DG;
@@ -640,7 +642,7 @@ var View = Class.create({
       var base = DG.yDistanceNodeToChildhub + DG.yExtraPerHorizontalLine * (Math.max(levels || 1, 1) - 1);
       // children's lines may be drawn a level or more above the rank's base line
       var minLevel = 1;
-      (DG.order.order[r + 1] || []).forEach(function(h) {
+      (DG.order.order[r + 1] || []).forEach(function (h) {
         if (GG.isChildhub(h) && DG.vertLevel.childEdgeLevel && typeof DG.vertLevel.childEdgeLevel[h] === 'number') {
           minLevel = Math.min(minLevel, DG.vertLevel.childEdgeLevel[h]);
         }
@@ -652,7 +654,7 @@ var View = Class.create({
 
     var current = DG.labelExtra || {};
     var same = true;
-    Object.keys(need).concat(Object.keys(current)).forEach(function(k) {
+    Object.keys(need).concat(Object.keys(current)).forEach(function (k) {
       if ((need[k] || 0) !== (current[k] || 0)) same = false;
     });
     if (same) return;
@@ -674,11 +676,11 @@ var View = Class.create({
     } finally {
       var _this = this;
       // labels redrawn by the move above must not start another round
-      setTimeout(function() { _this._labelSpacingBusy = false; }, 0);
+      setTimeout(function () { _this._labelSpacingBusy = false; }, 0);
     }
   },
 
-  applyChanges: function( changeSet, markNew ) {
+  applyChanges: function (changeSet, markNew) {
     // applies change set of the form {"new": {list of nodes}, "moved": {list of nodes} }
 
     var timer = new Timer();
@@ -769,11 +771,11 @@ var View = Class.create({
 
       timer.printSinceLast('=== Removal runtime: ');
 
-      var movedPersons       = [];
+      var movedPersons = [];
       var movedRelationships = [];
-      var newPersons         = [];
-      var newRelationships   = [];
-      var animate            = {};
+      var newPersons = [];
+      var newRelationships = [];
+      var animate = {};
 
       if (changeSet.moved.length > 0) {
         // remove all lines so that we start drawing anew
@@ -879,7 +881,7 @@ var View = Class.create({
       timer.printSinceLast('=== highlight & update handles runtime: ');
       timer2.printSinceLast('=== Total apply changes runtime: ');
 
-    } catch(err) {
+    } catch (err) {
       console.error('applyChanges error:', err);
     } finally {
       // a new layout (re-layout, undo, twins...) starts without the extra room for tall text under

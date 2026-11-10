@@ -52,12 +52,14 @@ test('infertile couple with single-parent child on mother and male sperm donor k
 
   assert.equal(dg.getPosition(realChild).x, dg.getPosition(fem5).x, 'child stays directly below mother');
   assert.ok(dg.getPosition(donorId).x > dg.getPosition(fem5).x, 'male donor is placed to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(fem5).x <= 20, 'male donor is placed compactly next to mother');
 
   // Also verify after full relayout
   const baseG = dg.DG.GG.makeGWithCollapsedMultiRankEdges();
   dg._recreateUsingBaseGraph(baseG);
   assert.equal(dg.getPosition(realChild).x, dg.getPosition(fem5).x, 'after relayout: child stays directly below mother');
   assert.ok(dg.getPosition(donorId).x > dg.getPosition(fem5).x, 'after relayout: male donor stays to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(fem5).x <= 20, 'after relayout: male donor stays compactly next to mother');
 });
 
 test('single mother with child and male donor keeps male donor on the right (both interactive and after relayout)', () => {
@@ -68,11 +70,13 @@ test('single mother with child and male donor keeps male donor on the right (bot
 
   assert.equal(dg.getPosition(realChild).x, dg.getPosition(0).x, 'interactive: child directly below mother');
   assert.ok(dg.getPosition(donorId).x > dg.getPosition(0).x, 'interactive: male donor to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(0).x <= 20, 'interactive: male donor placed compactly next to mother');
 
   const baseG = dg.DG.GG.makeGWithCollapsedMultiRankEdges();
   dg._recreateUsingBaseGraph(baseG);
   assert.equal(dg.getPosition(realChild).x, dg.getPosition(0).x, 'after relayout: child directly below mother');
   assert.ok(dg.getPosition(donorId).x > dg.getPosition(0).x, 'after relayout: male donor to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(0).x <= 20, 'after relayout: male donor placed compactly next to mother');
 });
 
 test('mother with parents and artLink created before single-parent relationship keeps male donor on the right after relayout', () => {
@@ -86,8 +90,13 @@ test('mother with parents and artLink created before single-parent relationship 
   const childRes = dg.addNewChildWithoutPartner(0, { gender: 'F', artLinks: [donorId] }, 1);
   const realChild = childRes['new'][1];
 
+  assert.equal(dg.getPosition(realChild).x, dg.getPosition(0).x, 'interactive: child directly below mother');
+  assert.ok(dg.getPosition(donorId).x > dg.getPosition(0).x, 'interactive: male donor to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(0).x <= 20, 'interactive: male donor placed compactly next to mother');
+
   const baseG = dg.DG.GG.makeGWithCollapsedMultiRankEdges();
   dg._recreateUsingBaseGraph(baseG);
   assert.equal(dg.getPosition(realChild).x, dg.getPosition(0).x, 'child directly below mother');
   assert.ok(dg.getPosition(donorId).x > dg.getPosition(0).x, 'male donor to the right of mother');
+  assert.ok(dg.getPosition(donorId).x - dg.getPosition(0).x <= 20, 'after relayout: male donor placed compactly next to mother');
 });

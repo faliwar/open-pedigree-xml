@@ -39,20 +39,32 @@ InvitaeConverter.PREF_COLORS = INVITAE_PALETTE;
 
 InvitaeConverter._findClosestPaletteIndex = closestPaletteIndex;
 
-InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, disorderIndexMap) {
-  var hexColor = null;
+InvitaeConverter._getDisorderHexColor = function (disorderKey, disorderName) {
+  var hexColor = '';
   try {
+    var candidates = [disorderKey, disorderName];
+    [disorderKey, disorderName].forEach(function(k) {
+      if (k && typeof k === 'string') {
+        var sid = Disorder.sanitizeID(k);
+        if (candidates.indexOf(sid) === -1) candidates.unshift(sid);
+      }
+    });
+    if (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo) {
+      var pInfo = editor.getPedigreeInfo();
+      if (pInfo && pInfo.getConditionColor) {
+        for (var p = 0; p < candidates.length; p++) {
+          if (!candidates[p]) continue;
+          var chosen = pInfo.getConditionColor(candidates[p]);
+          if (chosen) {
+            return chosen.toUpperCase();
+          }
+        }
+      }
+    }
     if (typeof editor !== 'undefined' && editor && editor.getDisorderLegend) {
       var legend = editor.getDisorderLegend();
       if (legend) {
         // the legend is keyed by the sanitized id ("Fabry disease" -> "Fabry__disease")
-        var candidates = [disorderKey, disorderName];
-        [disorderKey, disorderName].forEach(function(k) {
-          if (k && typeof k === 'string') {
-            var sid = Disorder.sanitizeID(k);
-            if (candidates.indexOf(sid) === -1) candidates.unshift(sid);
-          }
-        });
         for (var i = 0; i < candidates.length; i++) {
           if (!candidates[i]) continue;
           if (legend.getObjectColor) {
@@ -70,6 +82,11 @@ InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, d
       }
     }
   } catch (e) {}
+  return hexColor ? hexColor.toUpperCase() : '';
+};
+
+InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, disorderIndexMap) {
+  var hexColor = InvitaeConverter._getDisorderHexColor(disorderKey, disorderName);
 
   if (hexColor) {
     hexColor = hexColor.toUpperCase();
@@ -1400,6 +1417,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
       }
       var condNote = (detail && privacySetting !== 'minimal') ? detail.note : '';
       var condColor = InvitaeConverter._getDisorderColorIndex(props.disorders[d], disorderName, disorderIndexMap || {});
+      var condHex = InvitaeConverter._getDisorderHexColor(props.disorders[d], disorderName);
       // keep Progeny's own code and short title (e.g. code="Invitae80") when the condition came from it
       xml += '<condition code="' + InvitaeConverter._escapeXml((detail && detail.code) || disorderName) + '"';
       xml += ' title="' + InvitaeConverter._escapeXml(disorderName) + '"';
@@ -1407,7 +1425,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
       xml += ' type="' + InvitaeConverter._escapeXml(detail ? detail.type : '') + '"';
       xml += ' onset="' + InvitaeConverter._escapeXml(detail ? toInvitaeAge(detail.onset) : '') + '"';
       xml += ' atdiag="' + InvitaeConverter._escapeXml(detail ? toInvitaeAge(detail.atdiag) : '') + '"';
-      xml += ' note="" color="' + condColor + '" visible="1" ontology="All"';
+      xml += ' note="" color="' + condColor + '"' + (condHex ? ' color_hex="' + InvitaeConverter._escapeXml(condHex) + '"' : '') + ' visible="1" ontology="All"';
       xml += ' status="' + InvitaeConverter._escapeXml(condStatus) + '">';
       xml += '<note value="' + InvitaeConverter._escapeXml(condNote) + '"/>';
       if (detail) {

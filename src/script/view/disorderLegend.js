@@ -13,29 +13,29 @@ import { translate } from 'pedigree/i18n';
  * @class DisorderLegend
  * @constructor
  */
-var DisorgerLegend = Class.create( Legend, {
+var DisorgerLegend = Class.create(Legend, {
 
-  initialize: function($super) {
+  initialize: function ($super) {
     $super('Disorders');
 
     this._disorderCache = {};
 
     this._specialDisordersRegexps = [new RegExp('^1BrCa', 'i'),
-      new RegExp('^2BrCa', 'i'),
-      new RegExp('^OvCa',  'i'),
-      new RegExp('^ProCa', 'i'),
-      new RegExp('^PanCa', 'i') ];
+    new RegExp('^2BrCa', 'i'),
+    new RegExp('^OvCa', 'i'),
+    new RegExp('^ProCa', 'i'),
+    new RegExp('^PanCa', 'i')];
 
     this._autoColors = {}; // automatic colour of each condition, used again when a chosen colour is removed
 
     var _this = this;
-    document.observe('pedigree:info:changed', function() {
+    document.observe('pedigree:info:changed', function () {
       _this._applyChosenColors();
     });
-    document.observe('pedigree:condition:rename', function(event) {
+    document.observe('pedigree:condition:rename', function (event) {
       _this._onRename(event);
     });
-    document.observe('mousedown', function(event) {
+    document.observe('mousedown', function (event) {
       if (_this._picker && !event.findElement('.condition-color-picker') && !event.findElement('.disorder-color') && !event.findElement('.disorder-name')) {
         _this._closePicker();
       }
@@ -43,10 +43,18 @@ var DisorgerLegend = Class.create( Legend, {
   },
 
   /** Colour chosen by the user for this condition (saved with the pedigree), or '' */
-  _getChosenColor: function(disorderID) {
+  _getChosenColor: function (disorderID) {
     try {
       var info = editor.getPedigreeInfo && editor.getPedigreeInfo();
-      return info ? info.getConditionColor(disorderID) : '';
+      if (!info) return '';
+      var chosen = info.getConditionColor(disorderID);
+      if (chosen) return chosen;
+      var dObj = this.getDisorder(disorderID);
+      if (dObj && dObj.getName) {
+        var byName = info.getConditionColor(Disorder.sanitizeID(dObj.getName()));
+        if (byName) return byName;
+      }
+      return '';
     } catch (e) {
       return '';
     }
@@ -56,7 +64,7 @@ var DisorgerLegend = Class.create( Legend, {
    * Shows each condition in the colour chosen for it (or its automatic colour) in the legend,
    * the person menus and the pedigree.
    */
-  _applyChosenColors: function() {
+  _applyChosenColors: function () {
     for (var id in this._affectedNodes) {
       if (!this._affectedNodes.hasOwnProperty(id)) continue;
       var color = this._getChosenColor(id);
@@ -74,14 +82,14 @@ var DisorgerLegend = Class.create( Legend, {
     }
   },
 
-  _setColor: function(disorderID, color) {
+  _setColor: function (disorderID, color) {
     if (this._objectColors[disorderID] === color) return;
     this._objectColors[disorderID] = color;
     var li = this._getListElementForObjectWithID(disorderID);
     var bubble = li && li.down('.disorder-color');
     if (bubble) bubble.style.backgroundColor = color;
-    document.fire('disorder:color', {'id' : disorderID, color: color});
-    (this._affectedNodes[disorderID] || []).forEach(function(nodeID) {
+    document.fire('disorder:color', { 'id': disorderID, color: color });
+    (this._affectedNodes[disorderID] || []).forEach(function (nodeID) {
       var node = editor.getNode(nodeID);
       node && node.getGraphics() && node.getGraphics().updateDisorderShapes && node.getGraphics().updateDisorderShapes();
     });
@@ -90,22 +98,22 @@ var DisorgerLegend = Class.create( Legend, {
   // -------------------------------------------------------------------------------------------
   // Colour picker: opens from the colour square of a condition in the legend
 
-  _openPicker: function(disorderID, anchor) {
+  _openPicker: function (disorderID, anchor) {
     this._closePicker();
     var _this = this;
-    var picker = new Element('div', {'class': 'condition-color-picker'});
+    var picker = new Element('div', { 'class': 'condition-color-picker' });
 
     // name (free-text conditions and coded ones alike; 'affected' is the generic shading and keeps its name)
     if (disorderID !== 'affected') {
-      picker.insert(new Element('div', {'class': 'condition-color-title'}).update(translate('Name')));
-      var nameRow = new Element('div', {'class': 'condition-name-row'});
-      var nameInput = new Element('input', {'type': 'text', 'class': 'condition-name-input', 'value': this.getDisorder(disorderID).getName()});
-      var renameBtn = new Element('button', {'type': 'button', 'class': 'condition-rename'}).update(translate('Rename'));
-      var doRename = function() {
+      picker.insert(new Element('div', { 'class': 'condition-color-title' }).update(translate('Name')));
+      var nameRow = new Element('div', { 'class': 'condition-name-row' });
+      var nameInput = new Element('input', { 'type': 'text', 'class': 'condition-name-input', 'value': this.getDisorder(disorderID).getName() });
+      var renameBtn = new Element('button', { 'type': 'button', 'class': 'condition-rename' }).update(translate('Rename'));
+      var doRename = function () {
         _this.renameCondition(disorderID, nameInput.value);
       };
       renameBtn.observe('click', doRename);
-      nameInput.observe('keydown', function(event) {
+      nameInput.observe('keydown', function (event) {
         if (event.keyCode === 13) {
           event.stop();
           doRename();
@@ -118,25 +126,25 @@ var DisorgerLegend = Class.create( Legend, {
       picker.insert(nameRow);
     }
 
-    picker.insert(new Element('div', {'class': 'condition-color-title'}).update(translate('Condition color')));
+    picker.insert(new Element('div', { 'class': 'condition-color-title' }).update(translate('Condition color')));
 
-    var swatches = new Element('div', {'class': 'condition-color-swatches'});
-    INVITAE_PALETTE.forEach(function(hex) {
-      var sw = new Element('button', {'type': 'button', 'class': 'condition-color-swatch', 'title': hex, 'data-color': hex});
+    var swatches = new Element('div', { 'class': 'condition-color-swatches' });
+    INVITAE_PALETTE.forEach(function (hex) {
+      var sw = new Element('button', { 'type': 'button', 'class': 'condition-color-swatch', 'title': hex, 'data-color': hex });
       sw.style.backgroundColor = hex;
-      sw.observe('click', function() { _this._chooseColor(disorderID, hex); });
+      sw.observe('click', function () { _this._chooseColor(disorderID, hex); });
       swatches.insert(sw);
     });
     picker.insert(swatches);
 
-    var row = new Element('div', {'class': 'condition-color-row'});
-    var custom = new Element('input', {'type': 'color', 'class': 'condition-color-custom'});
-    custom.observe('change', function() { _this._chooseColor(disorderID, custom.value); });
-    var customLabel = new Element('label', {'class': 'condition-color-custom-label'}).insert(custom)
+    var row = new Element('div', { 'class': 'condition-color-row' });
+    var custom = new Element('input', { 'type': 'color', 'class': 'condition-color-custom' });
+    custom.observe('change', function () { _this._chooseColor(disorderID, custom.value); });
+    var customLabel = new Element('label', { 'class': 'condition-color-custom-label' }).insert(custom)
       .insert(new Element('span').update(translate('Other color')));
     row.insert(customLabel);
-    var reset = new Element('button', {'type': 'button', 'class': 'condition-color-reset'}).update(translate('Automatic color'));
-    reset.observe('click', function() { _this._chooseColor(disorderID, ''); });
+    var reset = new Element('button', { 'type': 'button', 'class': 'condition-color-reset' }).update(translate('Automatic color'));
+    reset.observe('click', function () { _this._chooseColor(disorderID, ''); });
     row.insert(reset);
     picker.insert(row);
 
@@ -166,7 +174,7 @@ var DisorgerLegend = Class.create( Legend, {
    * @param {String} disorderID current id
    * @param {String} newName the name to show from now on
    */
-  renameCondition: function(disorderID, newName) {
+  renameCondition: function (disorderID, newName) {
     newName = String(newName || '').replace(/\s+/g, ' ').trim();
     if (!newName || !this._hasAffectedNodes(disorderID)) return;
     var toID = Disorder.sanitizeID(newName);
@@ -184,7 +192,7 @@ var DisorgerLegend = Class.create( Legend, {
     });
   },
 
-  _onRename: function(event) {
+  _onRename: function (event) {
     var memo = event.memo || {};
     var fromID = memo.fromID, toID = memo.toID;
     if (!fromID || !toID || fromID === toID || !this._hasAffectedNodes(fromID)) return;
@@ -203,16 +211,16 @@ var DisorgerLegend = Class.create( Legend, {
     var fromKeys = [Disorder.desanitizeID(fromID), fromID, this.getDisorder(fromID).getName()];
     var toKey = Disorder.desanitizeID(toID);
 
-    (memo.nodes || []).forEach(function(nodeID) {
+    (memo.nodes || []).forEach(function (nodeID) {
       var node = editor.getNode(nodeID);
       if (!node || !node.getDisorders) return;
       var list = [];
-      node.getDisorders().forEach(function(d) {
+      node.getDisorders().forEach(function (d) {
         var id = (d === fromID) ? toID : d;
         if (list.indexOf(id) === -1) list.push(id);
       });
       var details = node.getDisorderDetails ? node.getDisorderDetails() : {};
-      fromKeys.forEach(function(k) {
+      fromKeys.forEach(function (k) {
         if (k && details.hasOwnProperty(k)) {
           if (!details.hasOwnProperty(toKey)) details[toKey] = details[k];
           delete details[k];
@@ -229,7 +237,7 @@ var DisorgerLegend = Class.create( Legend, {
     }
   },
 
-  _refreshPicker: function() {
+  _refreshPicker: function () {
     if (!this._picker) return;
     if (!this._hasAffectedNodes(this._pickerID)) {
       this._closePicker();
@@ -237,7 +245,7 @@ var DisorgerLegend = Class.create( Legend, {
     }
     var current = normalizeHex(this.getObjectColor(this._pickerID));
     var chosen = this._getChosenColor(this._pickerID);
-    this._picker.select('.condition-color-swatch').each(function(sw) {
+    this._picker.select('.condition-color-swatch').each(function (sw) {
       if (sw.readAttribute('data-color') === current) {
         sw.addClassName('selected');
       } else {
@@ -250,7 +258,7 @@ var DisorgerLegend = Class.create( Legend, {
     if (reset) reset.disabled = !chosen;
   },
 
-  _closePicker: function() {
+  _closePicker: function () {
     if (this._picker) {
       this._picker.remove();
     }
@@ -258,14 +266,14 @@ var DisorgerLegend = Class.create( Legend, {
     this._pickerID = null;
   },
 
-  _chooseColor: function(disorderID, color) {
+  _chooseColor: function (disorderID, color) {
     var info = editor.getPedigreeInfo && editor.getPedigreeInfo();
     if (!info) return;
     var name = this.getDisorder(disorderID).getName();
     info.setConditionColor(disorderID, color, translate('Changed the color of') + ' ' + name);
   },
 
-  _getPrefix: function(id) {
+  _getPrefix: function (id) {
     return 'disorder';
   },
 
@@ -276,12 +284,12 @@ var DisorgerLegend = Class.create( Legend, {
      * @method getDisorder
      * @return {Object}
      */
-  getDisorder: function(disorderID) {
+  getDisorder: function (disorderID) {
     if (!isInt(disorderID)) {
       disorderID = Disorder.sanitizeID(disorderID);
     }
     if (!this._disorderCache.hasOwnProperty(disorderID)) {
-      var whenNameIsLoaded = function() {
+      var whenNameIsLoaded = function () {
         this._updateDisorderName(disorderID);
       };
       this._disorderCache[disorderID] = new Disorder(disorderID, null, whenNameIsLoaded.bind(this));
@@ -298,7 +306,7 @@ var DisorgerLegend = Class.create( Legend, {
      * @param {String} disorderName The name of the disorder
      * @param {Number} nodeID ID of the Person who has this disorder
      */
-  addCase: function($super, disorderID, disorderName, nodeID) {
+  addCase: function ($super, disorderID, disorderName, nodeID) {
     if (!this._disorderCache.hasOwnProperty(disorderID)) {
       this._disorderCache[disorderID] = new Disorder(disorderID, disorderName);
     }
@@ -313,10 +321,14 @@ var DisorgerLegend = Class.create( Legend, {
      * @param {Number} disorderID The identifier of the disorder to update
      * @private
      */
-  _updateDisorderName: function(disorderID) {
+  _updateDisorderName: function (disorderID) {
     var name = this._legendBox.down('li#' + this._getPrefix() + '-' + disorderID + ' .disorder-name');
     if (name) {
       name.update(this.getDisorder(disorderID).getName());
+    }
+    var chosen = this._getChosenColor(disorderID);
+    if (chosen) {
+      this._setColor(disorderID, chosen);
     }
     if (window.editor && editor.getView && editor.getView().updateAllLabels) { editor.getView().updateAllLabels(); }
   },
@@ -329,16 +341,16 @@ var DisorgerLegend = Class.create( Legend, {
      * @param {String} name The human-readable disorder name
      * @return {HTMLLIElement} List element to be insert in the legend
      */
-  _generateElement: function($super, disorderID, name) {
+  _generateElement: function ($super, disorderID, name) {
     var chosen = this._getChosenColor(disorderID);
     if (chosen) {
       this._objectColors[disorderID] = chosen;
-      document.fire('disorder:color', {'id' : disorderID, color: chosen});
+      document.fire('disorder:color', { 'id': disorderID, color: chosen });
     } else if (!this._objectColors.hasOwnProperty(disorderID)) {
       var color = this._generateColor(disorderID);
       this._objectColors[disorderID] = color;
       this._autoColors[disorderID] = color;
-      document.fire('disorder:color', {'id' : disorderID, color: color});
+      document.fire('disorder:color', { 'id': disorderID, color: color });
     }
 
     var item = $super(disorderID, name);
@@ -347,7 +359,7 @@ var DisorgerLegend = Class.create( Legend, {
       var _this = this;
       bubble.addClassName('editable-color');
       bubble.title = translate('Click to change the color');
-      var toggle = function(event) {
+      var toggle = function (event) {
         event.stop();
         if (_this._picker && _this._pickerID === disorderID) {
           _this._closePicker();
@@ -366,7 +378,7 @@ var DisorgerLegend = Class.create( Legend, {
     return item;
   },
 
-  removeCase: function($super, disorderID, nodeID) {
+  removeCase: function ($super, disorderID, nodeID) {
     $super(disorderID, nodeID);
     if (!this._hasAffectedNodes(disorderID)) {
       delete this._autoColors[disorderID];
@@ -382,8 +394,8 @@ var DisorgerLegend = Class.create( Legend, {
      * @method generateColor
      * @return {String} CSS color
      */
-  _generateColor: function(disorderID) {
-    if(this._objectColors.hasOwnProperty(disorderID)) {
+  _generateColor: function (disorderID) {
+    if (this._objectColors.hasOwnProperty(disorderID)) {
       return this._objectColors[disorderID];
     }
 
@@ -403,23 +415,23 @@ var DisorgerLegend = Class.create( Legend, {
 
     var usedColors = Object.values(this._objectColors),
       // Invitae palette: red first, then muted clinical colors
-      prefColors = AUTO_ORDER.map(function(i) { return INVITAE_PALETTE[i]; });
-    usedColors.each( function(color) {
+      prefColors = AUTO_ORDER.map(function (i) { return INVITAE_PALETTE[i]; });
+    usedColors.each(function (color) {
       prefColors = prefColors.without(color);
     });
     if (disorderID == 'affected') {
-      if (usedColors.indexOf(INVITAE_PALETTE[0]) > -1 ) {
+      if (usedColors.indexOf(INVITAE_PALETTE[0]) > -1) {
         return '#990000';
       } else {
         return INVITAE_PALETTE[0];
       }
     }
-    if(prefColors.length > 0) {
+    if (prefColors.length > 0) {
       return prefColors[0];
     } else {
       var randomColor = Raphael.getColor();
-      while(randomColor == '#ffffff' || usedColors.indexOf(randomColor) != -1) {
-        randomColor = '#'+((1<<24)*Math.random()|0).toString(16);
+      while (randomColor == '#ffffff' || usedColors.indexOf(randomColor) != -1) {
+        randomColor = '#' + ((1 << 24) * Math.random() | 0).toString(16);
       }
       return randomColor;
     }

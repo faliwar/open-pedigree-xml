@@ -634,7 +634,15 @@ PositionedGraph.prototype = {
           }
         }
 
-        var rootless = rootlessPartners[p];
+        var rootless = rootlessPartners[p].slice(0);
+        var GG = this.GG;
+        rootless.sort(function(a, b) {
+          var aArt = !!((GG.properties[a] && GG.properties[a].artRole) ||
+                        (GG.getOutEdges(a)[0] !== undefined && GG.properties[GG.getOutEdges(a)[0]] && GG.properties[GG.getOutEdges(a)[0]].artLink));
+          var bArt = !!((GG.properties[b] && GG.properties[b].artRole) ||
+                        (GG.getOutEdges(b)[0] !== undefined && GG.properties[GG.getOutEdges(b)[0]] && GG.properties[GG.getOutEdges(b)[0]].artLink));
+          return (aArt ? 1 : 0) - (bArt ? 1 : 0);
+        });
         for (var i = 0; i < rootless.length; i++) {
           var v        = rootless[i];
           var outEdges = this.GG.getOutEdges(v);
@@ -643,10 +651,22 @@ PositionedGraph.prototype = {
           // add back the v->relNode edge
           this.GG.inedges[relNode].push(v);   // was [p], becomes [p,v]
 
-          // insert v into ordering: insert on the side with less partners.
-          // ideally we should insert according to the relationship node order, but that will be auto-fixed by transpose()
+          pOrder = order.vOrder[p];
+          var isArtPartner = !!((this.GG.properties[v] && this.GG.properties[v].artRole) ||
+                                (this.GG.properties[relNode] && this.GG.properties[relNode].artLink));
+          var pGender = this.GG.properties[p] && this.GG.properties[p].gender;
+          var vGender = this.GG.properties[v] && this.GG.properties[v].gender;
 
-          if (partnersToTheRight <= partnersToTheLeft) {
+          // insert v into ordering: insert on the side with less partners.
+          // For standard male+female couples with equal partner counts on both sides, place male on left.
+          var insertOnRight;
+          if (!isArtPartner && partnersToTheRight == partnersToTheLeft && pGender == 'F' && vGender == 'M') {
+            insertOnRight = false;
+          } else {
+            insertOnRight = (partnersToTheRight <= partnersToTheLeft);
+          }
+
+          if (insertOnRight) {
             partnersToTheRight++;
             order.insert(rank, pOrder+1, v);
           } else {
@@ -659,7 +679,7 @@ PositionedGraph.prototype = {
           for (var j = 0; j < pRelationships.length; j++) {
             var sRel = pRelationships[j];
             if (sRel != relNode && this.GG.isRelationship(sRel) &&
-                this.GG.getInEdges(sRel).length == 1 && this.ranks[sRel] == relRank) {
+                (this.GG.getInEdges(sRel).length == 1 || isArtPartner) && this.ranks[sRel] == relRank) {
               var relBeforeSingle = (order.vOrder[relNode] < order.vOrder[sRel]);
               if ((vOnRight && relBeforeSingle) || (!vOnRight && !relBeforeSingle)) {
                 order.exchange(relRank, order.vOrder[relNode], order.vOrder[sRel]);
@@ -685,6 +705,17 @@ PositionedGraph.prototype = {
                     }
                   }
                 }
+              }
+            }
+          }
+          if (this.ranks[relNode] == rank) {
+            if (vOnRight) {
+              while (order.vOrder[v] < order.vOrder[relNode]) {
+                order.exchange(rank, order.vOrder[v], order.vOrder[v] + 1);
+              }
+            } else {
+              while (order.vOrder[v] > order.vOrder[relNode]) {
+                order.exchange(rank, order.vOrder[v], order.vOrder[v] - 1);
               }
             }
           }
@@ -2702,6 +2733,10 @@ PositionedGraph.prototype = {
         }
 
         var realationship = this.GG.getInEdges(v)[0];
+        if (this.GG.properties[realationship] && this.GG.properties[realationship].artLink) {
+          verticalLevels.childEdgeLevel[v] = 0;
+          continue;
+        }
         var top_x         = this.positions[realationship];  // x cooordinate of the line going up
         // a single-parent family is drawn from the parent itself, not from its hidden relationship node
         // (see DynamicGraph.getPosition), so measure overlaps from where the line is actually drawn
@@ -2836,10 +2871,12 @@ PositionedGraph.prototype = {
 
           var vOrder = this.order.vOrder;
 
-          // a single-parent relationship has no partner line (it is drawn on the parent itself):
+          // a single-parent relationship or ART link has no partner line:
           // it takes no attachment port or level, and other lines need not go over it
           var isSingleParentRel = function(w) {
-            return this.GG.isRelationship(w) && this.GG.getInEdges(w).length == 1;
+            return this.GG.isRelationship(w) &&
+                   (this.GG.getInEdges(w).length == 1 ||
+                    (this.GG.properties[w] && this.GG.properties[w].artLink));
           }.bind(this);
 
           var positionEdgesOnOneSide = function( allEdges ) {
@@ -3411,6 +3448,15 @@ PositionedGraph.prototype = {
   },
 
   edge_importance_to_straighten: function(fromV, toV) {
+    if (this.GG.isRelationship(fromV) && this.GG.properties[fromV] && this.GG.properties[fromV].artLink) {
+      return 0;
+    }
+    if (this.GG.isChildhub(fromV)) {
+      var inRels = this.GG.getInEdges(fromV);
+      if (inRels.length == 1 && this.GG.properties[inRels[0]] && this.GG.properties[inRels[0]].artLink) {
+        return 0;
+      }
+    }
     if (this.GG.isRelationship(toV)) {
       return 1.0;
     }
