@@ -27,7 +27,9 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     this._junctionShape.node.setAttribute('data-opx-export', 'omit');
 
     var isSingleParent = editor.getGraph().isSingleParentRelationship(partnership.getID());
-    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID());
+    // a donor / surrogate link is drawn like a parentless relationship: nothing at all
+    // (the line from the donor to the child is drawn by the chart overlay)
+    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID()) || partnership.isArtLink();
 
     // Hide the junction circle for single-parent relationships or parentless relationships
     if (isSingleParent || isParentless) {
@@ -199,7 +201,7 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var id = this.getNode().getID();
 
     var isSingleParent = positionedGraph.isSingleParentRelationship(id);
-    var isParentless = positionedGraph.isParentlessRelationship(id);
+    var isParentless = positionedGraph.isParentlessRelationship(id) || this.getNode().isArtLink();
 
     // A relationship which used to be parentless (read-only hoverbox) and has just got parents needs a regular hoverbox.
     // This must be created BEFORE paper.setStart(): Raphael adds every element/set created between setStart() and

@@ -858,6 +858,33 @@ var PedigreeEditor = Class.create({
         'function' : 'setGender'
       },
       {
+        'name' : 'sex_at_birth',
+        'label' : 'Sex assigned at birth',
+        'type' : 'select',
+        'tab': 'Personal',
+        'values' : [
+          { 'actual' : '', 'displayed' : 'Not stated' },
+          { 'actual' : 'AMAB', 'displayed' : 'AMAB (assigned male)' },
+          { 'actual' : 'AFAB', 'displayed' : 'AFAB (assigned female)' },
+          { 'actual' : 'UAAB', 'displayed' : 'UAAB (unassigned)' }
+        ],
+        'default' : '',
+        'function' : 'setSexAtBirth'
+      },
+      {
+        'name' : 'art_role',
+        'label' : 'Assisted reproduction',
+        'type' : 'select',
+        'tab': 'Personal',
+        'values' : [
+          { 'actual' : '', 'displayed' : 'None' },
+          { 'actual' : 'donor', 'displayed' : 'Gamete donor (D)' },
+          { 'actual' : 'surrogate', 'displayed' : 'Surrogate (S)' }
+        ],
+        'default' : '',
+        'function' : 'setArtRole'
+      },
+      {
         'name' : 'name',
         'label': 'Name',
         'type' : 'text',
@@ -1003,6 +1030,14 @@ var PedigreeEditor = Class.create({
         'function' : 'setAdoptionStatus'
       },
       {
+        'name' : 'childless_reason',
+        'label' : 'Reason, if known',
+        'type' : 'text',
+        'tab': 'Personal',
+        'tip' : 'e.g. vasectomy, azoospermia',
+        'function' : 'setChildlessReason'
+      },
+      {
         'name' : 'ancestry',
         'label' : 'Ancestry',
         'type' : 'ancestry-picker',
@@ -1022,6 +1057,13 @@ var PedigreeEditor = Class.create({
         'type' : 'checkbox',
         'tab': 'Personal',
         'function' : 'setLostContact'
+      },
+      {
+        'name' : 'history_unknown',
+        'label' : 'Family history not available (?)',
+        'type' : 'checkbox',
+        'tab': 'Personal',
+        'function' : 'setHistoryUnknown'
       },
       {
         'name' : 'proband',
@@ -1177,6 +1219,13 @@ var PedigreeEditor = Class.create({
         'function' : 'setChildlessStatus'
       },
       {
+        'name' : 'childless_reason',
+        'label' : 'Reason, if known',
+        'type' : 'text',
+        'tip' : 'e.g. vasectomy, azoospermia',
+        'function' : 'setChildlessReason'
+      },
+      {
         'name' : 'consangr',
         'label' : 'Consanguinity of this relationship',
         'type' : 'radio',
@@ -1187,6 +1236,13 @@ var PedigreeEditor = Class.create({
         ],
         'default' : 'A',
         'function' : 'setConsanguinity'
+      },
+      {
+        'name' : 'relation_degree',
+        'label' : 'Degree of relationship, if not obvious',
+        'type' : 'text',
+        'tip' : 'e.g. third cousins',
+        'function' : 'setRelationDegree'
       },
       {
         'name' : 'inbreeding',

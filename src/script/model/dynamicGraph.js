@@ -1055,7 +1055,7 @@ DynamicPositionedGraph.prototype = {
       var insertRank = this.DG.ranks[personId];
 
       if (unsharedChildren.length > 0) {
-        var insertSingleRelOrder = this._findBestInsertPosition( insertRank, personId, preferLeft );
+        var insertSingleRelOrder = this._findBestSingleParentPosition( personId, preferLeft );
         var newSingleRel = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, personId, null, insertRank, insertSingleRelOrder);
         var insertSingleChhubRank = insertRank + 1;
         var insertSingleChhubOrder = this._findBestInsertPosition( insertSingleChhubRank, newSingleRel );
@@ -1119,11 +1119,12 @@ DynamicPositionedGraph.prototype = {
     var partnerProperties = { 'gender': this.DG.GG.getOppositeGender(personId) };
 
     var insertRank  = this.DG.ranks[personId];
-    var personOrder = this.DG.order.vOrder[personId];
 
     // a few special cases which involve not only insertions but also existing node rearrangements:
     this._heuristics.swapPartnerToBringToSideIfPossible( personId );
     this._heuristics.swapTwinsToBringToSideIfPossible( personId );
+
+    var personOrder = this.DG.order.vOrder[personId];
 
     // find the best order to use for this new vertex: scan all orders on the rank, check number of crossed edges
     var insertOrder = this._findBestInsertPosition( insertRank, personId, preferLeft );
@@ -1194,7 +1195,7 @@ DynamicPositionedGraph.prototype = {
     var personOrder = this.DG.order.vOrder[personId];
 
     // find the best order to use for this new vertex
-    var insertOrder = this._findBestInsertPosition( insertRank, personId );
+    var insertOrder = this._findBestSingleParentPosition( personId );
 
     // create the relationship node connected only to this single parent
     var newRelationshipId = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, personId, null, insertRank, insertOrder);
@@ -1324,7 +1325,7 @@ DynamicPositionedGraph.prototype = {
         if (unsharedChildren.length > 0) {
           var insertRank = this.DG.ranks[singleParent];
           var preferLeft = (this.DG.positions[partner] < this.DG.positions[singleParent]);
-          var insertSingleRelOrder = this._findBestInsertPosition( insertRank, singleParent, preferLeft );
+          var insertSingleRelOrder = this._findBestSingleParentPosition( singleParent, preferLeft );
           var newSingleRel = this._insertVertex(BaseGraph.TYPE.RELATIONSHIP, {}, 1.0, singleParent, null, insertRank, insertSingleRelOrder);
           var insertSingleChhubRank = insertRank + 1;
           var insertSingleChhubOrder = this._findBestInsertPosition( insertSingleChhubRank, newSingleRel );
@@ -2529,6 +2530,24 @@ DynamicPositionedGraph.prototype = {
     return crossings;
   },
 
+  _findBestSingleParentPosition: function ( v, preferLeft ) {
+    var vOrder = this.DG.order.vOrder[v];
+    var isTwin = (this.DG.GG.getTwinGroupId(v) != null);
+    if (isTwin) {
+      return this._findBestRelationshipPosition(v, preferLeft);
+    }
+    var partnerInfo = this.DG._findLeftAndRightPartners(v);
+    var isSingleRel = function(rel) {
+      return this.DG.GG.isRelationship(rel) && this.DG.GG.getInEdges(rel).length == 1;
+    }.bind(this);
+    var numLeftOf  = partnerInfo.leftPartners.filter(function(r) { return !isSingleRel(r); }).length;
+    var numRightOf = partnerInfo.rightPartners.filter(function(r) { return !isSingleRel(r); }).length;
+    if (numLeftOf == 0 && (preferLeft || numRightOf > 0)) {
+      return vOrder;
+    }
+    return vOrder + 1;
+  },
+
   _findBestRelationshipPosition: function ( v, preferLeft, u ) {
     // Handles two different cases:
     // 1) both partners are given ("v" and "u"). Then need to insert between v and u
@@ -2538,6 +2557,10 @@ DynamicPositionedGraph.prototype = {
     var orderR = this.DG.order.order[rank];
     var isTwin = (this.DG.GG.getTwinGroupId(v) != null);
     var vOrder = this.DG.order.vOrder[v];
+
+    var isSingleRel = function(rel) {
+      return this.DG.GG.isRelationship(rel) && this.DG.GG.getInEdges(rel).length == 1;
+    }.bind(this);
 
     var penaltyBelow    = [];
     var penaltySameRank = [];
@@ -2628,30 +2651,45 @@ DynamicPositionedGraph.prototype = {
 
 
     if (u === undefined) {
-      if (preferLeft && vOrder == 0) {
+      // Single-parent relationships of v are drawn directly on v (at v's x-coordinate).
+      // Keep v and its adjacent single-parent relationships together as a contiguous bundle
+      // [leftEdge .. rightEdge - 1], so new 2-parent relationships are inserted outside the bundle.
+      var leftEdge = vOrder;
+      while (leftEdge > 0 && isSingleRel(orderR[leftEdge - 1]) && this.DG.GG.getInEdges(orderR[leftEdge - 1])[0] == v) {
+        leftEdge--;
+      }
+      var rightEdge = vOrder + 1;
+      while (rightEdge < orderR.length && isSingleRel(orderR[rightEdge]) && this.DG.GG.getInEdges(orderR[rightEdge])[0] == v) {
+        rightEdge++;
+      }
+
+      if (preferLeft && leftEdge == 0) {
         return 0;
       }
 
       var partnerInfo = this.DG._findLeftAndRightPartners(v);
-      var numLeftOf   = partnerInfo.leftPartners.length;
-      var numRightOf  = partnerInfo.rightPartners.length;
+      var numLeftOf   = partnerInfo.leftPartners.filter(function(r) { return !isSingleRel(r); }).length;
+      var numRightOf  = partnerInfo.rightPartners.filter(function(r) { return !isSingleRel(r); }).length;
 
       // Note: given everything else being equal, prefer the right side - to move fewer nodes
 
 
       if (!isTwin && numLeftOf  == 0 && (preferLeft || numRightOf > 0) ) {
-        return vOrder;
+        return leftEdge;
       }
       if (!isTwin && numRightOf == 0 )                                   {
-        return vOrder + 1;
+        return rightEdge;
       }
 
-      var bestPosition = vOrder + 1;
+      var bestPosition = rightEdge;
       var bestPenalty  = Infinity;
       for (var o = 0; o <= orderR.length; o++) {
+        if (o > leftEdge && o < rightEdge) {
+          continue;
+        }
         var penalty = penaltyBelow[o] + penaltySameRank[o];
-        if (o <= vOrder) {
-          penalty += numLeftOf + (vOrder - o);        // o == order     => insert immediately to the left of, distance penalty = 0
+        if (o <= leftEdge) {
+          penalty += numLeftOf + (leftEdge - o);      // o == leftEdge  => insert immediately to the left of bundle, distance penalty = 0
           if (preferLeft) {
             penalty -= 0.5;
           }   // preferLeft => given equal penalty prefer left (0.5 is less than penalty diff due to other factors)
@@ -2659,7 +2697,7 @@ DynamicPositionedGraph.prototype = {
             penalty += 0.5;
           }   //
         } else {
-          penalty += numRightOf + (o - vOrder - 1);   // o == (order+1) => insert immediately to the right of, distance penalty = 0
+          penalty += numRightOf + (o - rightEdge);    // o == rightEdge => insert immediately to the right of bundle, distance penalty = 0
         }
 
         if (penalty < bestPenalty) {
@@ -2680,31 +2718,42 @@ DynamicPositionedGraph.prototype = {
     var orderV = this.DG.order.vOrder[v];
     var orderU = this.DG.order.vOrder[u];
 
-    var partnerInfoV = this.DG._findLeftAndRightPartners(v);
-    var numRightOf  = partnerInfoV.rightPartners.length;
-    var partnerInfoU = this.DG._findLeftAndRightPartners(u);
-    var numLeftOf   = partnerInfoU.leftPartners.length;
+    var rightEdgeV = orderV + 1;
+    while (rightEdgeV < orderU && isSingleRel(orderR[rightEdgeV]) && this.DG.GG.getInEdges(orderR[rightEdgeV])[0] == v) {
+      rightEdgeV++;
+    }
+    var leftEdgeU = orderU;
+    while (leftEdgeU > rightEdgeV && isSingleRel(orderR[leftEdgeU - 1]) && this.DG.GG.getInEdges(orderR[leftEdgeU - 1])[0] == u) {
+      leftEdgeU--;
+    }
+
+    var partnerInfoV   = this.DG._findLeftAndRightPartners(v);
+    var rightPartnersV = partnerInfoV.rightPartners.filter(function(r) { return !isSingleRel(r); });
+    var numRightOf     = rightPartnersV.length;
+    var partnerInfoU   = this.DG._findLeftAndRightPartners(u);
+    var leftPartnersU  = partnerInfoU.leftPartners.filter(function(r) { return !isSingleRel(r); });
+    var numLeftOf      = leftPartnersU.length;
 
     if (numRightOf == 0 && numLeftOf > 0)  {
-      return orderV + 1;
+      return rightEdgeV;
     }
     if (numRightOf > 0  && numLeftOf == 0) {
-      return orderU;
+      return leftEdgeU;
     }
 
-    var bestPosition = orderV + 1;
+    var bestPosition = rightEdgeV;
     var bestPenalty  = Infinity;
-    for (var o = orderV+1; o <= orderU; o++) {
+    for (var o = rightEdgeV; o <= leftEdgeU; o++) {
       var penalty = penaltyBelow[o] + penaltySameRank[o];
 
-      for (var p = 0; p < partnerInfoV.rightPartners.length; p++) {
-        var partner = partnerInfoV.rightPartners[p];
+      for (var p = 0; p < rightPartnersV.length; p++) {
+        var partner = rightPartnersV[p];
         if (o <= this.DG.order.vOrder[partner]) {
           penalty++;
         }
       }
-      for (var p = 0; p < partnerInfoU.leftPartners.length; p++) {
-        var partner = partnerInfoU.leftPartners[p];
+      for (var p = 0; p < leftPartnersU.length; p++) {
+        var partner = leftPartnersU[p];
         if (o > this.DG.order.vOrder[partner]) {
           penalty++;
         }
@@ -3627,6 +3676,8 @@ Heuristics.prototype = {
 
     //xcoord.normalize();
 
+    this._straightenOnlyChildren(xcoord);
+
     this.DG.positions = xcoord.xcoord;
 
     timer.printSinceLast('=== Improvement runtime: ');
@@ -3635,6 +3686,68 @@ Heuristics.prototype = {
     this.DG.rankY     = this.DG.computeRankY(ranksBefore, rankYBefore);
 
     timer.printSinceLast('=== Vertical spacing runtime: ');
+  },
+
+  /**
+   * An only child of a single parent, with no family of its own, is put right under the parent,
+   * so that its line of descent is straight instead of bent. Invisible placeholder children
+   * (of childless couples and of donor links) that are in the way are pushed aside; nothing is
+   * moved when a visible node is in the way.
+   */
+  _straightenOnlyChildren: function( xcoord ) {
+    var GG = this.DG.GG;
+    var isHiddenChild = function(u) {
+      var props = GG.isPerson(u) ? (GG.properties[u] || {}) : null;
+      return !!props && !!(props.isVirtualDummyChild || props.isPlaceholder) && GG.getOutEdges(u).length == 0;
+    };
+
+    for (var v = 0; v <= GG.getMaxRealVertexId(); v++) {
+      if (!GG.isRelationship(v)) {
+        continue;
+      }
+      var parents = GG.getParents(v);
+      if (parents.length != 1 || (GG.properties[parents[0]] || {}).isVirtualParent) {
+        continue;
+      }
+      var children = GG.getOutEdges(GG.getRelationshipChildhub(v)).filter(function(c) { return !isHiddenChild(c); });
+      if (children.length != 1 || !GG.isPerson(children[0]) || GG.getOutEdges(children[0]).length > 0) {
+        continue;
+      }
+      var child = children[0];
+      var shift = xcoord.xcoord[parents[0]] - xcoord.xcoord[child];
+      if (shift == 0) {
+        continue;
+      }
+
+      // walk away from the child in the direction of the move, collecting the hidden nodes that
+      // have to give way; stop at the first node that is far enough already
+      var dir      = shift > 0 ? 1 : -1;
+      var order    = this.DG.order.order[this.DG.ranks[child]];
+      var moves    = {};
+      moves[child] = xcoord.xcoord[child] + shift;
+      var feasible = true;
+      var prev     = child;
+      for (var i = this.DG.order.vOrder[child] + dir; i >= 0 && i < order.length; i += dir) {
+        var next   = order[i];
+        var minGap = xcoord.halfWidth[prev] + xcoord.halfWidth[next] + xcoord.getSeparation(prev, next);
+        if ((xcoord.xcoord[next] - moves[prev]) * dir >= minGap) {
+          break;
+        }
+        if (!isHiddenChild(next)) {
+          feasible = false;
+          break;
+        }
+        moves[next] = moves[prev] + dir * minGap;
+        prev = next;
+      }
+      if (feasible) {
+        for (var node in moves) {
+          if (moves.hasOwnProperty(node)) {
+            xcoord.xcoord[node] = moves[node];
+          }
+        }
+      }
+    }
   },
 
   _compactGraph: function( xcoord, maxComponentSize ) {

@@ -72,6 +72,14 @@ var Person = Class.create(AbstractPerson, {
     this._externalID = '';
     this._lifeStatus = 'alive';
     this._childlessStatus = null;
+    this._childlessReason = '';
+    this._sexAtBirth = '';         // '', 'AMAB', 'AFAB' or 'UAAB' (Bennett et al. 2022)
+    this._artRole = '';            // '', 'donor' (D) or 'surrogate' (S)
+    // Extra lines of descent in assisted reproduction: a donor / surrogate has a key, and each
+    // child conceived or carried with their help lists that key (keys survive renumbering of ids)
+    this._artKey = null;
+    this._artLinks = [];
+    this._historyUnknown = false;  // family history not available / not known for this person ("?")
     this._carrierStatus = '';
     this._disorders = [];
     this._hpo = [];
@@ -327,6 +335,77 @@ var Person = Class.create(AbstractPerson, {
       return;
     }
     this._lostContact = lostContact;
+  },
+
+  /**
+   * Sex assigned at birth, written under the symbol when it differs from, or adds to, the gender
+   * the symbol shows: 'AMAB', 'AFAB', 'UAAB' or '' (Bennett et al. 2022)
+   */
+  getSexAtBirth: function() {
+    return this._sexAtBirth;
+  },
+
+  setSexAtBirth: function(value) {
+    value = ['AMAB', 'AFAB', 'UAAB'].indexOf(value) !== -1 ? value : '';
+    if (value != this._sexAtBirth) {
+      this._sexAtBirth = value;
+      this.getGraphics().updateSexAtBirthLabel();
+    }
+  },
+
+  /**
+   * Role in assisted reproduction: 'donor' (egg or sperm donor, "D" in the symbol), 'surrogate'
+   * (gestational carrier, "S") or ''
+   */
+  getArtRole: function() {
+    return this._artRole;
+  },
+
+  setArtRole: function(value) {
+    value = (value === 'donor' || value === 'surrogate') ? value : '';
+    if (value != this._artRole) {
+      this._artRole = value;
+      this._redrawOverlay();
+    }
+  },
+
+  /** Key other people use to point at this donor / surrogate (see getArtLinks), or null */
+  getArtKey: function() {
+    return this._artKey;
+  },
+
+  setArtKey: function(key) {
+    key = parseInt(key, 10);
+    this._artKey = isNaN(key) ? null : key;
+    this._redrawOverlay();
+  },
+
+  /** Keys of the donors / surrogates with a line of descent to this person */
+  getArtLinks: function() {
+    return this._artLinks.slice(0);
+  },
+
+  setArtLinks: function(keys) {
+    this._artLinks = (Array.isArray(keys) ? keys : []).map(function(k) { return parseInt(k, 10); })
+      .filter(function(k, i, all) { return !isNaN(k) && all.indexOf(k) === i; });
+    this._redrawOverlay();
+  },
+
+  /** Family history not available or not known for this person: "?" above the symbol */
+  getHistoryUnknown: function() {
+    return this._historyUnknown;
+  },
+
+  setHistoryUnknown: function(value) {
+    value = !!value;
+    if (value != this._historyUnknown) {
+      this._historyUnknown = value;
+      this._redrawOverlay();
+    }
+  },
+
+  _redrawOverlay: function() {
+    editor.getOverlay && editor.getOverlay() && editor.getOverlay().scheduleRedraw();
   },
 
   /**
@@ -1100,6 +1179,7 @@ var Person = Class.create(AbstractPerson, {
     if(status != this.getChildlessStatus()) {
       this._childlessStatus = status;
       this.getGraphics().updateChildlessShapes();
+      this.getGraphics().updateChildlessStatusLabel();
       this.getGraphics().getHoverBox().regenerateHandles();
     }
     return this.getChildlessStatus();
@@ -1217,6 +1297,10 @@ var Person = Class.create(AbstractPerson, {
       comments:      {value : this.getComments(), inactive: false},
       gestation_age: {value : this.getGestationAge(), inactive : !this.isFetus()},
       childlessSelect: {value : this.getChildlessStatus() ? this.getChildlessStatus() : 'none', inactive : childlessInactive},
+      childless_reason: {value : this.getChildlessReason(), inactive : !this.getChildlessStatus()},
+      sex_at_birth:  {value : this.getSexAtBirth(), inactive: this.isFetus()},
+      art_role:      {value : this.getArtRole(), inactive: this.isFetus()},
+      history_unknown: {value : this.getHistoryUnknown(), inactive: this.isFetus()},
       placeholder:   {value : false, inactive: true },
       monozygotic:   {value : this.getMonozygotic(), inactive: inactiveMonozygothic, disabled: disableMonozygothic },
       evaluated:     {value : this.getEvaluated() },
@@ -1272,6 +1356,24 @@ var Person = Class.create(AbstractPerson, {
     }
     if (this.getChildlessStatus() != null) {
       info['childlessStatus'] = this.getChildlessStatus();
+      if (this.getChildlessReason()) {
+        info['childlessReason'] = this.getChildlessReason();
+      }
+    }
+    if (this._sexAtBirth) {
+      info['sexAtBirth'] = this._sexAtBirth;
+    }
+    if (this._artRole) {
+      info['artRole'] = this._artRole;
+    }
+    if (this._artKey !== null) {
+      info['artKey'] = this._artKey;
+    }
+    if (this._artLinks.length > 0) {
+      info['artLinks'] = this.getArtLinks();
+    }
+    if (this._historyUnknown) {
+      info['historyUnknown'] = true;
     }
     if (this.getDisorders().length > 0) {
       info['disorders'] = this.getDisordersForExport();
@@ -1335,9 +1437,19 @@ var Person = Class.create(AbstractPerson, {
       * @return {Boolean} True if info was successfully assigned
       */
   assignProperties: function($super, info) {
+    // every property redraws its own label: lay the labels out once, after all of them are set
+    var _this = this;
+    var graphics = this.getGraphics();
+    if (graphics && graphics.batchLabelUpdates) {
+      return graphics.batchLabelUpdates(function() { return _this._assignProperties($super, info); });
+    }
+    return this._assignProperties($super, info);
+  },
+
+  _assignProperties: function(superAssign, info) {
     this._setDefault();
 
-    if($super(info)) {
+    if(superAssign(info)) {
       if(info.name && this.getName() != info.name) {
         this.setName(info.name);
       } else if((info.fName || info.lName) && (this.getName() != info.fName || (info.lName && this.getLastName() != info.lName))) {
@@ -1406,6 +1518,15 @@ var Person = Class.create(AbstractPerson, {
       } else if (!info.childlessStatus && this.getChildlessStatus()) {
         this.setChildlessStatus(null);
       }
+      // _setDefault() cleared the values but not what is drawn: the setters would see no change
+      this._childlessReason = String(info.childlessReason || '').trim();
+      this.getGraphics().updateChildlessStatusLabel();
+      this._sexAtBirth = ['AMAB', 'AFAB', 'UAAB'].indexOf(info.sexAtBirth) !== -1 ? info.sexAtBirth : '';
+      this.getGraphics().updateSexAtBirthLabel();
+      this._artRole = (info.artRole === 'donor' || info.artRole === 'surrogate') ? info.artRole : '';
+      this._historyUnknown = !!info.historyUnknown;
+      this.setArtKey(info.artKey);
+      this.setArtLinks(info.artLinks);
       if(info.hasOwnProperty('twinGroup') && this._twinGroup != info.twinGroup) {
         this.setTwinGroup(info.twinGroup);
       }

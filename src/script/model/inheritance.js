@@ -27,7 +27,7 @@
  * (the only one, or the paternal one in biallelic AR), bit 2 = maternal allele in biallelic AR.
  */
 
-import { makeTwinCanon } from './kinship.js';
+import { makeTwinCanon, getGeneticSex, getParentSlots } from './kinship.js';
 
 var MODES = ['AD', 'AR', 'XLR', 'XLD', 'MT', 'YL'];
 
@@ -41,37 +41,6 @@ var BUDGET_EXCEEDED = { budgetExceeded: true };
 
 var isXLinked = function(mode) {
   return mode === 'XLR' || mode === 'XLD';
-};
-
-/**
- * Biological parents of a person, placed in father / mother slots. A parent of unknown sex
- * takes whichever slot is still free. Adopted persons have no biological parents here.
- */
-var getParentSlots = function(graph, id) {
-  var slots = { f: null, m: null };
-  var parents;
-  try {
-    if (graph.isAdopted(id)) {
-      return slots;
-    }
-    parents = graph.DG.GG.getParents(id);
-  } catch (e) {
-    return slots;
-  }
-  var unknown = [];
-  parents.forEach(function(p) {
-    var g = graph.getGender(p);
-    if (g === 'M' && slots.f === null) slots.f = p;
-    else if (g === 'F' && slots.m === null) slots.m = p;
-    else if (g !== 'M' && g !== 'F') unknown.push(p);
-    // a second parent of the same sex (same-sex couple) is not placed in the other sex's slot:
-    // only the first one is treated as the biological parent of that sex
-  });
-  unknown.forEach(function(p) {
-    if (slots.f === null) slots.f = p;
-    else if (slots.m === null) slots.m = p;
-  });
-  return slots;
 };
 
 /**
@@ -180,7 +149,7 @@ var enumerateOrigins = function(graph, mode, start, forcedSlot, deNovo, mutation
       return;
     }
     var parents = getParentSlots(graph, v);
-    var sex = graph.getGender(v);
+    var sex = getGeneticSex(graph, v);
     var ow = (firstStep && forcedSlot) ? null : originWeights(mode, sex, d, mutationRatio);
     if (ow && ow.dn > 0) {
       // the copy arose de novo in v
@@ -323,7 +292,7 @@ var computeVariantRisks = function(fullGraph, indexId, mode, indexGenotype, alle
   var q = (alleleFrequency > 0 && alleleFrequency < 1) ? alleleFrequency : 0.005;
   var deNovo = biallelic ? 0 : (options.deNovo || 0);
   var likelihood = mergeTwinEvidence(options.likelihood || null, canon);
-  var indexSex = graph.getGender(indexId);
+  var indexSex = getGeneticSex(graph, indexId);
   var warning = '';
   var limits = { truncated: false, depthLimited: false, loop: false, exact: false };
 
@@ -338,7 +307,7 @@ var computeVariantRisks = function(fullGraph, indexId, mode, indexGenotype, alle
   var sexOf = {};
   order.forEach(function(id) {
     slotsOf[id] = getParentSlots(graph, id);
-    sexOf[id] = graph.getGender(id);
+    sexOf[id] = getGeneticSex(graph, id);
   });
 
   var totals, totalWeight, priorWeight, ibdWeight, deNovoIndexWeight;
@@ -483,6 +452,10 @@ var twinMergedGraph = function(graph, canon) {
     isPerson: function(v) { return graph.isPerson(v) && canon(v) === v; },
     isAdopted: function(v) { return graph.isAdopted(v); },
     getGender: function(v) { return graph.getGender(v); },
+    getProperties: function(v) { return graph.getProperties ? graph.getProperties(v) : {}; },
+    isPlaceholder: function(v) { return graph.isPlaceholder ? graph.isPlaceholder(v) : false; },
+    isVirtualDummyChild: function(v) { return graph.isVirtualDummyChild ? graph.isVirtualDummyChild(v) : false; },
+    isVirtualParent: function(v) { return graph.isVirtualParent ? graph.isVirtualParent(v) : false; },
     getMaxNodeId: function() { return graph.getMaxNodeId(); },
     DG: { GG: { getParents: function(v) {
       var seen = {};

@@ -1,5 +1,6 @@
 import { cloneObject, Timer } from 'pedigree/model/helpers';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
+import { translate } from 'pedigree/i18n';
 
 /**
  * ...
@@ -26,6 +27,101 @@ var Controller = Class.create({
     document.observe('pedigree:partnership:newchild',      this.handleRelationshipNewChild);
     document.observe('pedigree:sibling:reorder',           this.handleSiblingReorder);
     document.observe('pedigree:graph:relayout',            this.handleRelayout);
+    document.observe('pedigree:person:newartparent',       this.handlePersonNewArtParent);
+    document.observe('pedigree:person:drag:newartparent',  this.handlePersonDragToArtParent);
+    document.observe('pedigree:person:removeartlink',      this.handlePersonRemoveArtLink);
+  },
+
+  /**
+   * Adds a gamete donor or a surrogate with a line of descent to the person (assisted
+   * reproduction, Bennett et al. 2008 fig. 3 / 2022 fig. 5). The new person is placed beside one of
+   * the parents, held there by a hidden link, so that no relationship line is drawn.
+   * memo: { personID, kind: 'sperm' | 'egg' | 'surrogate' }
+   */
+  handlePersonNewArtParent: function(event) {
+    var graph = editor.getGraph();
+    var childID = event.memo.personID;
+    if (!graph.isPerson(childID)) {
+      return;
+    }
+    var parents = graph.DG.GG.getParents(childID).filter(function(p) { return !graph.isVirtualParent(p); });
+    if (parents.length === 0) {
+      alert(translate('Add the parents first: the donor or surrogate is drawn beside them.'));
+      return;
+    }
+    // beside the woman who carries the pregnancy when there is one, as in the standard figures
+    var anchor = parents.filter(function(p) { return graph.getGender(p) == 'F'; })[0];
+    if (anchor === undefined) {
+      anchor = parents[0];
+    }
+    var kind = event.memo.kind;
+    var changeSet = graph.addNewRelationship(anchor, {}, false, 1, []);
+    var linkID = changeSet['new'][0];
+    var donorID = changeSet['new'][1];
+    var key = Controller._nextArtKey();
+    graph.setProperties(linkID, { 'artLink': true });
+    graph.setProperties(donorID, {
+      'gender': kind == 'sperm' ? 'M' : 'F',
+      'artRole': kind == 'surrogate' ? 'surrogate' : 'donor',
+      'artKey': key
+    });
+    editor.getView().applyChanges(changeSet, true);
+    Controller._addArtLink(childID, key);
+
+    if (!event.memo.noUndoRedo) {
+      editor.getActionStack().addState( event );
+    }
+  },
+
+  /**
+   * Draws a donor / surrogate line of descent from an existing person (e.g. a sister who carried
+   * the pregnancy) to the person. memo: { personID, donorID }
+   */
+  handlePersonDragToArtParent: function(event) {
+    var graph = editor.getGraph();
+    var childID = event.memo.personID;
+    var donorID = event.memo.donorID;
+    if (childID == donorID || !graph.isPerson(childID) || !graph.isPerson(donorID)) {
+      return;
+    }
+    var donor = editor.getView().getNode(donorID);
+    if (!donor.getArtRole()) {
+      donor.setArtRole('donor');
+    }
+    if (donor.getArtKey() === null) {
+      donor.setArtKey(Controller._nextArtKey());
+    }
+    graph.setProperties(donorID, donor.getProperties());
+    Controller._addArtLink(childID, donor.getArtKey());
+
+    if (!event.memo.noUndoRedo) {
+      editor.getActionStack().addState( event );
+    }
+  },
+
+  /**
+   * Deletes the donor / surrogate line of descent with this key going to the person (the donor
+   * or surrogate is kept). memo: { personID, key }
+   */
+  handlePersonRemoveArtLink: function(event) {
+    var graph = editor.getGraph();
+    var childID = event.memo.personID;
+    var key = parseInt(event.memo.key, 10);
+    if (!graph.isPerson(childID)) {
+      return;
+    }
+    var child = editor.getView().getNode(childID);
+    var links = child.getArtLinks();
+    if (links.indexOf(key) < 0) {
+      return;
+    }
+    child.setArtLinks(links.filter(function(k) { return k !== key; }));
+    graph.setProperties(childID, child.getProperties());
+
+    if (!event.memo.noUndoRedo) {
+      event.memo._opxDesc = translate('Deleted a donor / surrogate line of descent');
+      editor.getActionStack().addState( event );
+    }
   },
 
   handleRelayout: function(event) {
@@ -654,6 +750,16 @@ var Controller = Class.create({
     var changeSet = editor.getGraph().assignPartner(personID, partnerID, childProperties, sharedChildren);
     editor.getView().applyChanges(changeSet, true);
 
+    // Linking two people who were drawn apart leaves a long relationship line across everyone
+    // between them: arrange the pedigree again so that the couple sits together
+    if (Controller._peopleBetween(personID, partnerID) > 0) {
+      var relayoutChanges = editor.getGraph().relayout();
+      if (relayoutChanges && relayoutChanges.moved) {
+        editor.getView().applyChanges(relayoutChanges, false);
+        editor.getWorkspace().adjustSizeToScreen();
+      }
+    }
+
     if (!event.memo.noUndoRedo) {
       editor.getActionStack().addState( event );
     }
@@ -705,6 +811,48 @@ var Controller = Class.create({
     }
   }
 });
+
+/** An unused key for a donor / surrogate (see Person.getArtKey) */
+Controller._nextArtKey = function() {
+  var GG = editor.getGraph().DG.GG;
+  var max = 0;
+  for (var i = 0; i <= GG.getMaxRealVertexId(); i++) {
+    var key = GG.properties[i] ? GG.properties[i].artKey : undefined;
+    if (typeof key === 'number' && key > max) {
+      max = key;
+    }
+  }
+  return max + 1;
+};
+
+/** Adds the line of descent from the donor / surrogate with this key to the child */
+Controller._addArtLink = function(childID, key) {
+  var child = editor.getView().getNode(childID);
+  child.setArtLinks(child.getArtLinks().concat([key]));
+  editor.getGraph().setProperties(childID, child.getProperties());
+};
+
+/**
+ * Number of people drawn between two people of the same generation (0 when they are neighbours
+ * or in different generations).
+ */
+Controller._peopleBetween = function(id1, id2) {
+  var DG = editor.getGraph().DG;
+  if (DG.ranks[id1] !== DG.ranks[id2]) {
+    return 0;
+  }
+  var order = DG.order.order[DG.ranks[id1]];
+  var from = Math.min(DG.order.vOrder[id1], DG.order.vOrder[id2]);
+  var to = Math.max(DG.order.vOrder[id1], DG.order.vOrder[id2]);
+  var count = 0;
+  for (var i = from + 1; i < to; i++) {
+    var props = DG.GG.isPerson(order[i]) ? (DG.GG.properties[order[i]] || {}) : null;
+    if (props && !props.isVirtualParent && !props.isVirtualDummyChild && !props.isPlaceholder) {
+      count++;
+    }
+  }
+  return count;
+};
 
 /**
  * Makes nodeID a twin of siblingID (joins siblingID's twin group), or not a twin when

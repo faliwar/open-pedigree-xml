@@ -1,4 +1,4 @@
-import { findBloodRelatives, relationshipName, isRealPerson, inbreedingOf, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
+import { findBloodRelatives, relationshipName, isRealPerson, getGeneticSex, getBiologicalParents, inbreedingOf, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
 import getAge from 'pedigree/view/ageCalc';
@@ -417,13 +417,13 @@ var CascadeTestingDialog = Class.create({
           if (ascertained && id === this._indexId) {
             if (!affected) continue;
             for (var si = 0; si < 4; si++) {
-              var pi = penetranceOf(spec, si, info.sex);
+              var pi = penetranceOf(spec, si, info.geneticSex);
               if (pi !== null) L[si] *= pi > 0 ? 1 : spec.phenocopy;
             }
             anyAffected = informative = true;
           } else if (affected || (model.unrecordedUnaffected && frac !== null)) {
             for (var s = 0; s < 4; s++) {
-              var p = penetranceOf(spec, s, info.sex);
+              var p = penetranceOf(spec, s, info.geneticSex);
               if (p === null) continue;
               informative = true;
               var pAff = affected ? p : p * frac;
@@ -560,12 +560,14 @@ var CascadeTestingDialog = Class.create({
     var graph = editor.getGraph();
     var conditions = this._resolvedConditions();
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
-      if (!isRealPerson(graph, id) || graph.getGender(id) !== 'M') continue;
+      if (!isRealPerson(graph, id) || getGeneticSex(graph, id) !== 'M') continue;
       var node = editor.getNode(id);
       if (!this._isAffected(node, conditions)) continue;
-      var kids = [];
-      try { kids = graph.getAllChildren(id) || []; } catch (e) {}
-      if (kids.some(function(k) { return isRealPerson(graph, k); })) return true;
+      var hasChild = false;
+      for (var c = 0; c <= graph.getMaxNodeId(); c++) {
+        if (isRealPerson(graph, c) && getBiologicalParents(graph, c).indexOf(id) !== -1) { hasChild = true; break; }
+      }
+      if (hasChild) return true;
     }
     return false;
   },
@@ -604,12 +606,13 @@ var CascadeTestingDialog = Class.create({
 
   _getPersonInfo: function(id) {
     var node = editor.getNode(id);
-    var info = { name: '', sex: 'U', lifeStatus: 'alive', ageText: '', ageYears: null, lostContact: false, findings: [], tested: false };
+    var info = { name: '', sex: 'U', geneticSex: 'U', lifeStatus: 'alive', ageText: '', ageYears: null, lostContact: false, findings: [], tested: false };
     if (!node) {
       return info;
     }
     info.name = (node.getName && node.getName()) || '';
     info.sex = (node.getGender && node.getGender()) || 'U';
+    info.geneticSex = getGeneticSex(editor.getGraph(), id);
     info.lifeStatus = (node.getLifeStatus && node.getLifeStatus()) || 'alive';
     info.lostContact = !!(node.getLostContact && node.getLostContact());
 
@@ -787,7 +790,7 @@ var CascadeTestingDialog = Class.create({
         chance: any,
         carrierChance: p[1] + p[2],   // exactly one familial allele (biallelic AR)
         affectedChance: p[3],         // both familial alleles (biallelic AR)
-        meaning: biallelic ? translate('Carrier if one variant, affected if both') : _this._meaningIfPositive(info.sex),
+        meaning: biallelic ? translate('Carrier if one variant, affected if both') : _this._meaningIfPositive(info.geneticSex),
         ageText: info.ageText,
         lifeStatus: translate(LIFE_STATUS_LABELS[info.lifeStatus] || info.lifeStatus),
         findings: info.findings.join('; '),

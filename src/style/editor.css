@@ -2022,6 +2022,23 @@ html,
 .person-menu .field-adoption ~ .field-box {
   clear: both;
 }
+/* person menu: sex assigned at birth sits next to the assisted reproduction role */
+.person-menu .field-sex_at_birth {
+  width: 48%;
+  float: left;
+}
+.person-menu .field-art_role {
+  width: 48%;
+  float: right;
+}
+.person-menu .field-sex_at_birth select,
+.person-menu .field-art_role select {
+  max-width: 100%;
+  width: 100%;
+}
+.person-menu .field-name {
+  clear: both;
+}
 
 /* ===========================================
  * NODE TYPE OPTIONS
@@ -2159,6 +2176,19 @@ html,
 .twin-of-choice:hover { border-color: #0074cc; color: #0074cc; }
 .twin-of-choice.is-current { background: #e8f1fb; border-color: #0074cc; cursor: default; }
 .twin-of-choice.is-remove { color: #a33; }
+
+/* choices under a person's donor / surrogate handle */
+.art-choices {
+  flex-direction: column;
+  padding: 6px 8px 8px;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.art-choices .twin-of-choice {
+  text-align: left;
+}
 
 .value-control-button {
   border: 1px solid #FFF;

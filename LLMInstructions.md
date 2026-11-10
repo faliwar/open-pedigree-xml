@@ -119,6 +119,11 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * `"1"`: Fetus / current pregnancy.
 * **`<smoker value="3"/>`, `<obese value="0"/>`, `<fertilization value="0"/>`, `<multiple value="0">0</multiple>`:**
   * Keep these exact default values unless the clinical history explicitly specifies otherwise.
+* **Optional `<notes>` inside `<indi>` (only when the text states it; place it right before `<gail_properties/>`, omit otherwise):**
+  * Sex assigned at birth of a transgender or gender-diverse person (the `<gender>` is the gender the person identifies with): `<note id="2" note_id="2" value="AMAB" string_type="composite" string_title="Sex assigned at birth" string_value="AMAB"/>` — values `AMAB`, `AFAB` or `UAAB`.
+  * Egg or sperm donor, or surrogate (gestational carrier): `string_title="Assisted reproduction"` with value `Gamete donor (D)` or `Surrogate (S)`.
+  * Family history not available or not known for this person (e.g., adopted with no information, "does not know the father's family"): `string_title="Family history"` with value `Not available`.
+  * Wrap them in one `<notes>…</notes>` element, with the same text in `value` and `string_value`.
 * **`<siblings>`:**
   * If an individual shares a `<fam><children>` block with other individuals, list every sibling inside `<siblings><sibling id="X" type="..."/></siblings>`.
   * The `type` attribute says how the two are related:
@@ -189,7 +194,8 @@ Each parental union or connected single-parent offspring group is represented by
 
 * **Missing parents:** A `<fam>` may omit `<male>` **or** `<female>` (single-parent family), but only when the single parent present is **already connected** to the rest of the pedigree (e.g., the proband's mother, who also appears in a couple `<fam>` as a child or partner). A `<fam>` must **never** omit both parents. Missing ancestors needed to connect a person to the pedigree must be added as anonymous placeholders (see "Connectivity Rule").
 * **Gender Consistency:** An individual referenced in `<male id="X"/>` **must** have `<gender value="0"/>`. An individual referenced in `<female id="Y"/>` **must** have `<gender value="1"/>`. **Exception — same-sex couples:** put one partner in `<male id="..."/>` and the other in `<female id="..."/>` anyway; each keeps their real `<gender>` (e.g., two women both have `<gender value="1"/>`).
-* **Consanguinity:** Set `consanguinity="0"` by default. If the couple is explicitly stated to be consanguineous (e.g., first cousins), set `consanguinity="1"` (or connect their shared ancestry through `<fam>` blocks if the exact ancestral branch is known).
+* **Consanguinity:** Set `consanguinity="0"` by default. If the couple is explicitly stated to be consanguineous (e.g., first cousins), set `consanguinity="1"` (or connect their shared ancestry through `<fam>` blocks if the exact ancestral branch is known). When the degree of relationship is stated but the common ancestors are not drawn (e.g., "third cousins", "primos distantes"), also add it as written in the attribute `relation_degree`, e.g. `<fam id="f3" ex="0" consanguinity="1" link="0" relation_degree="third cousins">`; omit the attribute otherwise.
+* **No children / infertility reason:** when the reason is stated (e.g., "vasectomy", "azoospermia", "endometriosis"), write it in the `<comments value="..."/>` of the status `"6"` / `"7"` placeholder `<indi>`.
 * **Divorce / Separation (`ex`):** Default is `ex="0"`. Set `ex="1"` if the couple is divorced/separated.
 
 ---

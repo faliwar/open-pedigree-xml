@@ -21,6 +21,17 @@ import { normalizeTests, normalizeDetails, toInvitaeValue, fromInvitaeValue, toI
 
 var InvitaeConverter = function () {};
 
+// Titles of the notes that keep the standard-nomenclature marks Progeny has no field for
+// (Bennett et al. 2008, 2022): sex assigned at birth, assisted reproduction role, unknown history
+var STANDARD_NOTES = {
+  sexAtBirth: 'Sex assigned at birth',
+  artRole: 'Assisted reproduction',
+  historyUnknown: 'Family history',
+  // lines of descent from a donor / surrogate: their key, and the keys a child points at ("1; 2")
+  artKey: 'Assisted reproduction key',
+  artLinks: 'Assisted reproduction lines'
+};
+
 InvitaeConverter.prototype = {};
 
 // Invitae colour index -> colour (see model/conditionColors.js)
@@ -254,6 +265,7 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
   // Pre-pass: Identify dummy childless/infertile nodes & auto-sync reciprocal <siblings>
   // -------------------------------------------------------------------
   var dummyMap = {}; // Tracks childInvitaeId -> statusType (childless/infertile)
+  var dummyReasons = {}; // childInvitaeId -> reason for having no children, when stated
   var indiById = {};
   for (var i = 0; i < indiElements.length; i++) {
     var indi = indiElements[i];
@@ -270,6 +282,10 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       ((statusVal === '7' || statusVal === '6') && (!fName || fName === 'undefined' || fName === '') && (!lName || lName === 'undefined' || lName === ''));
     if (isDummyChildless) {
       dummyMap[indiId] = (statusVal === '7') ? 'childless' : 'infertile';
+      var dummyReason = InvitaeConverter._getChildAttr(indi, 'comments', 'value');
+      if (dummyReason && dummyReason !== 'undefined') {
+        dummyReasons[indiId] = dummyReason;
+      }
     }
   }
 
@@ -550,6 +566,13 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       if (exPartner === '1') {
         newG.properties[relNode]['broken'] = true;
       }
+      var relationDegree = fam.getAttribute('relation_degree');
+      if (relationDegree) {
+        newG.properties[relNode]['relationDegree'] = relationDegree;
+      }
+      if (fam.getAttribute('art_link') === '1') {
+        newG.properties[relNode]['artLink'] = true;
+      }
     }
 
     // Process children and statuses
@@ -558,19 +581,17 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       
       if (dummyMap[childInvitaeId]) {
          var dummyStatus = dummyMap[childInvitaeId];
-         if (relNode !== null && relNode !== undefined && !isSingleParent) {
-           if (!newG.properties[relNode]) newG.properties[relNode] = {};
-           newG.properties[relNode]['childlessStatus'] = dummyStatus;
-         } else {
-           if (fatherId !== null) {
-              if (!newG.properties[fatherId]) newG.properties[fatherId] = {};
-              newG.properties[fatherId]['childlessStatus'] = dummyStatus;
+         // the status (and its reason) belongs to the couple, or to the single person
+         var childlessOwners = (relNode !== null && relNode !== undefined && !isSingleParent)
+           ? [relNode]
+           : [fatherId, motherId].filter(function(p) { return p !== null; });
+         childlessOwners.forEach(function(owner) {
+           if (!newG.properties[owner]) newG.properties[owner] = {};
+           newG.properties[owner]['childlessStatus'] = dummyStatus;
+           if (dummyReasons[childInvitaeId]) {
+             newG.properties[owner]['childlessReason'] = dummyReasons[childInvitaeId];
            }
-           if (motherId !== null) {
-              if (!newG.properties[motherId]) newG.properties[motherId] = {};
-              newG.properties[motherId]['childlessStatus'] = dummyStatus;
-           }
-         }
+         });
       } else if (invitaeIdToPedigreeId.hasOwnProperty(childInvitaeId) && chhubId !== undefined) {
         var childPedigreeId = invitaeIdToPedigreeId[childInvitaeId];
         newG.addEdge(chhubId, childPedigreeId, defaultEdgeWeight);
@@ -895,6 +916,16 @@ InvitaeConverter._parseIndividual = function (indiEl) {
           noteValue.split(';').forEach(function(part) {
             if (part.trim()) properties.ethnicities.push(part.trim());
           });
+        } else if (noteType === STANDARD_NOTES.sexAtBirth) {
+          properties.sexAtBirth = noteValue.trim().toUpperCase();
+        } else if (noteType === STANDARD_NOTES.artRole) {
+          properties.artRole = /^s/i.test(noteValue.trim()) ? 'surrogate' : 'donor';
+        } else if (noteType === STANDARD_NOTES.historyUnknown) {
+          properties.historyUnknown = true;
+        } else if (noteType === STANDARD_NOTES.artKey) {
+          if (!isNaN(parseInt(noteValue, 10))) properties.artKey = parseInt(noteValue, 10);
+        } else if (noteType === STANDARD_NOTES.artLinks) {
+          properties.artLinks = noteValue.split(';').map(function(k) { return parseInt(k, 10); }).filter(function(k) { return !isNaN(k); });
         } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
@@ -1015,8 +1046,7 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
 
     if (props && (props.childlessStatus === 'childless' || props.childlessStatus === 'infertile')) {
       var dId = String(nextDummyIndiId++);
-      var sVal = (props.childlessStatus === 'childless') ? '7' : '6';
-      dummyIndis += '<indi id="' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+      dummyIndis += InvitaeConverter._buildChildlessDummy(dId, props);
       singlePersonChildless.push({ parentId: idToInvitaeId[i], gender: props.gender, dummyChildId: dId });
     }
   }
@@ -1027,8 +1057,7 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
       var relProps = pedigree.GG.properties[i] || {};
       if (relProps.childlessStatus === 'childless' || relProps.childlessStatus === 'infertile') {
         var dId = String(nextDummyIndiId++);
-        var sVal = (relProps.childlessStatus === 'childless') ? '7' : '6';
-        dummyIndis += '<indi id="' + dId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + sVal + '"/><comments value="undefined"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
+        dummyIndis += InvitaeConverter._buildChildlessDummy(dId, relProps);
         relChildlessMap[i] = dId;
       }
     }
@@ -1120,7 +1149,16 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
     }
 
     // link=1 seems to indicate a secondary link/cross-branch marriage, not twins. Default to 0.
-    xml += '<fam id="f' + famIndex + '" ex="' + (relProps.broken ? '1' : '0') + '" consanguinity="' + consanguinity + '" link="0">';
+    xml += '<fam id="f' + famIndex + '" ex="' + (relProps.broken ? '1' : '0') + '" consanguinity="' + consanguinity + '" link="0"';
+    // not a Progeny attribute: written only when filled in, read back by this editor
+    if (relProps.relationDegree) {
+      xml += ' relation_degree="' + InvitaeConverter._escapeXml(relProps.relationDegree) + '"';
+    }
+    // hidden link that keeps a donor / surrogate beside a parent (no relationship line is drawn)
+    if (relProps.artLink) {
+      xml += ' art_link="1"';
+    }
+    xml += '>';
 
     if (maleId !== null && idToInvitaeId[maleId] !== undefined) {
       xml += '<male id="' + idToInvitaeId[maleId] + '"/>';
@@ -1154,6 +1192,17 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
 
   xml += '</tree>';
   return xml;
+};
+
+/**
+ * The placeholder <indi> Progeny uses as the "child" of a childless (status 7) or infertile
+ * (status 6) person or couple. The reason, when known, goes in its comments.
+ * @private
+ */
+InvitaeConverter._buildChildlessDummy = function (dummyId, props) {
+  var status = (props.childlessStatus === 'childless') ? '7' : '6';
+  var reason = props.childlessReason ? InvitaeConverter._escapeXml(props.childlessReason) : 'undefined';
+  return '<indi id="' + dummyId + '" pat="0"><marked_by value="0"/><first_name value=""/><last_name value=""/><gender value="0"/><status value="' + status + '"/><comments value="' + reason + '"/><cause value=""/><age value=""/><weight display="undefined" value="undefined"/><height display="undefined" value="undefined"/><carrier value="0"/><adoption value="0"/><adoption_from value="0"/><smoker value="3"/><obese value="0"/><age_at_death value=""/><medications value=""/><allergies value=""/><fertilization value="0"/><fetus value="0"/><multiple value="0">0</multiple><attrib_data/><gail_properties/></indi>';
 };
 
 /**
@@ -1385,8 +1434,18 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
     ancestry.push('Ashkenazi Jewish'); // pedigrees saved by the previous version
   }
   var hasEthnicityNote = ancestry.length > 0;
-  if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote) {
+  var standardNotes = [];
+  if (props.sexAtBirth) standardNotes.push([STANDARD_NOTES.sexAtBirth, props.sexAtBirth]);
+  if (props.artRole) standardNotes.push([STANDARD_NOTES.artRole, props.artRole === 'surrogate' ? 'Surrogate (S)' : 'Gamete donor (D)']);
+  if (props.historyUnknown) standardNotes.push([STANDARD_NOTES.historyUnknown, 'Not available']);
+  if (typeof props.artKey === 'number') standardNotes.push([STANDARD_NOTES.artKey, String(props.artKey)]);
+  if (props.artLinks && props.artLinks.length) standardNotes.push([STANDARD_NOTES.artLinks, props.artLinks.join('; ')]);
+  if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {
     xml += '<notes>';
+    standardNotes.forEach(function(sn, idx) {
+      var snId = 2 + idx;
+      xml += '<note id="' + snId + '" note_id="' + snId + '" value="' + sn[1] + '" string_type="composite" string_title="' + sn[0] + '" string_value="' + sn[1] + '"/>';
+    });
     if (hasEthnicityNote) {
       // same shape as Progeny's own ethnicity note
       var ethnicity = InvitaeConverter._escapeXml(ancestry.join('; '));

@@ -204,6 +204,25 @@ var ChildlessBehavior = {
      */
   isValidChildlessStatus: function(status) {
     return ((status == 'infertile' || status == 'childless'));
+  },
+
+  /**
+     * Reason for having no children or for the infertility (e.g. "vasectomy", "azoospermia"),
+     * written under the childless mark (Bennett et al. 2008: "indicate reason, if known")
+     *
+     * @method getChildlessReason
+     * @return {String}
+     */
+  getChildlessReason: function() {
+    return this._childlessReason || '';
+  },
+
+  setChildlessReason: function(reason) {
+    reason = String(reason || '').replace(/\s+/g, ' ').trim();
+    if (reason != this.getChildlessReason()) {
+      this._childlessReason = reason;
+      this.getGraphics() && this.getGraphics().updateChildlessStatusLabel();
+    }
   }
 };
 

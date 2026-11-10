@@ -546,6 +546,19 @@ var View = Class.create({
         // all person nodes of the other gender or unknown gender (who ar enot already partners)
         result = editor.getGraph().getPossiblePartnersOf(sourceNodeID);
         break;
+      case 'art':
+        // donor / surrogate line: any other person who is not already linked to this one
+        var graph = editor.getGraph();
+        var source = this.getNode(sourceNodeID);
+        var linkedKeys = source.getArtLinks ? source.getArtLinks() : [];
+        for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+          if (id == sourceNodeID || !graph.isPerson(id) || graph.isPlaceholder(id)) continue;
+          var candidate = this.getNode(id);
+          if (!candidate || !candidate.getArtKey || (candidate.isVirtual && candidate.isVirtual()) || candidate.isFetus()) continue;
+          if (candidate.getArtKey() !== null && linkedKeys.indexOf(candidate.getArtKey()) !== -1) continue;
+          result.push(id);
+        }
+        break;
       case 'PlaceHolder':
         // all nodes which can be this placehodler: e.g. all that can be child of it's parents &&
         // partners of it's partners

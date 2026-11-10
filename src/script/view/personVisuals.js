@@ -710,6 +710,20 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
   },
 
   /**
+     * Sex assigned at birth (AMAB, AFAB, UAAB) under the symbol, as in Bennett et al. 2022
+     *
+     * @method updateSexAtBirthLabel
+     */
+  updateSexAtBirthLabel: function() {
+    this._sexAtBirthLabel && this._sexAtBirthLabel.remove();
+    var value = this.getNode().getSexAtBirth ? this.getNode().getSexAtBirth() : '';
+    this._sexAtBirthLabel = value
+      ? editor.getPaper().text(this.getX(), this.getY(), value).attr(PedigreeEditorParameters.attributes.label)
+      : null;
+    this.drawLabels();
+  },
+
+  /**
      * Returns this Person's comments label
      *
      * @method getCommentsLabel
@@ -1018,6 +1032,7 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     this.getSBLabel() && labels.push(this.getSBLabel());
     this.getNameLabel() && labels.push(this.getNameLabel());
     this.getAgeLabel() && labels.push(this.getAgeLabel());
+    this._sexAtBirthLabel && labels.push(this._sexAtBirthLabel);
     this.getExternalIDLabel() && labels.push(this.getExternalIDLabel());
     this.getDisordersLabel() && labels.push(this.getDisordersLabel());
     this.getHPOLabel() && labels.push(this.getHPOLabel());
@@ -1033,7 +1048,31 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      *
      * @method drawLabels
      */
+  /**
+     * Runs fn with the label layout put on hold, then lays the labels out once. Setting many
+     * properties in a row (loading a pedigree, undo) would otherwise lay them out after each one,
+     * and measuring text is the slowest part of drawing a person.
+     *
+     * @method batchLabelUpdates
+     */
+  batchLabelUpdates: function(fn) {
+    this._labelBatchDepth = (this._labelBatchDepth || 0) + 1;
+    try {
+      return fn();
+    } finally {
+      this._labelBatchDepth--;
+      if (this._labelBatchDepth === 0 && this._labelsPending) {
+        this._labelsPending = false;
+        this.drawLabels();
+      }
+    }
+  },
+
   drawLabels: function() {
+    if (this._labelBatchDepth > 0) {
+      this._labelsPending = true;
+      return;
+    }
     if (this.getNode().isVirtual && this.getNode().isVirtual()) {
       return;
     }

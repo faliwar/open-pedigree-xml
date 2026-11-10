@@ -241,11 +241,16 @@ var ChildlessBehaviorVisuals = {
     this._childlessStatusLabel && this._childlessStatusLabel.remove();
     this._childlessStatusLabel = null;
 
-    var text = '';
+    // the reason, when known, right under the childless / infertility mark
+    var node = this.getNode();
+    var status = node.getChildlessStatus();
+    var text = (status && node.getChildlessReason) ? node.getChildlessReason() : '';
 
-    if(text.strip() != '') {
-      this._childlessStatusLabel = editor.getPaper().text(this.getX(), this.getBottomY() + 18, '(' + text.slice(0, 15) +')' );
-      this._childlessStatusLabel.attr({'font-size': 18, 'font-family': 'Cambria'});
+    if (text != '') {
+      var attrs = PedigreeEditorParameters.attributes;
+      var fontSize = (attrs.label && attrs.label['font-size']) || 18;
+      var y = this.getBottomY() + attrs.infertileMarkerHeight + (status == 'infertile' ? 5 : 0) + fontSize * 0.5 + 6;
+      this._childlessStatusLabel = editor.getPaper().text(this.getX(), y, text.slice(0, 40)).attr(attrs.label);
       this._childlessStatusLabel.toBack();
     }
 

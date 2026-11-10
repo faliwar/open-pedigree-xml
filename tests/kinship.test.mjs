@@ -76,3 +76,21 @@ test('monozygotic twins share their genotype', () => {
   close(assert, k.kinship(3, 9), 1 / 4, 1e-15, 'twin and ordinary sibling:');
   close(assert, describeKinship(T, 3, 4, {}).r, 1, 1e-15, 'r of MZ twins:');
 });
+
+test('assisted reproduction: kinship follows biological (donor) parents, not surrogates or social parents', () => {
+  // Couple 1 (M) and 2 (F); child 3 from egg donor 4 ( mother 2's sister, parents 10 & 11 ); child 5 is couple's own child;
+  // surrogate 6 (also linked to 3) is unrelated
+  const G = makeGraph({
+    10: P('M'), 11: P('F'),
+    1: P('M'), 2: P('F', 10, 11),
+    4: P('F', 10, 11, { artRole: 'donor', artKey: 1 }),
+    6: P('F', null, null, { artRole: 'surrogate', artKey: 2 }),
+    3: P('F', 1, 2, { artLinks: [1, 2] }),
+    5: P('M', 1, 2)
+  });
+  assert.equal(describeKinship(G, 3, 6, {}), null, 'surrogate is not a blood relative');
+  close(assert, describeKinship(G, 3, 4, {}).r, 1 / 2, 1e-15, 'egg donor is biological mother (r = 1/2):');
+  assert.equal(describeKinship(G, 3, 2, {}).degree, 2, 'social mother (sister of egg donor) is biological aunt (2nd degree)');
+  const sib = describeKinship(G, 3, 5, {});
+  assert.equal(sib.full, false, 'children sharing father 1 but with different biological mothers are half-siblings');
+});

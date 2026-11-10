@@ -407,8 +407,9 @@ PositionedGraph.prototype = {
       return new Ordering([],[]);
     }  // empty graph
 
-    var best          = undefined;
-    var bestCrossings = Infinity;
+    var best                = undefined;
+    var bestCrossings       = Infinity;
+    var bestEdgeLengthScore = Infinity;
 
     // we find leaf nodes and rootless nodes because removing some of them improves both speed and quality of ordering algorithms
     // (e.g. we know that leaf siblings should be placed together, so might as well just leave one in the graph for ordering purposes;
@@ -444,14 +445,14 @@ PositionedGraph.prototype = {
         this.transpose(order, false, bestCrossings*4 + 5);  // fix locally-fixable edge crossings,
         // but do not bother doing minor optimizations (for performance reasons)
 
-        var numCrossings = this.edge_crossing(order);
+        var numCrossings    = this.edge_crossing(order);
+        var edgeLengthScore = this.edge_length_score(order);
 
-        if ( numCrossings < bestCrossings ) {
-          best          = order.copy();
-          bestCrossings = numCrossings;
-          if ( numCrossings == 0 ) {
-            break;
-          }
+        if ( numCrossings < bestCrossings ||
+             (numCrossings == bestCrossings && edgeLengthScore < bestEdgeLengthScore) ) {
+          best                = order.copy();
+          bestCrossings       = numCrossings;
+          bestEdgeLengthScore = edgeLengthScore;
         }
       }
       //timer2.printSinceLast("Top-to-bottom: ");
@@ -466,14 +467,14 @@ PositionedGraph.prototype = {
 
         this.transpose(order, false, bestCrossings*4 + 5);  // fix locally-fixable edge crossings
 
-        var numCrossings = this.edge_crossing(order);
+        var numCrossings    = this.edge_crossing(order);
+        var edgeLengthScore = this.edge_length_score(order);
 
-        if ( numCrossings < bestCrossings ) {
-          best          = order.copy();
-          bestCrossings = numCrossings;
-          if ( numCrossings == 0 ) {
-            break;
-          }
+        if ( numCrossings < bestCrossings ||
+             (numCrossings == bestCrossings && edgeLengthScore < bestEdgeLengthScore) ) {
+          best                = order.copy();
+          bestCrossings       = numCrossings;
+          bestEdgeLengthScore = edgeLengthScore;
         }
       }
       //timer2.printSinceLast("Bottom-to-top: ");
@@ -576,7 +577,7 @@ PositionedGraph.prototype = {
         var otherParent = (parents[0] == v) ? parents[1] : parents[0];
 
         //if (this.GG.getInEdges(otherParent).length > 0 || v > otherParent || this.GG.getOutEdges(otherParent).length > 1) {
-        if (this.GG.getInEdges(otherParent).length > 0) {
+        if (this.GG.getInEdges(otherParent).length > 0 || this.GG.getOutEdges(otherParent).length > 1) {
           if (rootlessPartners[otherParent]) {
             rootlessPartners[otherParent].push(v);
           } else {
@@ -651,6 +652,41 @@ PositionedGraph.prototype = {
           } else {
             partnersToTheLeft++;
             order.insert(rank, pOrder, v);
+          }
+
+          var vOnRight = (order.vOrder[v] > order.vOrder[p]);
+          var relRank  = this.ranks[relNode];
+          for (var j = 0; j < pRelationships.length; j++) {
+            var sRel = pRelationships[j];
+            if (sRel != relNode && this.GG.isRelationship(sRel) &&
+                this.GG.getInEdges(sRel).length == 1 && this.ranks[sRel] == relRank) {
+              var relBeforeSingle = (order.vOrder[relNode] < order.vOrder[sRel]);
+              if ((vOnRight && relBeforeSingle) || (!vOnRight && !relBeforeSingle)) {
+                order.exchange(relRank, order.vOrder[relNode], order.vOrder[sRel]);
+                var chHub1 = this.GG.getOutEdges(relNode)[0];
+                var chHub2 = this.GG.getOutEdges(sRel)[0];
+                if (chHub1 !== undefined && chHub2 !== undefined && this.ranks[chHub1] == this.ranks[chHub2]) {
+                  if ((order.vOrder[relNode] < order.vOrder[sRel]) != (order.vOrder[chHub1] < order.vOrder[chHub2])) {
+                    order.exchange(this.ranks[chHub1], order.vOrder[chHub1], order.vOrder[chHub2]);
+                  }
+                  var leftHub  = (order.vOrder[chHub1] < order.vOrder[chHub2]) ? chHub1 : chHub2;
+                  var rightHub = (leftHub == chHub1) ? chHub2 : chHub1;
+                  var kidsL = order.sortByOrder(this.GG.getOutEdges(leftHub));
+                  var kidsR = order.sortByOrder(this.GG.getOutEdges(rightHub));
+                  var allKids = kidsL.concat(kidsR);
+                  if (allKids.length > 1) {
+                    var kidRank = this.ranks[allKids[0]];
+                    var slots = allKids.map(function(k) { return order.vOrder[k]; }).sort(function(a, b) { return a - b; });
+                    if (slots[slots.length - 1] - slots[0] + 1 == allKids.length) {
+                      for (var k = 0; k < slots.length; k++) {
+                        order.order[kidRank][slots[k]] = allKids[k];
+                        order.vOrder[allKids[k]] = slots[k];
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -1285,7 +1321,29 @@ PositionedGraph.prototype = {
 
     // Use BFS -----------------------------
     var queue = useStack ? new Stack() : new Queue();
-    queue.setTo(parentlessNodes);
+    var deferredByRank = {};
+    if (!useStack) {
+      var initialRoots = [];
+      var minEarlierRank = Infinity;
+      for (var pIdx = 0; pIdx < parentlessNodes.length; pIdx++) {
+        var pNode = parentlessNodes[pIdx];
+        var pRank = this.ranks[pNode];
+        if (minEarlierRank < pRank) {
+          if (!deferredByRank[pRank]) {
+            deferredByRank[pRank] = [];
+          }
+          deferredByRank[pRank].push(pNode);
+        } else {
+          initialRoots.push(pNode);
+        }
+        if (pRank < minEarlierRank) {
+          minEarlierRank = pRank;
+        }
+      }
+      queue.setTo(initialRoots);
+    } else {
+      queue.setTo(parentlessNodes);
+    }
 
 
     while ( queue.size() > 0 ) {
@@ -1303,13 +1361,59 @@ PositionedGraph.prototype = {
       order[rank].push(next);
 
       // add all children to the queue
-      var outEdges = this.GG.getOutEdges(next);
+      var outEdges = this.GG.getOutEdges(next).slice(0);
 
-      //alreadyOrderedSortFunc = function(a,b){return b-a};
-      //outEdges.sort(alreadyOrderedSortFunc);
+      if (this.GG.isPerson(next) && outEdges.length > 1) {
+        var nextOrd = vOrder[next];
+        var relSortKey = function(rel) {
+          if (!this.GG.isRelationship(rel)) {
+            return 0;
+          }
+          var inEdges = this.GG.getInEdges(rel);
+          if (inEdges.length < 2) {
+            return 0;
+          }
+          var otherP = (inEdges[0] == next) ? inEdges[1] : inEdges[0];
+          if (vOrder[otherP] !== undefined && vOrder[otherP] < nextOrd) {
+            return -1;
+          }
+          return 1;
+        }.bind(this);
+        outEdges.sort(function(a, b) {
+          return relSortKey(a) - relSortKey(b);
+        });
+      }
 
       for (var u = 0; u < outEdges.length; u++) {
         queue.push(outEdges[u]);
+      }
+
+      if (!useStack && deferredByRank[rank + 1]) {
+        var hasMoreAtRank = false;
+        for (var qIdx = 0; qIdx < queue.data.length; qIdx++) {
+          var qNode = queue.data[qIdx];
+          if (vOrder[qNode] === undefined && this.ranks[qNode] <= rank) {
+            hasMoreAtRank = true;
+            break;
+          }
+        }
+        if (!hasMoreAtRank) {
+          var defList = deferredByRank[rank + 1];
+          delete deferredByRank[rank + 1];
+          for (var d = 0; d < defList.length; d++) {
+            queue.push(defList[d]);
+          }
+        }
+      }
+      if (!useStack && queue.size() == 0) {
+        var remRanks = Object.keys(deferredByRank).map(Number).sort(function(a, b) { return a - b; });
+        if (remRanks.length > 0) {
+          var nextDefList = deferredByRank[remRanks[0]];
+          delete deferredByRank[remRanks[0]];
+          for (var d2 = 0; d2 < nextDefList.length; d2++) {
+            queue.push(nextDefList[d2]);
+          }
+        }
       }
     }
     //--------------------------------------
@@ -1401,10 +1505,21 @@ PositionedGraph.prototype = {
           totalEdgeLengthInPositions += Math.abs(order1 - order2);
 
           // penalty, if any, for father on the left, mother on the right
-          var leftParent   = (order1 < order2) ? parents[0] : parents[1];
-          var genderOfLeft = this.GG.properties[leftParent]['gender'];
-          if (genderOfLeft == 'F') {
-            totalPenaltyForFatherOnRight++;
+          // (for assisted reproduction links, prefer the intended parent on the left and donor/surrogate on the right)
+          var leftParent  = (order1 < order2) ? parents[0] : parents[1];
+          var rightParent = (order1 < order2) ? parents[1] : parents[0];
+          var relProps    = this.GG.properties[i] || {};
+          var leftProps   = this.GG.properties[leftParent] || {};
+          var rightProps  = this.GG.properties[rightParent] || {};
+          if (relProps['artLink'] || leftProps['artRole'] || rightProps['artRole']) {
+            if (leftProps['artRole'] && !rightProps['artRole']) {
+              totalPenaltyForFatherOnRight++;
+            }
+          } else {
+            var genderOfLeft = leftProps['gender'];
+            if (genderOfLeft == 'F') {
+              totalPenaltyForFatherOnRight++;
+            }
           }
         }
       }
@@ -2018,6 +2133,20 @@ PositionedGraph.prototype = {
         if (parents.length < 2) {
           // single-parent relationship - place it at the parent's position
           this.moveVertexToRankAndOrder( i, this.ranks[parents[0]], this.order.vOrder[parents[0]] + 1 );
+          var oldOrderSingle = initialOrdering.vOrder[i];
+          if (oldOrderSingle > 0) {
+            var oldLeftSingle = initialOrdering.order[r][oldOrderSingle - 1];
+            if (this.GG.isRelationship(oldLeftSingle) &&
+                this.ranks[oldLeftSingle] == this.ranks[i] &&
+                this.order.vOrder[oldLeftSingle] > this.order.vOrder[i]) {
+              this.swapChildrenIfAllAToTheLeftOfB(oldLeftSingle, i);
+              var chHubLS = this.GG.getOutEdges(oldLeftSingle)[0];
+              var chHubRS = this.GG.getOutEdges(i)[0];
+              if (chHubLS !== undefined && chHubRS !== undefined && this.order.vOrder[chHubLS] < this.order.vOrder[chHubRS]) {
+                this.order.exchange(this.ranks[chHubLS], this.order.vOrder[chHubLS], this.order.vOrder[chHubRS]);
+              }
+            }
+          }
           handled[i] = true;
           continue;
         }

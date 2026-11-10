@@ -22,11 +22,17 @@ var Partnership = Class.create(AbstractNode, {
 
   initialize: function($super, x, y, id, properties) {
     this._childlessStatus = null;
+    this._childlessReason = '';
+    this._relationDegree  = '';  // stated degree of relationship of the couple, e.g. "third cousins"
     this._type            = 'Partnership';
 
     this._broken       = false;
     this._consangrMode = 'A';    //  Can be either "A" (autodetect), "Y" (always consider consangr.) or "N" (never)
     // "Autodetect": derived from the current pedigree
+
+    // Hidden link that keeps a gamete donor or surrogate beside one of the parents: no relationship
+    // line is drawn (Bennett et al. 2008, 2022); the donor's line of descent goes to the child
+    this._artLink = !!properties['artLink'];
 
     // assign some properties before drawing so that relationship lines are drawn properly
     this.setBrokenStatus (properties['broken']);
@@ -65,6 +71,7 @@ var Partnership = Class.create(AbstractNode, {
     if(status != this.getChildlessStatus()) {
       this._childlessStatus = status;
       this.getGraphics().updateChildlessShapes();
+      this.getGraphics().updateChildlessStatusLabel();
       this.getGraphics().updateChildhubConnection();
       this.getGraphics().getHoverBox().regenerateHandles();
     }
@@ -94,6 +101,29 @@ var Partnership = Class.create(AbstractNode, {
      */
   getConsanguinity: function() {
     return this._consangrMode;
+  },
+
+  isArtLink: function() {
+    return this._artLink;
+  },
+
+  /**
+     * Degree of relationship of a consanguineous couple, stated when it is not obvious from the
+     * pedigree (e.g. "third cousins") and written above the relationship line (Bennett et al. 2008)
+     *
+     * @method getRelationDegree
+     * @return {String}
+     */
+  getRelationDegree: function() {
+    return this._relationDegree;
+  },
+
+  setRelationDegree: function(text) {
+    text = String(text || '').replace(/\s+/g, ' ').trim();
+    if (text != this._relationDegree) {
+      this._relationDegree = text;
+      editor.getOverlay && editor.getOverlay() && editor.getOverlay().scheduleRedraw();
+    }
   },
 
   /**
@@ -130,7 +160,9 @@ var Partnership = Class.create(AbstractNode, {
     return {
       identifier:    {value : this.getID()},
       childlessSelect : {value : this.getChildlessStatus() ? this.getChildlessStatus() : 'none', inactive: childlessInactive},
+      childless_reason: {value : this.getChildlessReason(), inactive: !this.getChildlessStatus()},
       consangr: {value: this._consangrMode, inactive: false},
+      relation_degree: {value: this.getRelationDegree(), inactive: false},
       inbreeding: this._inbreedingSummary(),
       broken: {value: this.getBrokenStatus(), inactive: false}
     };
@@ -175,8 +207,17 @@ var Partnership = Class.create(AbstractNode, {
     if (this.getChildlessStatus() != null) {
       info['childlessStatus'] = this.getChildlessStatus();
     }
+    if (this.getChildlessStatus() != null && this.getChildlessReason()) {
+      info['childlessReason'] = this.getChildlessReason();
+    }
     if (this.getConsanguinity() != 'A') {
       info['consangr'] = this.getConsanguinity();
+    }
+    if (this.getRelationDegree()) {
+      info['relationDegree'] = this.getRelationDegree();
+    }
+    if (this._artLink) {
+      info['artLink'] = true;
     }
     if (this.getBrokenStatus()) {
       info['broken'] = this.getBrokenStatus();
@@ -198,6 +239,8 @@ var Partnership = Class.create(AbstractNode, {
       } else if (!info.childlessStatus && this.getChildlessStatus()) {
         this.setChildlessStatus(null);
       }
+      this.setChildlessReason(info.childlessReason);
+      this.setRelationDegree(info.relationDegree);
       if (info.consangr && info.consangr != this.getConsanguinity()) {
         this.setConsanguinity(info.consangr);
       }

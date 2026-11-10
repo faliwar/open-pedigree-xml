@@ -13,7 +13,9 @@
  * (consanguinity) and inbred common ancestors are both accounted for. The degree of
  * relationship comes from the shortest path through the nearest common ancestors.
  * Adopted children are not linked to their adoptive parents, since they are not blood
- * relatives. Monozygotic twins are treated as one genome.
+ * relatives. Gamete donors replace the parent of the same biological sex (or fill the open
+ * parent slot); surrogates (gestational carriers) do not contribute gametes. Monozygotic
+ * twins are treated as one genome.
  */
 
 var isRealPerson = function(graph, id) {
@@ -24,15 +26,84 @@ var isRealPerson = function(graph, id) {
   }
 };
 
-var getBiologicalParents = function(graph, id) {
+/**
+ * Biological sex of a person for genetic inheritance ('M', 'F' or 'U'): when sex assigned at
+ * birth (AMAB / AFAB / UAAB, Bennett et al. 2022) is recorded, it determines the sex chromosomes
+ * and gametes; otherwise the symbol's gender is used.
+ */
+var getGeneticSex = function(graph, id) {
   try {
-    if (graph.isAdopted(id)) {
-      return [];
-    }
-    return graph.DG.GG.getParents(id);
+    var props = (graph.getProperties && graph.getProperties(id)) || {};
+    if (props.sexAtBirth === 'AMAB') return 'M';
+    if (props.sexAtBirth === 'AFAB') return 'F';
+    if (props.sexAtBirth === 'UAAB') return 'U';
+    return graph.getGender(id) || 'U';
   } catch (e) {
-    return [];
+    return 'U';
   }
+};
+
+/**
+ * Biological parents of a person, placed in father / mother slots ('f' = sperm, 'm' = egg).
+ * A gamete donor ('donor' with a line of descent to this person) replaces the parent of the same
+ * biological sex, or fills the open slot of a single parent or same-sex couple; a surrogate ('S',
+ * gestational carrier) does not contribute gametes and is not a biological parent. Adopted
+ * persons have no biological parents here.
+ */
+var getParentSlots = function(graph, id) {
+  var slots = { f: null, m: null };
+  try {
+    if (graph.isAdopted && graph.isAdopted(id)) {
+      return slots;
+    }
+  } catch (e) {
+    return slots;
+  }
+
+  var props = (graph.getProperties && graph.getProperties(id)) || {};
+  var artLinks = Array.isArray(props.artLinks) ? props.artLinks : [];
+  if (artLinks.length && graph.getMaxNodeId && graph.getProperties) {
+    var maxId = graph.getMaxNodeId();
+    for (var d = 0; d <= maxId; d++) {
+      if (d === id || !isRealPerson(graph, d)) continue;
+      var dp = graph.getProperties(d) || {};
+      if (dp.artRole !== 'donor' || dp.artKey === undefined || dp.artKey === null) continue;
+      if (artLinks.indexOf(dp.artKey) === -1) continue;
+      var dg = getGeneticSex(graph, d);
+      if (dg === 'M' && slots.f === null) slots.f = d;
+      else if (dg === 'F' && slots.m === null) slots.m = d;
+    }
+  }
+
+  var parents = [];
+  try {
+    parents = graph.DG.GG.getParents(id) || [];
+  } catch (e) {
+    parents = [];
+  }
+  var unknown = [];
+  parents.forEach(function(p) {
+    if (p === slots.f || p === slots.m) return;
+    var g = getGeneticSex(graph, p);
+    if (g === 'M' && slots.f === null) slots.f = p;
+    else if (g === 'F' && slots.m === null) slots.m = p;
+    else if (g !== 'M' && g !== 'F') unknown.push(p);
+    // a second parent of the same biological sex is not placed in the other sex's slot:
+    // only the first one (or the gamete donor of that sex) is the biological parent of that sex
+  });
+  unknown.forEach(function(p) {
+    if (slots.f === null) slots.f = p;
+    else if (slots.m === null) slots.m = p;
+  });
+  return slots;
+};
+
+var getBiologicalParents = function(graph, id) {
+  var slots = getParentSlots(graph, id);
+  var out = [];
+  if (slots.f !== null) out.push(slots.f);
+  if (slots.m !== null && slots.m !== slots.f) out.push(slots.m);
+  return out;
 };
 
 /**
@@ -143,33 +214,37 @@ var describeKinship = function(graph, indexId, relativeId, cache) {
   var down = best.down;
   var lineal = (up === 0 || down === 0);
 
-  // Collateral relatives are "full" when the two lines split from the same union
-  // (e.g. full siblings share their parents' relationship), otherwise "half".
+  // Collateral relatives are "full" when they share both biological parents
+  // (e.g. full siblings; half-siblings or donor-conceived siblings who share only one parent are "half").
   var full = true;
   if (!lineal) {
+    var sameParents = function(a, b) {
+      var pa = getBiologicalParents(graph, parseInt(a, 10));
+      var pb = getBiologicalParents(graph, parseInt(b, 10));
+      return pa.length === 2 && pb.length === 2 &&
+        ((pa[0] === pb[0] && pa[1] === pb[1]) || (pa[0] === pb[1] && pa[1] === pb[0]));
+    };
     var indexSide = childrenOfAncestorOnPath(graph, indexAnc, best.ancestor, up - 1);
     var relSide = childrenOfAncestorOnPath(graph, relAnc, best.ancestor, down - 1);
     full = indexSide.some(function(x) {
-      var relX = graph.getParentRelationship(parseInt(x, 10));
-      return relSide.some(function(y) {
-        return relX !== null && relX === graph.getParentRelationship(parseInt(y, 10));
-      });
+      return relSide.some(function(y) { return sameParents(x, y); });
     });
   }
 
   var degree = lineal ? (up + down) : (full ? up + down - 1 : up + down);
 
-  // Paternal / maternal side, from the index's parent on the path to the common ancestor
+  // Paternal / maternal side, from the index's biological parent slot on the path to the common ancestor
   // (with consanguineous parents a relative can be on both sides)
   var side = '';
   if (up >= 2) {
     var sides = {};
-    getBiologicalParents(graph, indexId).forEach(function(parent) {
+    var indexSlots = getParentSlots(graph, indexId);
+    [['f', 'paternal'], ['m', 'maternal']].forEach(function(pair) {
+      var parent = indexSlots[pair[0]];
+      if (parent === null) return;
       var pAnc = buildAncestorMap(graph, parent, cache);
-      var reaches = nearest.some(function(c) { return pAnc.hasOwnProperty(c); });
-      var g = graph.getGender(parent);
-      if (reaches && (g === 'M' || g === 'F')) {
-        sides[g === 'M' ? 'paternal' : 'maternal'] = true;
+      if (nearest.some(function(c) { return pAnc.hasOwnProperty(c); })) {
+        sides[pair[1]] = true;
       }
     });
     side = (sides.paternal && sides.maternal) ? 'both' : (sides.paternal ? 'paternal' : (sides.maternal ? 'maternal' : ''));
@@ -357,6 +432,8 @@ var inbreedingOfChildren = function(graph, partner1, partner2) {
  */
 var coupleIsConsanguineous = function(graph, relId) {
   var node = (typeof editor !== 'undefined' && editor && editor.getNode) ? editor.getNode(relId) : null;
+  if (node && node.isArtLink && node.isArtLink()) return false;
+  try { if (graph.getProperties && (graph.getProperties(relId) || {}).artLink) return false; } catch (e) {}
   var pref = (node && node.getConsanguinity) ? node.getConsanguinity() : 'A';
   if (pref === 'Y') return true;
   if (pref === 'N') return false;
@@ -390,5 +467,5 @@ var formatCoefficient = function(value, lang) {
   return fraction ? fraction + ' (' + pctText + '%)' : pctText + '%';
 };
 
-export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getBiologicalParents,
+export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getGeneticSex, getParentSlots, getBiologicalParents,
   makeInbreeding, makeTwinCanon, inbreedingOfChildren, inbreedingOf, formatCoefficient, coupleIsConsanguineous };

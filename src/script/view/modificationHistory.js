@@ -70,7 +70,11 @@ var FIELDS = {
   setNumPersons: ['group size', 'tamanho do grupo'], setDobApprox: ['approximate date of birth', 'data de nascimento aproximada'],
   setGeneticTests: ['genetic test results', 'resultados de testes genéticos'],
   setAncestry: ['ancestry', 'ancestralidade'], setAshkenazi: ['Ashkenazi ancestry', 'ascendência asquenaze'], setAgeAtDeath: ['age at death', 'idade no óbito'],
-  setDisorderDetails: ['diagnosis details', 'detalhes do diagnóstico']
+  setDisorderDetails: ['diagnosis details', 'detalhes do diagnóstico'],
+  setSexAtBirth: ['sex assigned at birth', 'sexo designado ao nascer'], setArtRole: ['assisted reproduction', 'reprodução assistida'],
+  setHistoryUnknown: ['family history availability', 'disponibilidade da história familiar'],
+  setChildlessReason: ['reason for no children', 'motivo de não ter filhos'],
+  setRelationDegree: ['degree of relationship', 'grau de parentesco']
 };
 
 // Values that would leak free text into a short summary are not shown (only the field name is)

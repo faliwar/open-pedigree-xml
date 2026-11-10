@@ -10,6 +10,10 @@ export function makeGraph(people) {
     const out = {};
     if (p.twinGroup !== undefined && p.twinGroup !== null) out.twinGroup = p.twinGroup;
     if (p.monozygotic) out.monozygotic = true;
+    if (p.sexAtBirth) out.sexAtBirth = p.sexAtBirth;
+    if (p.artRole) out.artRole = p.artRole;
+    if (p.artKey !== undefined) out.artKey = p.artKey;
+    if (p.artLinks) out.artLinks = p.artLinks;
     return out;
   };
   return {

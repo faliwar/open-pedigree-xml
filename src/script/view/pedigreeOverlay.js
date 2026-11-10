@@ -10,7 +10,8 @@ import { makeInbreeding, formatCoefficient, coupleIsConsanguineous } from 'pedig
  *  - search highlights (rings around the people found, others faded).
  *
  * Every element it draws is tagged with a `data-opx-overlay` attribute so exports can
- * keep or drop it, and ignores pointer events so it never gets in the way of editing.
+ * keep or drop it, and ignores pointer events so it never gets in the way of editing
+ * (except the click band over donor / surrogate lines, used to delete them).
  * The overlay redraws itself after each change applied to the view.
  *
  * @class PedigreeOverlay
@@ -211,6 +212,7 @@ var PedigreeOverlay = Class.create({
       return;
     }
     try {
+      this._drawStandardMarks();
       if (this._search) {
         this._drawSearch();
       }
@@ -282,20 +284,108 @@ var PedigreeOverlay = Class.create({
       var f = calc.kinship(partners[0], partners[1]);
       var node = editor.getNode(id);
       if (!(f > 0) || !node || !node.getX) continue;
-      var text = paper.text(node.getX(), node.getY() - 22, 'F = ' + formatCoefficient(f, lang).replace(/ \(.*\)$/, '')).attr({
-        'font-size': 16,
-        'font-family': 'Arial, Helvetica, sans-serif',
-        'font-style': 'italic',
-        'fill': '#1F2937',
-        'text-anchor': 'middle'
-      });
-      // a white background so the text stays readable over lines
-      var box = text.getBBox();
-      var bg = paper.rect(box.x - 4, box.y - 1, box.width + 8, box.height + 2, 3).attr({ 'fill': '#FFFFFF', 'fill-opacity': 0.9, 'stroke': 'none' });
-      text.toFront();
-      _this._tag(bg, 'inbreeding');
-      _this._tag(text, 'inbreeding');
+      // a stated degree of relationship takes the line right above the couple
+      var lift = (node.getRelationDegree && node.getRelationDegree()) ? 42 : 22;
+      _this._boxedText(node.getX(), node.getY() - lift, 'F = ' + formatCoefficient(f, lang).replace(/ \(.*\)$/, ''), 'inbreeding', { 'font-style': 'italic' });
     }
+  },
+
+  // Text on a white background, so that it stays readable over lines
+  _boxedText: function(x, y, content, kind, attrs) {
+    var paper = editor.getPaper();
+    var text = paper.text(x, y, content).attr(Object.assign({
+      'font-size': 16,
+      'font-family': 'Arial, Helvetica, sans-serif',
+      'fill': '#1F2937',
+      'text-anchor': 'middle'
+    }, attrs || {}));
+    var box = text.getBBox();
+    var bg = paper.rect(box.x - 4, box.y - 1, box.width + 8, box.height + 2, 3).attr({ 'fill': '#FFFFFF', 'fill-opacity': 0.9, 'stroke': 'none' });
+    text.toFront();
+    this._tag(bg, kind);
+    this._tag(text, kind);
+  },
+
+  /**
+   * Standard marks that are part of the pedigree itself (Bennett et al. 2008, 2022), always drawn:
+   *   "?" above a person whose family history is not available or not known
+   *   "D" (gamete donor) or "S" (surrogate, gestational carrier) inside the symbol
+   *   the stated degree of relationship (e.g. "third cousins") above a relationship line
+   */
+  _drawStandardMarks: function() {
+    var graph = editor.getGraph();
+    var radius = PedigreeEditorParameters.attributes.radius || 40;
+    var background = editor.getWorkspace && editor.getWorkspace().background;
+    var byArtKey = {};   // donors and surrogates, by the key their children point at
+    var linked = [];     // people with a line of descent from a donor or surrogate
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      var node = editor.getNode(id);
+      if (!node || !node.getX) continue;
+      if (node.getArtKey) {
+        if (node.getArtKey() !== null && node.getArtRole()) byArtKey[node.getArtKey()] = node;
+        if (node.getArtLinks().length) linked.push(node);
+      }
+      if (node.getRelationDegree) {
+        if (node.getRelationDegree()) {
+          this._boxedText(node.getX(), node.getY() - 22, node.getRelationDegree(), 'standard');
+        }
+        continue;
+      }
+      if (!node.getArtRole || (node.isVirtual && node.isVirtual())) continue;
+      if (node.getHistoryUnknown()) {
+        // beside the line of descent when the person has parents drawn
+        var hasParents = false;
+        try { hasParents = graph.getParentRelationship(id) !== null; } catch (e) {}
+        this._tag(editor.getPaper().text(node.getX() + (hasParents ? 16 : 0), node.getY() - radius - 16, '?').attr({
+          'font-size': 22, 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 'bold', 'fill': '#1F2937'
+        }), 'standard');
+      }
+      if (node.getArtRole()) {
+        this._boxedText(node.getX(), node.getY(), node.getArtRole() === 'donor' ? 'D' : 'S', 'standard', { 'font-size': 26, 'font-weight': 'bold' });
+      }
+    }
+
+    // Line of descent from each donor / surrogate to the child, solid and with no relationship
+    // line (Bennett et al. 2008, fig. 3): from under their symbol to the top of the child's
+    var _this = this;
+    linked.forEach(function(child) {
+      child.getArtLinks().forEach(function(key) {
+        var donor = byArtKey[key];
+        if (!donor) return;
+        var line = editor.getPaper().path([['M', donor.getX(), donor.getY() + radius], ['L', child.getX(), child.getY() - radius]])
+          .attr(PedigreeEditorParameters.attributes.partnershipLines);
+        if (background) line.insertAfter(background);
+        _this._tag(line, 'standard');
+        _this._addArtLinkHandle(line, child.getID(), key);
+      });
+    });
+  },
+
+  /**
+   * Wide invisible band over a donor / surrogate line of descent: highlights the line on hover
+   * and, on click, offers to delete it. Screen only (never exported).
+   */
+  _addArtLinkHandle: function(line, childID, key) {
+    var hit = line.clone().attr({ 'stroke': '#000000', 'stroke-opacity': 0, 'stroke-width': 16, 'stroke-dasharray': '' });
+    hit.insertAfter(line);
+    this._elements.push(hit);
+    if (!hit.node) return;
+    hit.node.setAttribute('data-opx-overlay', 'handle');
+    hit.node.setAttribute('data-opx-export', 'omit');
+    hit.node.style.cursor = 'pointer';
+    hit.attr('title', translate('Click to delete this donor / surrogate line'));
+    var normal = { 'stroke': line.attr('stroke'), 'stroke-width': line.attr('stroke-width') };
+    hit.hover(function() {
+      line.attr({ 'stroke': '#DC2626', 'stroke-width': Math.max(3, (normal['stroke-width'] || 1) + 2) });
+    }, function() {
+      line.attr(normal);
+    });
+    hit.click(function() {
+      line.attr(normal);
+      if (confirm(translate('Delete this donor / surrogate line of descent?'))) {
+        document.fire('pedigree:person:removeartlink', { 'personID': childID, 'key': key });
+      }
+    });
   },
 
   _drawCascade: function() {

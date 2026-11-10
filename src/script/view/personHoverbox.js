@@ -1,6 +1,7 @@
 import { Timer } from 'pedigree/model/helpers';
 import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
+import { translate } from 'pedigree/i18n';
 
 /**
  * PersonHoverbox is a class for all the UI elements and graphics surrounding a Person node and
@@ -15,6 +16,39 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
  * @param {Number} centerY The Y coordinate for the center of the hoverbox
  * @param {Raphael.st} nodeShapes All shapes associated with the person node
  */
+
+/**
+ * Small list of choices under the donor / surrogate handle: who to add with a line of descent
+ * to the person. Closes on a choice, on a click elsewhere or on Esc.
+ */
+var showArtChoices = function(personID, left, top) {
+  var old = document.querySelector('.art-choices');
+  old && old.parentNode.removeChild(old);
+
+  var box = new Element('div', { 'class': 'art-choices twin-of-list' });
+  box.insert(new Element('div', { 'class': 'twin-of-title' }).update(translate('Assisted reproduction')));
+  var close = function() {
+    box.parentNode && box.parentNode.removeChild(box);
+    document.removeEventListener('mousedown', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  var onOutside = function(e) { if (!box.contains(e.target)) close(); };
+  var onKey = function(e) { if (e.key === 'Escape') close(); };
+  [['sperm', 'Sperm donor (D)'], ['egg', 'Egg donor (D)'], ['surrogate', 'Surrogate (S)']].forEach(function(choice) {
+    var button = new Element('button', { 'type': 'button', 'class': 'twin-of-choice' }).update(translate(choice[1]));
+    button.observe('click', function() {
+      close();
+      document.fire('pedigree:person:newartparent', { 'personID': personID, 'kind': choice[0] });
+    });
+    box.insert(button);
+  });
+  box.setStyle({ position: 'absolute', left: left + 'px', top: top + 'px', zIndex: 1000 });
+  (editor.getWorkspace().getWorkArea ? editor.getWorkspace().getWorkArea() : document.body).insert(box);
+  setTimeout(function() {
+    document.addEventListener('mousedown', onOutside, true);
+    document.addEventListener('keydown', onKey, true);
+  }, 0);
+};
 
 var PersonHoverbox = Class.create(AbstractHoverbox, {
 
@@ -68,6 +102,17 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
       // parent handle
       this.generateHandle('parent', x, splitLocationY, x, y - PedigreeEditorParameters.attributes.personHandleLength,
         'Click to create new nodes for the parents or drag to an existing person or partnership (valid choices will be highlighted in green). Dragging to a person will create a new relationship.');
+    }
+
+    // donor / surrogate handle (assisted reproduction): diagonal, up and to the right, like the
+    // line of descent it adds
+    if (parentRel !== null && !editor.getGraph().isParentlessRelationship(parentRel)) {
+      var diagonal = Math.SQRT1_2;
+      var artBreak = PedigreeEditorParameters.attributes.personHandleBreakX * diagonal;
+      var artLength = PedigreeEditorParameters.attributes.personHandleLength * diagonal;
+      editor.getPaper().path([['M', x, y], ['L', x + artBreak, y - artBreak]]).attr({'stroke-width': strokeWidth, stroke: 'gray'}).insertBefore(nodeShapes);
+      this.generateHandle('art', x + artBreak - 1, y - artBreak + 1, x + artLength, y - artLength,
+        'Assisted reproduction: click to add a gamete donor or a surrogate with a line of descent to this person, or drag to an existing person');
     }
 
     if (!node.isFetus()) {
@@ -349,8 +394,15 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
       } else if(handleType == 'sibling') {
         var event = { 'sibling2ID': curHoveredId, 'sibling1ID': this.getNode().getID() };
         document.fire('pedigree:person:drag:newsibling', event);
+      } else if(handleType == 'art') {
+        document.fire('pedigree:person:drag:newartparent', { 'personID': this.getNode().getID(), 'donorID': curHoveredId });
       }
     } else if (!isDrag) {
+      if (handleType == 'art') {
+        var artReach = PedigreeEditorParameters.attributes.personHandleLength * Math.SQRT1_2;
+        var artPos = editor.getWorkspace().canvasToDiv(this.getNodeX() + artReach + 12, this.getNodeY() - artReach);
+        showArtChoices(this.getNode().getID(), artPos.x, artPos.y);
+      }
       if(handleType == 'partnerR' || handleType == 'partnerL') {
         this.removeHandles();
         var preferLeft = (this.getNode().getGender() == 'F') || (handleType == 'partnerL');
