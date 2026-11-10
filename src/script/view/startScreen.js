@@ -17,12 +17,12 @@ var store = {
 
 // What's new in this version: [title, description, action]. Update it for each minor release.
 var NEWS = [
-  ['Family history summary', 'Text for the medical record in English or Portuguese, one line per relative (shortcut Y).', function() { editor.getFamilySummaryDialog().show(); }],
-  ['Which mode of inheritance fits', 'Cascade testing compares dominant, recessive, X-linked, mitochondrial and Y-linked inheritance with the family and suggests the best fit.', function() { editor.getCascadeTestingDialog().show(); }],
-  ['Cascade models per condition', 'Penetrance curves, sporadic cases and settings for each condition; save a model and reuse it in other families.', function() { editor.getCascadeTestingDialog().show(); }],
-  ["Inbreeding coefficient (Wright's F)", 'Shown above consanguineous couples, in their menu and in cascade testing.', null],
-  ['PNG and copy as image', 'High-resolution PNG (150 to 600 DPI) and Tools → Copy as image, ready to paste into a report.', function() { editor.getExportSelector().show(); }],
-  ['Easier editing', 'Conditions, phenotypes and genes as chips; generations move apart when the text under a person grows.', null]
+  ['Assisted reproduction (D / S)', 'Gamete donors (D) and surrogates (S) with an interactive linking handle, plus biological vs. gestational kinship in cascade testing and summaries.', null],
+  ['Bennett 2008 / 2022 nomenclature', 'Sex assigned at birth (AMAB, AFAB, UAAB) distinct from gender, childless/infertility reason, consanguineous degree label and unknown family history (?).', null],
+  ['Cascade testing saved in XML & PDF', 'Cascade testing settings and selected relatives are saved inside Invitae/Progeny XML and PDF files.', function() { editor.getCascadeTestingDialog().show(); }],
+  ['Custom condition colors in XML', 'Condition colors chosen in the legend (#RRGGBB) are saved and restored when importing XML or PDF.', null],
+  ['External identifier privacy & display', 'Show or hide external identifiers under Label Display Options, and automatically strip them when exporting without personal information.', function() { editor.getLabelOptionsSelector().show(); }],
+  ['Manual twin linking & layout', 'Link existing siblings as twins from the node menu, and keep single-parent and donor symbols compact.', null]
 ];
 
 var timeAgo = function(savedAt) {
