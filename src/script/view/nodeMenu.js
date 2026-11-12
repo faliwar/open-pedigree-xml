@@ -111,13 +111,6 @@ var NodeMenu = Class.create({
       this._distinctSexGenderExpanded = false;
       this._lastSexGenderTarget = null;
 
-      var personalTab = this.tabs['Personal'] || this.form;
-      if (this.fieldMap['history_unknown'] && this.fieldMap['history_unknown'].element.parentNode === personalTab) {
-        personalTab.insertBefore(toggleBox, this.fieldMap['history_unknown'].element);
-      } else {
-        personalTab.insert(toggleBox);
-      }
-
       toggleCheckbox.observe('click', function() {
         if (_this._updating) return;
         if (toggleCheckbox.checked) {
@@ -136,6 +129,31 @@ var NodeMenu = Class.create({
           }
           _this._syncSexGenderView();
           _this.reposition();
+        }
+      });
+    }
+
+    var personalTab = this.tabs['Personal'];
+    if (personalTab) {
+      var checkboxGroup = new Element('div', {'class': 'menu-checkbox-group'});
+      personalTab.insert(checkboxGroup);
+      var checkboxFieldNames = [
+        'proband',
+        'consultand',
+        'distinct_sex_gender',
+        'history_unknown',
+        'nocontact',
+        'collapsed',
+        'monozygotic',
+        'zygosity_unknown'
+      ];
+      checkboxFieldNames.forEach(function(fname) {
+        if (fname === 'distinct_sex_gender') {
+          if (_this._distinctSexGenderBox) {
+            checkboxGroup.insert(_this._distinctSexGenderBox);
+          }
+        } else if (_this.fieldMap[fname] && _this.fieldMap[fname].element) {
+          checkboxGroup.insert(_this.fieldMap[fname].element);
         }
       });
     }

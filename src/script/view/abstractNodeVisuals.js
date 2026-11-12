@@ -213,8 +213,10 @@ var ChildlessBehaviorVisuals = {
   updateChildlessShapes: function() {
     var status = this.getNode().getChildlessStatus();
     this._childlessShape && this._childlessShape.remove();
+    this._childlessShape = null;
 
-    if(status) {
+    // (nothing is drawn for a node of a hidden branch)
+    if(status && !editor.getGraph().isHiddenBranch(this.getNode().getID())) {
       var x    = this.getX();
       var y    = this.getY();
       var r    = PedigreeEditorParameters.attributes.infertileMarkerWidth;
@@ -246,7 +248,7 @@ var ChildlessBehaviorVisuals = {
     var status = node.getChildlessStatus();
     var text = (status && node.getChildlessReason) ? node.getChildlessReason() : '';
 
-    if (text != '') {
+    if (text != '' && !editor.getGraph().isHiddenBranch(node.getID())) {
       var attrs = PedigreeEditorParameters.attributes;
       var fontSize = (attrs.label && attrs.label['font-size']) || 18;
       var y = this.getBottomY() + attrs.infertileMarkerHeight + (status == 'infertile' ? 5 : 0) + fontSize * 0.5 + 6;

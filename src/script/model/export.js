@@ -33,7 +33,7 @@ PedigreeExport.prototype = {
  *       1 unaffected
  *       2 affected
  */
-PedigreeExport.exportAsPED = function(pedigree, idGenerationPreference) {
+PedigreeExport.exportAsPED = function (pedigree, idGenerationPreference) {
   var output = '';
 
   var familyID = 'OPENPED';
@@ -54,8 +54,8 @@ PedigreeExport.exportAsPED = function(pedigree, idGenerationPreference) {
       var mother = parents.length > 1 ? parents[1] : null;
 
       if (parents.length > 1 &&
-          ( pedigree.GG.properties[parents[0]]['gender'] == 'F' ||
-                pedigree.GG.properties[parents[1]]['gender'] == 'M' )) {
+        (pedigree.GG.properties[parents[0]]['gender'] == 'F' ||
+          pedigree.GG.properties[parents[1]]['gender'] == 'M')) {
         father = parents[1];
         mother = parents[0];
       } else if (parents.length == 1) {
@@ -84,8 +84,8 @@ PedigreeExport.exportAsPED = function(pedigree, idGenerationPreference) {
     var status = -9; //missing
     if (pedigree.GG.properties[i].hasOwnProperty('carrierStatus')) {
       if (pedigree.GG.properties[i]['carrierStatus'] == 'affected' ||
-               pedigree.GG.properties[i]['carrierStatus'] == 'carrier'  ||
-               pedigree.GG.properties[i]['carrierStatus'] == 'presymptomatic') {
+        pedigree.GG.properties[i]['carrierStatus'] == 'carrier' ||
+        pedigree.GG.properties[i]['carrierStatus'] == 'presymptomatic') {
         status = 2;
       } else {
         status = 1;
@@ -104,12 +104,12 @@ PedigreeExport.exportAsPED = function(pedigree, idGenerationPreference) {
  * ===============================================================================================
  */
 
-PedigreeExport.exportAsGA4GH = function(pedigree, privacySetting = "all", fhirPatientReference = null,
-  pedigreeImage = null){
+PedigreeExport.exportAsGA4GH = function (pedigree, privacySetting = "all", fhirPatientReference = null,
+  pedigreeImage = null) {
   return GA4GHFHIRConverter.exportAsFHIR(pedigree, privacySetting, fhirPatientReference, pedigreeImage);
 };
 
-PedigreeExport.exportAsInvitae = function(pedigree, privacySetting = 'all'){
+PedigreeExport.exportAsInvitae = function (pedigree, privacySetting = 'all') {
   return InvitaeConverter.exportAsInvitaeXML(pedigree, privacySetting);
 };
 
@@ -123,7 +123,171 @@ function removeOverlay(dom, kind) {
   }
 }
 
-PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
+/**
+ * Computes a tight, transform-aware bounding box of only visible, exportable pedigree elements
+ * and captures clean SVG markup.
+ * Temporarily detaches screen-only overlays, editing handles, invisible elements, and hidden branches
+ * so that native SVG bounding box computation evaluates the true transformed bounds of visible nodes.
+ */
+function captureExportSvgAndBBox(image, svgElement) {
+  var detached = [];
+  function detach(el) {
+    if (el && el.parentNode) {
+      detached.push({ parent: el.parentNode, next: el.nextSibling, el: el });
+      el.parentNode.removeChild(el);
+    }
+  }
+
+  try {
+    // 1. Detach background rect (.panning-background)
+    var bg = image.getElementsByClassName('panning-background');
+    for (var bIdx = bg.length - 1; bIdx >= 0; bIdx--) {
+      detach(bg[bIdx]);
+    }
+
+    // 2. Detach editing handles and omitted elements (junction circles, badges, etc.)
+    var omitted = svgElement.querySelectorAll('[data-opx-export="omit"]');
+    for (var i = 0; i < omitted.length; i++) {
+      detach(omitted[i]);
+    }
+
+    // 3. Detach screen-only overlays
+    var overlays = svgElement.querySelectorAll('[data-opx-overlay="cascade"], [data-opx-overlay="search"], [data-opx-overlay="collapsed-badge"]');
+    for (var j = 0; j < overlays.length; j++) {
+      detach(overlays[j]);
+    }
+
+    // 4. Detach hidden branch graphics from editor.getGraph()
+    if (typeof editor !== 'undefined' && editor && editor.getGraph) {
+      var graph = editor.getGraph();
+      if (graph && typeof graph.getMaxNodeId === 'function') {
+        for (var nId = 0; nId <= graph.getMaxNodeId(); nId++) {
+          if (!graph.isValidID(nId)) continue;
+          if (graph.isHiddenBranch && graph.isHiddenBranch(nId)) {
+            var nodeObj = editor.getNode(nId);
+            if (nodeObj && nodeObj.getGraphics) {
+              var gr = nodeObj.getGraphics();
+              if (gr && gr.getAllGraphics) {
+                try {
+                  gr.getAllGraphics().forEach(function (item) {
+                    if (item && item.node) detach(item.node);
+                  });
+                } catch (e) { }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Detach invisible / zero-opacity / non-rendered elements
+    var allEls = svgElement.querySelectorAll('path, rect, circle, ellipse, text, g, polygon, polyline, image');
+    for (var k = 0; k < allEls.length; k++) {
+      var el = allEls[k];
+      if (!el.parentNode) continue;
+
+      var s = el.style;
+      var isHidden = false;
+      if (s) {
+        if (s.display === 'none' || s.visibility === 'hidden') isHidden = true;
+        if (s.opacity === '0' || (s.fillOpacity === '0' && (s.strokeOpacity === '0' || s.stroke === 'none'))) isHidden = true;
+      }
+      if (el.getAttribute('display') === 'none' || el.getAttribute('visibility') === 'hidden') isHidden = true;
+      if (el.getAttribute('opacity') === '0') isHidden = true;
+      if (el.getAttribute('fill-opacity') === '0' && (el.getAttribute('stroke-opacity') === '0' || el.getAttribute('stroke') === 'none')) isHidden = true;
+      if (el.getAttribute('fill') === 'none' && (el.getAttribute('stroke') === 'none' || !el.getAttribute('stroke')) && !el.textContent) isHidden = true;
+      if (el.classList && (el.classList.contains('hover-box') || el.classList.contains('delete'))) isHidden = true;
+
+      if (isHidden) {
+        detach(el);
+      }
+    }
+
+    // 6. Native SVG bounding box calculation with all transforms applied
+    var bbox = null;
+    try {
+      bbox = svgElement.getBBox();
+    } catch (e) {
+      console.warn('svgElement.getBBox failed:', e);
+    }
+
+    // Fallback: graph node positions if getBBox is unavailable or returned zero/invalid bounds
+    if (!bbox || bbox.width <= 0 || bbox.height <= 0 || !isFinite(bbox.x) || !isFinite(bbox.y)) {
+      var graphMinX = Infinity, graphMinY = Infinity, graphMaxX = -Infinity, graphMaxY = -Infinity;
+      var hasVis = false;
+      if (typeof editor !== 'undefined' && editor && editor.getGraph) {
+        var g = editor.getGraph();
+        var rad = (typeof PedigreeEditorParameters !== 'undefined' && PedigreeEditorParameters.attributes && PedigreeEditorParameters.attributes.radius) || 40;
+        for (var id = 0; id <= g.getMaxNodeId(); id++) {
+          if (!g.isValidID(id) || (g.isHiddenBranch && g.isHiddenBranch(id))) continue;
+          var nd = editor.getNode(id);
+          if (!nd || !nd.getX || (nd.isVirtual && nd.isVirtual())) continue;
+          var nx = nd.getX(), ny = nd.getY();
+          graphMinX = Math.min(graphMinX, nx - rad * 1.5);
+          graphMaxX = Math.max(graphMaxX, nx + rad * 1.5);
+          graphMinY = Math.min(graphMinY, ny - rad * 1.5);
+          graphMaxY = Math.max(graphMaxY, ny + rad * 1.5);
+          if (nd.getGraphics && nd.getGraphics()) {
+            var ngr = nd.getGraphics();
+            if (typeof ngr.getBottomY === 'function') {
+              graphMaxY = Math.max(graphMaxY, ngr.getBottomY() + 60);
+            }
+          }
+          hasVis = true;
+        }
+      }
+      if (hasVis && isFinite(graphMinX) && graphMaxX > graphMinX) {
+        bbox = {
+          x: graphMinX,
+          y: graphMinY,
+          width: graphMaxX - graphMinX,
+          height: graphMaxY - graphMinY
+        };
+      } else {
+        bbox = { x: 0, y: 0, width: svgElement.clientWidth || 1200, height: svgElement.clientHeight || 900 };
+      }
+    }
+
+    var pad = 36;
+    var bX = Math.floor(bbox.x - pad);
+    var bY = Math.floor(bbox.y - pad);
+    var bWidth = Math.ceil(bbox.width + pad * 2);
+    var bHeight = Math.ceil(bbox.height + pad * 2);
+
+    var rawSvg = image.innerHTML
+      .replace(/&nbsp;/g, '&#160;')
+      .replace(/xmlns:xlink=".*?"/, '')
+      .replace(/width=".*?"/, '')
+      .replace(/height=".*?"/, '');
+
+    if (/viewBox=".*?"/.test(rawSvg)) {
+      rawSvg = rawSvg.replace(/viewBox=".*?"/, 'viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+    } else {
+      rawSvg = rawSvg.replace(/<svg /i, '<svg viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+    }
+
+    var context = window.location.href.replace(/&/g, '&amp;');
+    rawSvg = rawSvg.split(context).join('');
+
+    return {
+      rawSvg: rawSvg,
+      bX: bX,
+      bY: bY,
+      bWidth: bWidth,
+      bHeight: bHeight
+    };
+  } finally {
+    // 7. Restore all detached elements in reverse order to preserve exact DOM tree order
+    for (var r = detached.length - 1; r >= 0; r--) {
+      var item = detached[r];
+      if (item.parent && item.el) {
+        item.parent.insertBefore(item.el, item.next);
+      }
+    }
+  }
+}
+
+PedigreeExport.exportAsSVG = function (pedigree, privacySetting = 'all') {
   var restoredPrivacyLabels = false;
   if (privacySetting !== 'all' && typeof editor !== 'undefined' && editor && editor.getView && editor.getView() && editor.getView().updateAllLabels) {
     PedigreeEditorParameters.attributes._hidePersonalInExport = true;
@@ -132,116 +296,98 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
     restoredPrivacyLabels = true;
   }
   try {
-  var image = $('canvas');
-  var background = image.getElementsByClassName('panning-background')[0];
-  var backgroundPosition = background ? background.nextSibling : null;
-  var backgroundParent = background ? background.parentNode : null;
-  if (backgroundParent && background) {
-    backgroundParent.removeChild(background);
-  }
+    var image = $('canvas');
+    var svgElement = image.down();
+    var captured = captureExportSvgAndBBox(image, svgElement);
+    var bX = captured.bX;
+    var bY = captured.bY;
+    var bWidth = captured.bWidth;
+    var bHeight = captured.bHeight;
+    var pedigreeImage = captured.rawSvg;
 
-  var svgElement = image.down();
-  var bbox;
-  try {
-    bbox = svgElement.getBBox();
-  } catch (e) {
-    bbox = { x: 0, y: 0, width: svgElement.clientWidth || 1200, height: svgElement.clientHeight || 900 };
-  }
-  var bWidth = (bbox && bbox.width > 0) ? bbox.width : (svgElement.clientWidth || 1200);
-  var bHeight = (bbox && bbox.height > 0) ? bbox.height : (svgElement.clientHeight || 900);
-  var bX = (bbox && typeof bbox.x === 'number') ? bbox.x : 0;
-  var bY = (bbox && typeof bbox.y === 'number') ? bbox.y : 0;
-
-  var pedigreeImage = image.innerHTML
-    .replace(/&nbsp;/g, '&#160;')
-    .replace(/xmlns:xlink=".*?"/, '')
-    .replace(/width=".*?"/, '')
-    .replace(/height=".*?"/, '');
-
-  if (/viewBox=".*?"/.test(pedigreeImage)) {
-    pedigreeImage = pedigreeImage.replace(/viewBox=".*?"/, 'viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
-  } else {
-    pedigreeImage = pedigreeImage.replace(/<svg/i, '<svg viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
-  }
-
-  var context = window.location.href.replace(/&/g, '&amp;');
-  pedigreeImage = pedigreeImage.split(context).join('');
-
-  if (backgroundParent && background) {
-    backgroundParent.insertBefore(background, backgroundPosition);
-  }
-
-  const parser = new DOMParser();
-  let dom = parser.parseFromString(pedigreeImage, 'image/svg+xml');
-  if (dom.getElementsByTagName('parsererror').length > 0) {
-    console.warn('SVG XML parsing issue:', dom.getElementsByTagName('parsererror')[0].textContent);
-    var htmlDoc = parser.parseFromString(pedigreeImage, 'text/html');
-    var svgEl = htmlDoc.querySelector('svg');
-    if (svgEl) {
-      dom = parser.parseFromString(new XMLSerializer().serializeToString(svgEl), 'image/svg+xml');
-    }
-  }
-
-  function removeHiddenNodes(domNode) {
-    let toRemove = [];
-    for (let childNode of domNode.childNodes) {
-      if (childNode.style && 'none' === childNode.style.display){
-        toRemove.push(childNode);
-      }
-      else if (childNode.style && '0' == childNode.style.opacity && '0' == childNode.style.fillOpacity){
-        toRemove.push(childNode);
-      }
-      else {
-        removeHiddenNodes(childNode);
+    const parser = new DOMParser();
+    let dom = parser.parseFromString(pedigreeImage, 'image/svg+xml');
+    if (dom.getElementsByTagName('parsererror').length > 0) {
+      console.warn('SVG XML parsing issue:', dom.getElementsByTagName('parsererror')[0].textContent);
+      var htmlDoc = parser.parseFromString(pedigreeImage, 'text/html');
+      var svgEl = htmlDoc.querySelector('svg');
+      if (svgEl) {
+        dom = parser.parseFromString(new XMLSerializer().serializeToString(svgEl), 'image/svg+xml');
       }
     }
-    for (let childNode of toRemove){
-      domNode.removeChild(childNode);
-    }
-  }
-  function removeText(dom, fontSize) {
-    let toRemove = [];
-    for (let textNode of dom.getElementsByTagName('text')){
-      if (textNode.style.fontSize === fontSize){
-        toRemove.push(textNode);
+
+    function removeHiddenNodes(domNode) {
+      let toRemove = [];
+      for (let childNode of domNode.childNodes) {
+        let isHidden = false;
+        if (childNode.style) {
+          if ('none' === childNode.style.display || 'hidden' === childNode.style.visibility) isHidden = true;
+          if ('0' == childNode.style.opacity && '0' == childNode.style.fillOpacity) isHidden = true;
+        }
+        if (childNode.getAttribute) {
+          if (childNode.getAttribute('display') === 'none' || childNode.getAttribute('visibility') === 'hidden') isHidden = true;
+          if (childNode.getAttribute('opacity') === '0') isHidden = true;
+        }
+        if (isHidden) {
+          toRemove.push(childNode);
+        } else {
+          removeHiddenNodes(childNode);
+        }
+      }
+      for (let childNode of toRemove) {
+        domNode.removeChild(childNode);
       }
     }
-    for (let childNode of toRemove){
-      childNode.parentNode.removeChild(childNode);
+    function removeText(dom, fontSize) {
+      let toRemove = [];
+      for (let textNode of dom.getElementsByTagName('text')) {
+        if (textNode.style.fontSize === fontSize) {
+          toRemove.push(textNode);
+        }
+      }
+      for (let childNode of toRemove) {
+        childNode.parentNode.removeChild(childNode);
+      }
     }
-  }
 
-  removeHiddenNodes(dom.getRootNode());
-  // Cascade testing rings are a working aid on screen only; never export them
-  removeOverlay(dom, 'cascade');
-  removeOverlay(dom, 'search');
-  // editing handles (relationship junction dots) are not part of the drawing
-  var omitted = dom.querySelectorAll('[data-opx-export="omit"]');
-  for (var o = 0; o < omitted.length; o++) {
-    omitted[o].parentNode.removeChild(omitted[o]);
-  }
-  // people dimmed by a search highlight are exported as usual
-  var dimmed = dom.querySelectorAll('[data-opx-dim]');
-  for (var d = 0; d < dimmed.length; d++) {
-    dimmed[d].removeAttribute('data-opx-dim');
-  }
-  if (privacySetting !== 'all' ){
-    removeText(dom, '20px');
-    var personalFields = dom.querySelectorAll('[data-opx-field="name"], [data-opx-field="age"], [data-opx-field="externalID"]');
-    for (var pf = 0; pf < personalFields.length; pf++) {
-      personalFields[pf].parentNode && personalFields[pf].parentNode.removeChild(personalFields[pf]);
+    removeHiddenNodes(dom.getRootNode());
+    // Cascade testing rings are a working aid on screen only; never export them
+    removeOverlay(dom, 'cascade');
+    removeOverlay(dom, 'search');
+    removeOverlay(dom, 'collapsed-badge');
+    // editing handles (relationship junction dots) are not part of the drawing
+    var omitted = dom.querySelectorAll('[data-opx-export="omit"]');
+    for (var o = 0; o < omitted.length; o++) {
+      omitted[o].parentNode.removeChild(omitted[o]);
     }
-  }
-  if (privacySetting === 'minimal'){
-    removeText(dom, '19px');
-    var commentFields = dom.querySelectorAll('[data-opx-field="comments"]');
-    for (var cf = 0; cf < commentFields.length; cf++) {
-      commentFields[cf].parentNode && commentFields[cf].parentNode.removeChild(commentFields[cf]);
+    // Ensure the SVG root element viewBox reflects the tight visible bounds
+    if (dom.documentElement) {
+      dom.documentElement.setAttribute('viewBox', bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight);
+      dom.documentElement.setAttribute('width', String(bWidth));
+      dom.documentElement.setAttribute('height', String(bHeight));
     }
-  }
+    // people dimmed by a search highlight are exported as usual
+    var dimmed = dom.querySelectorAll('[data-opx-dim]');
+    for (var d = 0; d < dimmed.length; d++) {
+      dimmed[d].removeAttribute('data-opx-dim');
+    }
+    if (privacySetting !== 'all') {
+      removeText(dom, '20px');
+      var personalFields = dom.querySelectorAll('[data-opx-field="name"], [data-opx-field="age"], [data-opx-field="externalID"]');
+      for (var pf = 0; pf < personalFields.length; pf++) {
+        personalFields[pf].parentNode && personalFields[pf].parentNode.removeChild(personalFields[pf]);
+      }
+    }
+    if (privacySetting === 'minimal') {
+      removeText(dom, '19px');
+      var commentFields = dom.querySelectorAll('[data-opx-field="comments"]');
+      for (var cf = 0; cf < commentFields.length; cf++) {
+        commentFields[cf].parentNode && commentFields[cf].parentNode.removeChild(commentFields[cf]);
+      }
+    }
 
-  const serializer = new XMLSerializer();
-  return serializer.serializeToString(dom);
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(dom);
   } finally {
     if (restoredPrivacyLabels) {
       delete PedigreeEditorParameters.attributes._hidePersonalInExport;
@@ -259,7 +405,7 @@ PedigreeExport.exportAsSVG = function(pedigree, privacySetting = 'all') {
  * 2. If showNumbers is true, clusters real individuals by vertical level into generations (I, II, III...)
  *    and numbers individuals (1, 2, 3...) sequentially from left to right within each generation.
  */
-PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
+PedigreeExport._processPdfSvg = function (svgString, showNumbers) {
   if (!svgString) return svgString;
 
   var parser = new DOMParser();
@@ -297,7 +443,7 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
 
       var radius = (PedigreeEditorParameters.attributes && PedigreeEditorParameters.attributes.radius) || 40;
       // same numbering as the canvas and the cascade list
-      var tiers = computeStandardNumbering(editor).tiers.map(function(tier) {
+      var tiers = computeStandardNumbering(editor).tiers.map(function (tier) {
         return { avgY: tier.y, roman: tier.roman, persons: tier.persons };
       });
 
@@ -338,7 +484,7 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
           }
 
           // Number individuals 1, 2, 3... from left to right within generation
-          tier.persons.sort(function(a, b) { return a.x - b.x; });
+          tier.persons.sort(function (a, b) { return a.x - b.x; });
           for (var indIdx = 0; indIdx < tier.persons.length; indIdx++) {
             var ind = tier.persons[indIdx];
             var numText = dom.createElementNS(ns, 'text');
@@ -372,7 +518,7 @@ PedigreeExport._processPdfSvg = function(svgString, showNumbers) {
 var BW_PATTERNS = ['solid', 'diagonal', 'dots', 'horizontal', 'crosshatch', 'vertical', 'antidiagonal', 'grid', 'diagdots', 'grey'];
 var BW_GREY = '#8C8C8C';
 
-var bwKind = function(i) {
+var bwKind = function (i) {
   return BW_PATTERNS[i % BW_PATTERNS.length];
 };
 
@@ -382,13 +528,13 @@ var bwKind = function(i) {
  * @param {Number} s spacing between lines / dots
  * @return {Object} { segments: [[x1, y1, x2, y2], ...], dots: [[x, y], ...] }
  */
-PedigreeExport._bwGeometry = function(i, poly, s) {
+PedigreeExport._bwGeometry = function (i, poly, s) {
   var kind = bwKind(i);
   var out = { segments: [], dots: [] };
-  var hatch = function(angleDeg, offset) {
+  var hatch = function (angleDeg, offset) {
     var a = angleDeg * Math.PI / 180;
     var dx = Math.cos(a), dy = Math.sin(a), nx = -dy, ny = dx;
-    var proj = poly.map(function(p) { return p[0] * nx + p[1] * ny; });
+    var proj = poly.map(function (p) { return p[0] * nx + p[1] * ny; });
     var lo = Math.min.apply(null, proj), hi = Math.max.apply(null, proj);
     for (var k = Math.ceil((lo - offset) / s); k * s + offset <= hi; k++) {
       var c = k * s + offset, hits = [];
@@ -401,13 +547,13 @@ PedigreeExport._bwGeometry = function(i, poly, s) {
           hits.push({ x: x, y: y, along: x * dx + y * dy });
         }
       }
-      hits.sort(function(u, v) { return u.along - v.along; });
+      hits.sort(function (u, v) { return u.along - v.along; });
       for (var h = 0; h + 1 < hits.length; h += 2) {
         out.segments.push([hits[h].x, hits[h].y, hits[h + 1].x, hits[h + 1].y]);
       }
     }
   };
-  var inside = function(x, y) {
+  var inside = function (x, y) {
     var c = false;
     for (var e = 0, f = poly.length - 1; e < poly.length; f = e++) {
       var p = poly[e], q = poly[f];
@@ -415,8 +561,8 @@ PedigreeExport._bwGeometry = function(i, poly, s) {
     }
     return c;
   };
-  var dotGrid = function(step) {
-    var xs = poly.map(function(p) { return p[0]; }), ys = poly.map(function(p) { return p[1]; });
+  var dotGrid = function (step) {
+    var xs = poly.map(function (p) { return p[0]; }), ys = poly.map(function (p) { return p[1]; });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
     for (var row = 0, y = Math.floor(y0 / step) * step; y <= y1; y += step, row++) {
       for (var x = Math.floor(x0 / step) * step + ((row % 2) ? step / 2 : 0); x <= x1; x += step) {
@@ -425,21 +571,21 @@ PedigreeExport._bwGeometry = function(i, poly, s) {
     }
   };
   switch (kind) {
-  case 'diagonal': hatch(-45, 0); break;
-  case 'antidiagonal': hatch(45, 0); break;
-  case 'crosshatch': hatch(-45, 0); hatch(45, 0); break;
-  case 'horizontal': hatch(0, s / 2); break;
-  case 'vertical': hatch(90, s / 2); break;
-  case 'grid': hatch(0, s / 2); hatch(90, s / 2); break;
-  case 'dots': dotGrid(s); break;
-  case 'diagdots': hatch(-45, 0); dotGrid(s * 1.4); break;
-  default: break;
+    case 'diagonal': hatch(-45, 0); break;
+    case 'antidiagonal': hatch(45, 0); break;
+    case 'crosshatch': hatch(-45, 0); hatch(45, 0); break;
+    case 'horizontal': hatch(0, s / 2); break;
+    case 'vertical': hatch(90, s / 2); break;
+    case 'grid': hatch(0, s / 2); hatch(90, s / 2); break;
+    case 'dots': dotGrid(s); break;
+    case 'diagdots': hatch(-45, 0); dotGrid(s * 1.4); break;
+    default: break;
   }
   return out;
 };
 
 /** "#abc", "#AABBCC", "rgb(1, 2, 3)" -> "#AABBCC"; anything else (none, url(...)) -> '' */
-var toHex = function(value) {
+var toHex = function (value) {
   var v = String(value || '').trim();
   var m = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(v);
   if (m) return ('#' + m[1] + m[1] + m[2] + m[2] + m[3] + m[3]).toUpperCase();
@@ -447,13 +593,13 @@ var toHex = function(value) {
   if (m) return ('#' + m[1]).toUpperCase();
   m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(v);
   if (m) {
-    return '#' + [m[1], m[2], m[3]].map(function(n) { return parseInt(n, 10).toString(16).padStart(2, '0'); }).join('').toUpperCase();
+    return '#' + [m[1], m[2], m[3]].map(function (n) { return parseInt(n, 10).toString(16).padStart(2, '0'); }).join('').toUpperCase();
   }
   return '';
 };
 
 /** Grey of the same lightness (keeps black and white as they are) */
-var toGrey = function(hex) {
+var toGrey = function (hex) {
   var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
   var l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
   if (l > 235) l = 255;
@@ -465,7 +611,7 @@ var toGrey = function(hex) {
  * Outline of a filled shape as a polygon in the coordinates of the root <svg>.
  * The element must be rendered (in the document) so its geometry and transforms are known.
  */
-var shapePolygon = function(el, rootSvg) {
+var shapePolygon = function (el, rootSvg) {
   var local = [];
   var tag = el.tagName.toLowerCase();
   if (tag === 'circle' || tag === 'ellipse') {
@@ -492,7 +638,7 @@ var shapePolygon = function(el, rootSvg) {
     return null;
   }
   var m = rootSvg.getScreenCTM().inverse().multiply(el.getScreenCTM());
-  return local.map(function(p) {
+  return local.map(function (p) {
     return [m.a * p[0] + m.c * p[1] + m.e, m.b * p[0] + m.d * p[1] + m.f];
   });
 };
@@ -502,9 +648,9 @@ var shapePolygon = function(el, rootSvg) {
  * @param {String} svgString
  * @param {Array} colours legend colours in legend order; colour i is drawn with pattern i
  */
-PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
+PedigreeExport._applyBlackAndWhite = function (svgString, colours) {
   var indexOf = {};
-  (colours || []).forEach(function(c, i) {
+  (colours || []).forEach(function (c, i) {
     var hex = toHex(c);
     if (hex && !indexOf.hasOwnProperty(hex)) indexOf[hex] = i;
   });
@@ -524,8 +670,8 @@ PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
 
   try {
     var all = Array.prototype.slice.call(svgEl.getElementsByTagName('*'));
-    all.forEach(function(el) {
-      ['fill', 'stroke'].forEach(function(attr) {
+    all.forEach(function (el) {
+      ['fill', 'stroke'].forEach(function (attr) {
         var hex = toHex(el.getAttribute(attr));
         var styleHex = el.style ? toHex(el.style.getPropertyValue(attr)) : '';
         if (!hex && !styleHex) return;
@@ -542,7 +688,7 @@ PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
             var poly = shapePolygon(el, svgEl);
             if (poly && poly.length > 2) {
               var geo = PedigreeExport._bwGeometry(i, poly, 7);
-              geo.segments.forEach(function(sg) {
+              geo.segments.forEach(function (sg) {
                 var line = document.createElementNS(ns, 'line');
                 line.setAttribute('x1', sg[0].toFixed(2)); line.setAttribute('y1', sg[1].toFixed(2));
                 line.setAttribute('x2', sg[2].toFixed(2)); line.setAttribute('y2', sg[3].toFixed(2));
@@ -550,7 +696,7 @@ PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
                 line.setAttribute('stroke-linecap', 'butt');
                 hatchLayer.appendChild(line);
               });
-              geo.dots.forEach(function(d) {
+              geo.dots.forEach(function (d) {
                 var dot = document.createElementNS(ns, 'circle');
                 dot.setAttribute('cx', d[0].toFixed(2)); dot.setAttribute('cy', d[1].toFixed(2));
                 dot.setAttribute('r', '1.5'); dot.setAttribute('fill', '#000000');
@@ -574,7 +720,7 @@ PedigreeExport._applyBlackAndWhite = function(svgString, colours) {
 };
 
 /** Legend swatch of pattern i, drawn directly with PDFKit (rectangle clip only) */
-PedigreeExport._bwDrawSwatch = function(doc, i, x, y, size) {
+PedigreeExport._bwDrawSwatch = function (doc, i, x, y, size) {
   var kind = bwKind(i);
   doc.save();
   if (kind === 'solid' || kind === 'grey') {
@@ -583,11 +729,11 @@ PedigreeExport._bwDrawSwatch = function(doc, i, x, y, size) {
     doc.rect(x, y, size, size).fill('#FFFFFF');
     doc.rect(x, y, size, size).clip();
     var geo = PedigreeExport._bwGeometry(i, [[x, y], [x + size, y], [x + size, y + size], [x, y + size]], 2.6);
-    geo.segments.forEach(function(sg) {
+    geo.segments.forEach(function (sg) {
       doc.moveTo(sg[0], sg[1]).lineTo(sg[2], sg[3]);
     });
     if (geo.segments.length) doc.lineWidth(0.6).stroke('#000000');
-    geo.dots.forEach(function(d) { doc.circle(d[0], d[1], 0.55).fill('#000000'); });
+    geo.dots.forEach(function (d) { doc.circle(d[0], d[1], 0.55).fill('#000000'); });
   }
   doc.restore();
   doc.save();
@@ -599,7 +745,7 @@ PedigreeExport._bwDrawSwatch = function(doc, i, x, y, size) {
  * The legends shown on screen (conditions, genes, phenotypes...), as
  * [{ heading, items: [{ colour, name, cases }] }], in screen order.
  */
-PedigreeExport._readLegend = function() {
+PedigreeExport._readLegend = function () {
   let legend = [];
   let container = document.getElementById('legend-container');
   let rgbRegex = /^rgb\(([0-9]+),\s*([0-9]+),\s*([0-9]+)\)$/;
@@ -631,8 +777,8 @@ PedigreeExport._readLegend = function() {
             let colourSplit = rgbRegex.exec(bg);
             if (colourSplit != null) {
               colour = '#' + parseInt(colourSplit[1]).toString(16).padStart(2, '0') +
-                             parseInt(colourSplit[2]).toString(16).padStart(2, '0') +
-                             parseInt(colourSplit[3]).toString(16).padStart(2, '0');
+                parseInt(colourSplit[2]).toString(16).padStart(2, '0') +
+                parseInt(colourSplit[3]).toString(16).padStart(2, '0');
             }
           }
         }
@@ -661,16 +807,16 @@ PedigreeExport._readLegend = function() {
 };
 
 /** Legend colours in order: colour i is drawn with black-and-white pattern i */
-var legendColoursOf = function(legend) {
+var legendColoursOf = function (legend) {
   var colours = [];
-  legend.forEach(function(cat) { cat.items.forEach(function(item) { colours.push(item.colour); }); });
+  legend.forEach(function (cat) { cat.items.forEach(function (item) { colours.push(item.colour); }); });
   return colours;
 };
 
 /** Pattern index of each legend item (a colour used twice keeps its first pattern, as in the drawing) */
-var legendPatternIndex = function(colours) {
+var legendPatternIndex = function (colours) {
   var first = {};
-  return colours.map(function(c, i) {
+  return colours.map(function (c, i) {
     var hex = toHex(c);
     if (!first.hasOwnProperty(hex)) first[hex] = i;
     return first[hex];
@@ -685,7 +831,7 @@ var legendPatternIndex = function(colours) {
  * @param {String} position 'TopRight' | 'BottomRight' | 'TopLeft' | 'BottomLeft'
  * @param {Boolean} blackAndWhite swatches drawn with the black-and-white patterns
  */
-PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhite) {
+PedigreeExport._addSvgLegend = function (svgString, legend, position, blackAndWhite) {
   if (!legend || !legend.length) return svgString;
   var dom = new DOMParser().parseFromString(svgString, 'image/svg+xml');
   if (dom.getElementsByTagName('parsererror').length) return svgString;
@@ -699,19 +845,19 @@ PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhi
   // same text size as the person labels (20)
   var HEAD = 24, TEXT = 20, SWATCH = 20, ROW = 31, GAP = 12, PAD = 40;
   var measure = document.createElement('canvas').getContext('2d');
-  var width = function(text, size, bold) {
+  var width = function (text, size, bold) {
     measure.font = (bold ? 'bold ' : '') + size + 'px Arial';
     return measure.measureText(text).width;
   };
-  var label = function(item) { return (item.name || '') + (item.cases ? ' (' + item.cases + ')' : ''); };
+  var label = function (item) { return (item.name || '') + (item.cases ? ' (' + item.cases + ')' : ''); };
 
   var legendW = 0, legendH = 0;
-  legend.forEach(function(cat, c) {
+  legend.forEach(function (cat, c) {
     if (cat.heading) {
       legendW = Math.max(legendW, width(cat.heading, HEAD, true));
       legendH += ROW + 4;
     }
-    cat.items.forEach(function(item) {
+    cat.items.forEach(function (item) {
       legendW = Math.max(legendW, SWATCH + 10 + width(label(item), TEXT, false));
       legendH += ROW;
     });
@@ -728,29 +874,29 @@ PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhi
   var group = dom.createElementNS(ns, 'g');
   group.setAttribute('data-opx-legend', '1');
   var y = ly, k = 0;
-  var add = function(tag, attrs, text) {
+  var add = function (tag, attrs, text) {
     var el = dom.createElementNS(ns, tag);
-    Object.keys(attrs).forEach(function(a) { el.setAttribute(a, attrs[a]); });
+    Object.keys(attrs).forEach(function (a) { el.setAttribute(a, attrs[a]); });
     if (text !== undefined) el.textContent = text;
     group.appendChild(el);
     return el;
   };
-  legend.forEach(function(cat, c) {
+  legend.forEach(function (cat, c) {
     if (cat.heading) {
       add('text', { x: lx, y: (y + HEAD).toFixed(1), 'font-family': FONT, 'font-size': HEAD, 'font-weight': 'bold', fill: blackAndWhite ? '#000000' : '#1F2937' }, cat.heading);
       y += ROW + 4;
     }
-    cat.items.forEach(function(item) {
+    cat.items.forEach(function (item) {
       var sx = lx, sy = y + (ROW - SWATCH) / 2 - 2;
       if (blackAndWhite) {
         var i = patternOf[k], kind = bwKind(i);
         add('rect', { x: sx, y: sy.toFixed(1), width: SWATCH, height: SWATCH, fill: kind === 'solid' ? '#000000' : (kind === 'grey' ? BW_GREY : '#FFFFFF') });
         if (kind !== 'solid' && kind !== 'grey') {
           var geo = PedigreeExport._bwGeometry(i, [[sx, sy], [sx + SWATCH, sy], [sx + SWATCH, sy + SWATCH], [sx, sy + SWATCH]], 4.5);
-          geo.segments.forEach(function(sg) {
+          geo.segments.forEach(function (sg) {
             add('line', { x1: sg[0].toFixed(2), y1: sg[1].toFixed(2), x2: sg[2].toFixed(2), y2: sg[3].toFixed(2), stroke: '#000000', 'stroke-width': 1.1 });
           });
-          geo.dots.forEach(function(d) {
+          geo.dots.forEach(function (d) {
             add('circle', { cx: d[0].toFixed(2), cy: d[1].toFixed(2), r: 1.2, fill: '#000000' });
           });
         }
@@ -769,7 +915,7 @@ PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhi
   // enlarge the drawing area to the pedigree plus the legend, with a small margin
   var minX = Math.min(vb[0], lx) - 10, minY = Math.min(vb[1], ly) - 10;
   var maxX = Math.max(vb[0] + vb[2], lx + legendW) + 10, maxY = Math.max(vb[1] + vb[3], ly + legendH) + 10;
-  svgEl.setAttribute('viewBox', [minX, minY, maxX - minX, maxY - minY].map(function(n) { return n.toFixed(1); }).join(' '));
+  svgEl.setAttribute('viewBox', [minX, minY, maxX - minX, maxY - minY].map(function (n) { return n.toFixed(1); }).join(' '));
   svgEl.setAttribute('width', (maxX - minX).toFixed(1));
   svgEl.setAttribute('height', (maxY - minY).toFixed(1));
   return new XMLSerializer().serializeToString(dom);
@@ -779,7 +925,7 @@ PedigreeExport._addSvgLegend = function(svgString, legend, position, blackAndWhi
  * SVG file for download: the drawing, optionally in black and white and with the legend.
  * @param {Object} options { includeLegend, legendPos, blackAndWhite }
  */
-PedigreeExport.exportAsSVGFile = function(pedigree, privacySetting = 'all', options = {}) {
+PedigreeExport.exportAsSVGFile = function (pedigree, privacySetting = 'all', options = {}) {
   var svg = PedigreeExport.exportAsSVG(pedigree, privacySetting);
   var legend = PedigreeExport._readLegend();
   if (options.blackAndWhite) {
@@ -796,7 +942,7 @@ PedigreeExport.exportAsSVGFile = function(pedigree, privacySetting = 'all', opti
 // file (pHYs chunk) so word processors and print layouts place it at the right physical size.
 
 var CRC_TABLE = null;
-var crc32 = function(bytes) {
+var crc32 = function (bytes) {
   if (!CRC_TABLE) {
     CRC_TABLE = new Uint32Array(256);
     for (var n = 0; n < 256; n++) {
@@ -811,7 +957,7 @@ var crc32 = function(bytes) {
 };
 
 /** PNG bytes with a pHYs chunk (pixels per metre) inserted right after IHDR */
-var withDpi = function(bytes, dpi) {
+var withDpi = function (bytes, dpi) {
   var ppm = Math.round(dpi / 0.0254);
   var chunk = new Uint8Array(4 + 4 + 9 + 4);
   var view = new DataView(chunk.buffer);
@@ -839,7 +985,7 @@ var withDpi = function(bytes, dpi) {
  *                  a bigger pedigree is drawn smaller but keeps the DPI, so it prints smaller
  * @return {Promise<Object>} { blob, width, height, dpi, reduced }
  */
-PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options = {}) {
+PedigreeExport.exportAsPNG = function (pedigree, privacySetting = 'all', options = {}) {
   var dpi = options.dpi || 300;
   var svg = PedigreeExport.exportAsSVGFile(pedigree, privacySetting, options);
   var root = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
@@ -859,10 +1005,10 @@ PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options 
   }
   var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
 
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
     var img = new Image();
-    img.onload = function() {
+    img.onload = function () {
       try {
         var canvas = document.createElement('canvas');
         canvas.width = cw;
@@ -874,9 +1020,9 @@ PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options 
         }
         ctx.drawImage(img, 0, 0, cw, ch);
         URL.revokeObjectURL(url);
-        canvas.toBlob(function(blob) {
+        canvas.toBlob(function (blob) {
           if (!blob) return reject(new Error('The image is too large to draw.'));
-          blob.arrayBuffer().then(function(buf) {
+          blob.arrayBuffer().then(function (buf) {
             var bytes = withDpi(new Uint8Array(buf), dpi);
             resolve({ blob: new Blob([bytes], { type: 'image/png' }), width: cw, height: ch, dpi: dpi, reduced: reduced });
           }, reject);
@@ -886,7 +1032,7 @@ PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options 
         reject(e);
       }
     };
-    img.onerror = function() {
+    img.onerror = function () {
       URL.revokeObjectURL(url);
       reject(new Error('The drawing could not be converted to an image.'));
     };
@@ -899,21 +1045,21 @@ PedigreeExport.exportAsPNG = function(pedigree, privacySetting = 'all', options 
  * browser requires a user action); the image is produced while the clipboard waits for it.
  * @return {Promise}
  */
-PedigreeExport.copyAsPNG = function(pedigree, privacySetting = 'all', options = {}) {
+PedigreeExport.copyAsPNG = function (pedigree, privacySetting = 'all', options = {}) {
   if (!(navigator.clipboard && navigator.clipboard.write && typeof window.ClipboardItem === 'function')) {
     return Promise.reject(new Error('This browser cannot copy images to the clipboard.'));
   }
   var png = PedigreeExport.exportAsPNG(pedigree, privacySetting, options);
-  var item = new window.ClipboardItem({ 'image/png': png.then(function(r) { return r.blob; }) });
-  return navigator.clipboard.write([item]).then(function() { return png; });
+  var item = new window.ClipboardItem({ 'image/png': png.then(function (r) { return r.blob; }) });
+  return navigator.clipboard.write([item]).then(function () { return png; });
 };
 
-PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true, blackAndWhite = false){
+PedigreeExport.exportAsPDF = function (pedigree, privacySetting = 'all', pageSize = 'A4', layout = 'landscape', legendPos = 'TopRight', embedXML = false, showNumbers = false, includeHeader = true, blackAndWhite = false) {
   var pedigreeImage = PedigreeExport.exportAsSVG(pedigree, privacySetting);
   pedigreeImage = PedigreeExport._processPdfSvg(pedigreeImage, showNumbers);
 
   let legend = PedigreeExport._readLegend();
-  let itemCount = legend.reduce(function(n, cat) { return n + cat.items.length; }, 0);
+  let itemCount = legend.reduce(function (n, cat) { return n + cat.items.length; }, 0);
 
   // black and white: colour i of the legend -> fill pattern i, other colours -> grey
   let legendColours = legendColoursOf(legend);
@@ -1120,31 +1266,31 @@ PedigreeExport.exportAsPDF = function(pedigree, privacySetting = 'all', pageSize
 
 // TODO: convert internal properties to match public names and rename this to "supportedProperties"
 PedigreeExport.internalToJSONPropertyMapping = {
-  'proband':       'proband',
-  'name':          'name',
-  'fName':         'firstName',
-  'lName':         'lastName',
-  'comments':      'comments',
-  'twinGroup':     'twinGroup',
-  'monozygotic':   'monozygotic',
-  'isAdopted':     'adoptedIn',
-  'adoptedOut':    'adoptedOut',
-  'evaluated':     'evaluated',
-  'dob':           'birthDate',
-  'dod':           'deathDate',
-  'gestationAge':  'gestationAge',
-  'lifeStatus':    'lifeStatus',
-  'disorders':     'disorders',
-  'ethnicities':   'ethnicities',
+  'proband': 'proband',
+  'name': 'name',
+  'fName': 'firstName',
+  'lName': 'lastName',
+  'comments': 'comments',
+  'twinGroup': 'twinGroup',
+  'monozygotic': 'monozygotic',
+  'isAdopted': 'adoptedIn',
+  'adoptedOut': 'adoptedOut',
+  'evaluated': 'evaluated',
+  'dob': 'birthDate',
+  'dod': 'deathDate',
+  'gestationAge': 'gestationAge',
+  'lifeStatus': 'lifeStatus',
+  'disorders': 'disorders',
+  'ethnicities': 'ethnicities',
   'carrierStatus': 'carrierStatus',
-  'externalID':    'externalId',
-  'gender':        'sex',
-  'numPersons':    'numPersons',
-  'hpoTerms':      'hpoTerms',
-  'candidateGenes':'candidateGenes',
-  'lostContact':   'lostContact',
-  'dobApprox':     'birthDateApprox',
-  'ageInput':      'ageInput',
+  'externalID': 'externalId',
+  'gender': 'sex',
+  'numPersons': 'numPersons',
+  'hpoTerms': 'hpoTerms',
+  'candidateGenes': 'candidateGenes',
+  'lostContact': 'lostContact',
+  'dobApprox': 'birthDateApprox',
+  'ageInput': 'ageInput',
   'childlessStatus': 'childlessStatus'
 };
 
@@ -1152,7 +1298,7 @@ PedigreeExport.internalToJSONPropertyMapping = {
  * Converts property name from external JSON format to internal - also helps to
  * support aliases for some terms and weed out unsupported terms.
  */
-PedigreeExport.convertProperty = function(internalPropertyName, value) {
+PedigreeExport.convertProperty = function (internalPropertyName, value) {
 
   if (!PedigreeExport.internalToJSONPropertyMapping.hasOwnProperty(internalPropertyName)) {
     return null;
@@ -1170,12 +1316,12 @@ PedigreeExport.convertProperty = function(internalPropertyName, value) {
     }
   }
 
-  return {'propertyName': externalPropertyName, 'value': value };
+  return { 'propertyName': externalPropertyName, 'value': value };
 };
 
-PedigreeExport.createNewIDs = function(pedigree, idGenerationPreference, maxLength) {
+PedigreeExport.createNewIDs = function (pedigree, idGenerationPreference, maxLength) {
   var idToNewId = {};
-  var usedIDs   = {};
+  var usedIDs = {};
 
   var nextUnusedID = 1;
 
@@ -1196,7 +1342,7 @@ PedigreeExport.createNewIDs = function(pedigree, idGenerationPreference, maxLeng
     if (maxLength && id.length > maxLength) {
       id = id.substring(0, maxLength);
     }
-    while ( usedIDs.hasOwnProperty(id) ) {
+    while (usedIDs.hasOwnProperty(id)) {
       if (!maxLength || id.length < maxLength) {
         id = '_' + id;
       } else {
@@ -1205,7 +1351,7 @@ PedigreeExport.createNewIDs = function(pedigree, idGenerationPreference, maxLeng
     }
 
     idToNewId[i] = id;
-    usedIDs[id]  = true;
+    usedIDs[id] = true;
   }
 
   return idToNewId;

@@ -419,8 +419,50 @@ var View = Class.create({
     // what the node was drawn from, see _keepUnchangedPersons(); forgotten when the node is edited
     node._drawnFrom = stableStringify(properties);
     node._drawnProps = properties;
+    // whether the node was drawn as part of a hidden branch, see _syncBranchVisibility()
+    node._drawnHidden = positionedGraph.isHiddenBranch(id);
 
     return node;
+  },
+
+  /**
+   * Draws again the nodes whose visibility changed because a branch was hidden or shown
+   * (collapse / expand, undo and redo of those, or an edit that connects a hidden branch to the
+   * rest of the pedigree by another path), and then every line.
+   */
+  _syncBranchVisibility: function () {
+    var graph = editor.getGraph();
+    var persons = [];
+    var relationships = [];
+    for (var nodeID in this._nodeMap) {
+      if (!this._nodeMap.hasOwnProperty(nodeID)) {
+        continue;
+      }
+      var id = parseInt(nodeID, 10);
+      if (!graph.isValidID(id) || !!this._nodeMap[nodeID]._drawnHidden == graph.isHiddenBranch(id)) {
+        continue;
+      }
+      (graph.isRelationship(id) ? relationships : persons).push(id);
+    }
+    if (persons.length == 0 && relationships.length == 0) {
+      return;
+    }
+    var i;
+    for (i = 0; i < persons.length; i++) {
+      this.addNode(persons[i]);
+    }
+    for (i = 0; i < relationships.length; i++) {
+      this._lineSet.removeAllLinesAffectedByOwnerMovement(relationships[i]);
+      this.addNode(relationships[i]);
+    }
+    // lines cross each other: with some of them gone or back, all are drawn again
+    var allRelationships = [];
+    for (var otherID in this._nodeMap) {
+      if (this._nodeMap.hasOwnProperty(otherID) && graph.isValidID(otherID) && graph.isRelationship(otherID)) {
+        allRelationships.push(parseInt(otherID, 10));
+      }
+    }
+    this.applyChanges({ 'moved': allRelationships }, false);
   },
 
   /** The node's data changed: its drawing no longer matches the data it was created from */
@@ -963,6 +1005,9 @@ var View = Class.create({
           }
         }
       }
+
+      // nodes of branches that were just hidden or shown are drawn again
+      this._syncBranchVisibility();
 
       timer.printSinceLast('=== highlight & update handles runtime: ');
       timer2.printSinceLast('=== Total apply changes runtime: ');

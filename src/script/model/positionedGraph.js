@@ -3354,7 +3354,91 @@ PositionedGraph.prototype = {
     TIME_DRAWING_DEBUG = debugTimer.report();
   },
 
+  /**
+   * Hidden branches. A person can be "collapsed": everything that is connected to the consultand
+   * (see getBranchRoot)
+   * only through that person is then hidden on the chart. The hidden people stay in the graph (and
+   * so in exports, kinship and risk calculations); the layout only gives them no room.
+   *
+   * @return {Object} { nodeId: true } for every hidden node (people, relationships, child hubs
+   *                  and pieces of long edges), cached until the graph changes size or
+   *                  invalidateHiddenNodes() is called
+   */
+  getHiddenNodes: function() {
+    var GG = this.GG;
+    var size = GG.getNumVertices();
+    if (this._hiddenNodes && this._hiddenNodesSize === size) {
+      return this._hiddenNodes;
+    }
+    var hidden = {};
+    var anchors = {};
+    var anyAnchor = false;
+    var root = this.getBranchRoot();
+    for (var v = 0; v < size; v++) {
+      var props = GG.properties[v];
+      if (props && GG.isPerson(v) && props.collapsed) {
+        anchors[v] = true;
+        anyAnchor = true;
+      }
+    }
+    delete anchors[root];  // the consultand's own branch is the pedigree itself
+    if (anyAnchor && size > 0) {
+      // everything reached from the proband without going through a collapsed person stays
+      var reached = {};
+      var stack = [root];
+      reached[root] = true;
+      while (stack.length > 0) {
+        var next = stack.pop();
+        if (anchors[next]) {
+          continue;
+        }
+        var neighbours = GG.getOutEdges(next).concat(GG.getInEdges(next));
+        for (var i = 0; i < neighbours.length; i++) {
+          if (!reached[neighbours[i]]) {
+            reached[neighbours[i]] = true;
+            stack.push(neighbours[i]);
+          }
+        }
+      }
+      for (var u = 0; u < size; u++) {
+        if (!reached[u]) {
+          hidden[u] = true;
+        }
+      }
+    }
+    this._hiddenNodes = hidden;
+    this._hiddenNodesSize = size;
+    return hidden;
+  },
+
+  /**
+   * The person branches are hidden relative to: the consultand (the person seeking counselling),
+   * or the proband when no consultand is marked (node 0 unless another person is flagged)
+   */
+  getBranchRoot: function() {
+    var GG = this.GG;
+    var proband = 0;
+    for (var v = 0; v < GG.getNumVertices(); v++) {
+      var props = GG.properties[v];
+      if (!props || !GG.isPerson(v)) {
+        continue;
+      }
+      if (props.consultand) {
+        return v;
+      }
+      if (props.probandFlag === true) {
+        proband = v;
+      }
+    }
+    return proband;
+  },
+
+  invalidateHiddenNodes: function() {
+    this._hiddenNodes = null;
+  },
+
   position: function() {
+    this.invalidateHiddenNodes();   // the graph was taken apart and put together again by now
     var longEdges = this.find_long_edges();  // pre-find long edges for performance reasons
 
     var xcoord = new XCoord(null, this);

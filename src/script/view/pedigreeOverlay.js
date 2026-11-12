@@ -183,7 +183,7 @@ var PedigreeOverlay = Class.create({
     this._search.ids.forEach(function(id) {
       found[id] = true;
       var node = editor.getNode(id);
-      if (!node || !node.getX) return;
+      if (!node || !node.getX || editor.getGraph().isHiddenBranch(id)) return;
       var ring = paper.circle(node.getX(), node.getY(), radius * 1.48).attr({
         'stroke': '#0284C7',
         'stroke-width': 5,
@@ -348,6 +348,37 @@ var PedigreeOverlay = Class.create({
    *   "D" (gamete donor) or "S" (surrogate, gestational carrier) inside the symbol
    *   the stated degree of relationship (e.g. "third cousins") above a relationship line
    */
+  // "+12" on a dashed outline at the lower right of a collapsed person; unlike the other marks it
+  // reacts to clicks (it shows the branch again)
+  _drawCollapsedBadge: function(node, count) {
+    var paper = editor.getPaper();
+    var radius = PedigreeEditorParameters.attributes.radius || 40;
+    // below the partner handle and line, to the right of the text under the symbol
+    var x = node.getX() + radius + 16;
+    var y = node.getY() + radius + 4;
+    var text = paper.text(x, y, '+' + count).attr({
+      'font-size': 17, 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 'bold', 'fill': '#1D4ED8'
+    });
+    var box = text.getBBox();
+    var bg = paper.rect(box.x - 6, box.y - 3, box.width + 12, box.height + 6, 9).attr({
+      'fill': '#EFF6FF', 'stroke': '#1D4ED8', 'stroke-width': 1.5, 'stroke-dasharray': '- '
+    });
+    text.toFront();
+    var id = node.getID();
+    var title = translate('Hidden branch: click to show it');
+    [bg, text].forEach(function(el) {
+      el.node.setAttribute('data-opx-overlay', 'collapsed-badge');
+      el.node.setAttribute('data-opx-export', 'omit');
+      el.node.style.cursor = 'pointer';
+      el.attr('title', title);
+      el.click(function() {
+        document.fire('pedigree:node:setproperty', { 'nodeID': id, 'properties': { 'setCollapsed': false } });
+      });
+    });
+    this._elements.push(bg);
+    this._elements.push(text);
+  },
+
   _drawStandardMarks: function() {
     var graph = editor.getGraph();
     var radius = PedigreeEditorParameters.attributes.radius || 40;
@@ -356,7 +387,15 @@ var PedigreeOverlay = Class.create({
     var linked = [];     // people with a line of descent from a donor or surrogate
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
       var node = editor.getNode(id);
-      if (!node || !node.getX) continue;
+      if (!node || !node.getX || graph.isHiddenBranch(id)) continue;
+      // a collapsed person: how many people are hidden behind them; click to show them again
+      if (node.getCollapsed && node.getCollapsed()) {
+        var hiddenCount = graph.getBranchSize(id);
+        // (nothing hidden when, seen from the current consultand, nobody is behind this person)
+        if (hiddenCount > 0) {
+          this._drawCollapsedBadge(node, hiddenCount);
+        }
+      }
       if (node.getArtKey) {
         if (node.getArtKey() !== null && node.getArtRole()) byArtKey[node.getArtKey()] = node;
         if (node.getArtLinks().length) linked.push(node);
@@ -432,7 +471,7 @@ var PedigreeOverlay = Class.create({
 
     var drawRing = function(id, color, isIndex) {
       var node = editor.getNode(id);
-      if (!node || !node.getX) {
+      if (!node || !node.getX || editor.getGraph().isHiddenBranch(id)) {
         return;
       }
       var r = radius * (isIndex ? 1.55 : 1.42);

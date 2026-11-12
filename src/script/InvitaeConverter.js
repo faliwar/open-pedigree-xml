@@ -28,6 +28,12 @@ var STANDARD_NOTES = {
   artRole: 'Assisted reproduction',
   historyUnknown: 'Family history',
   // lines of descent from a donor / surrogate: their key, and the keys a child points at ("1; 2")
+  // the person's branch is hidden on the chart (display only: the people are all in the file)
+  collapsed: 'Chart display',
+  // the person seeking counselling (Progeny marks only the proband, pat="1")
+  consultand: 'Consultand',
+  // twins of unknown zygosity; Progeny's sibling type 1 means "twin, dizygotic or unknown"
+  zygosityUnknown: 'Twin zygosity',
   artKey: 'Assisted reproduction key',
   artLinks: 'Assisted reproduction lines'
 };
@@ -464,6 +470,11 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       properties.twinGroup = tg;
       // monozygotic twins share the sex; a mixed-sex group can only be dizygotic
       properties.monozygotic = !!twinGroupMz[tg] && Object.keys(twinGroupGenders[tg] || {}).length <= 1;
+      if (properties.monozygotic) {
+        delete properties.zygosityUnknown;
+      }
+    } else {
+      delete properties.zygosityUnknown;  // not a twin after all
     }
 
     var useId;
@@ -955,6 +966,12 @@ InvitaeConverter._parseIndividual = function (indiEl) {
           properties.artRole = /^s/i.test(noteValue.trim()) ? 'surrogate' : 'donor';
         } else if (noteType === STANDARD_NOTES.historyUnknown) {
           properties.historyUnknown = true;
+        } else if (noteType === STANDARD_NOTES.collapsed) {
+          properties.collapsed = true;
+        } else if (noteType === STANDARD_NOTES.consultand) {
+          properties.consultand = true;
+        } else if (noteType === STANDARD_NOTES.zygosityUnknown) {
+          properties.zygosityUnknown = /unknown/i.test(noteValue);
         } else if (noteType === STANDARD_NOTES.artKey) {
           if (!isNaN(parseInt(noteValue, 10))) properties.artKey = parseInt(noteValue, 10);
         } else if (noteType === STANDARD_NOTES.artLinks) {
@@ -1017,6 +1034,7 @@ InvitaeConverter._getChildAttr = function (parentEl, childTagName, attrName) {
  * @returns {String}  XML string
  */
 InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
+  delete pedigree._exportProbandId;  // worked out again for this export (see _buildIndiElement)
   var now = new Date();
   var dateStr = InvitaeConverter._formatDate(now);
 
@@ -1246,7 +1264,18 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   var invitaeId = idToInvitaeId[nodeId];
   var mrn = (privacySetting === 'all' && props.externalID) ? props.externalID : '';
 
-  var xml = '<indi id="' + invitaeId + '" pat="' + ((props.probandFlag === true || (nodeId === 0 && props.probandFlag !== false)) ? '1' : '0') + '" MRN="' + InvitaeConverter._escapeXml(mrn) + '">';
+  // exactly one pat="1": the person marked as proband, or the first person when none is
+  if (pedigree._exportProbandId === undefined) {
+    pedigree._exportProbandId = 0;
+    var maxId = (pedigree.GG && typeof pedigree.GG.getMaxRealVertexId === 'function') ? pedigree.GG.getMaxRealVertexId() : 0;
+    for (var pv = 0; pv <= maxId; pv++) {
+      if (pedigree.GG && pedigree.GG.isPerson && pedigree.GG.isPerson(pv) && pedigree.GG.properties[pv] && pedigree.GG.properties[pv].probandFlag === true) {
+        pedigree._exportProbandId = pv;
+        break;
+      }
+    }
+  }
+  var xml = '<indi id="' + invitaeId + '" pat="' + (nodeId === pedigree._exportProbandId ? '1' : '0') + '" MRN="' + InvitaeConverter._escapeXml(mrn) + '">';
 
   // marked_by: 1 = positive, 2 = negative, 3 = documented, 0 = none
   var markedBy = '0';
@@ -1472,6 +1501,11 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   if (props.sexAtBirth) standardNotes.push([STANDARD_NOTES.sexAtBirth, props.sexAtBirth]);
   if (props.artRole) standardNotes.push([STANDARD_NOTES.artRole, props.artRole === 'surrogate' ? 'Surrogate (S)' : 'Gamete donor (D)']);
   if (props.historyUnknown) standardNotes.push([STANDARD_NOTES.historyUnknown, 'Not available']);
+  if (props.collapsed) standardNotes.push([STANDARD_NOTES.collapsed, 'Branch hidden']);
+  if (props.consultand) standardNotes.push([STANDARD_NOTES.consultand, 'Yes']);
+  if (props.zygosityUnknown && props.twinGroup !== undefined && props.twinGroup !== null) {
+    standardNotes.push([STANDARD_NOTES.zygosityUnknown, 'Unknown']);
+  }
   if (typeof props.artKey === 'number') standardNotes.push([STANDARD_NOTES.artKey, String(props.artKey)]);
   if (props.artLinks && props.artLinks.length) standardNotes.push([STANDARD_NOTES.artLinks, props.artLinks.join('; ')]);
   if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {

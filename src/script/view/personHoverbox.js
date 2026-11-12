@@ -159,10 +159,42 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     // Menu / properties button (top-left)
     this.generateMenuBtn();
 
+    this.generateBranchBtn();
+
     // proband (and the root node 0) can't be removed
     if (!this.getNode().isProband() && this.getNode().getID() != 0) {
       this.generateDeleteBtn();
     }
+  },
+
+  /**
+     * Button in the lower left corner that hides this person's branch (a box with a minus) or
+     * shows it again (a box with a plus). Only for people who have a branch to hide: someone
+     * through whom other people are connected to the consultand (or the proband).
+     *
+     * @method generateBranchBtn
+     */
+  generateBranchBtn: function() {
+    var node = this.getNode();
+    if (!node.getCollapsed) {
+      return;
+    }
+    var collapsed = node.getCollapsed();
+    if (!collapsed && editor.getGraph().getBranchSize(node.getID()) == 0) {
+      return;
+    }
+    var me = this;
+    var action = function() {
+      me.unpin(true);
+      me.animateHideHoverZone(true);
+      document.fire('pedigree:node:setproperty', { 'nodeID': node.getID(), 'properties': { 'setCollapsed': !collapsed } });
+    };
+    var icon = 'M0,0 h14 v14 h-14 z M3,7 h8' + (collapsed ? ' M7,3 v8' : '');
+    var attributes = { 'stroke': '#1D4ED8', 'stroke-width': 1.6, 'fill': '#FFFFFF' };
+    var x = this.getX() + 6;
+    var y = this.getY() + this.getHeight() - 20;
+    this.createButton(x, y, icon, { x: 0, y: 0, width: 14, height: 14 }, attributes, action, 'branch-toggle',
+      collapsed ? 'Show the hidden branch' : 'Hide this person\'s branch');
   },
 
   generateNodeShapeBtn: function() {

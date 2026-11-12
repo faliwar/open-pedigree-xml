@@ -231,10 +231,15 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       $super();
     }
 
+    // Bennett et al.: the proband has an arrow with a "P"; the consultand (the person seeking
+    // counselling, when not the proband) has the arrow alone
     if (this.getNode().isProband()) {
       this._genderGraphics.push(this.generateProbandArrow());
+      this._genderGraphics.push(this.generateProbandLetter());
       this.getGenderShape().transform(['...s', 1.08]);
       this.getGenderShape().attr('stroke-width', 5.5);
+    } else if (this.getNode().isConsultand && this.getNode().isConsultand()) {
+      this._genderGraphics.push(this.generateProbandArrow());
     }
     if (!editor.isUnsupportedBrowser() && this.getHoverBox()) {
       this._genderGraphics.flatten().insertBefore(this.getFrontElements().flatten());
@@ -254,6 +259,19 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     }
     icon.transform(['t', x, y]);
     return icon;
+  },
+
+  /** The "P" at the tail of the proband's arrow */
+  generateProbandLetter: function () {
+    var x = this.getX() - this._shapeRadius - 30;
+    var y = this.getY() + this._shapeRadius + 4;
+    if (this.getNode().getGender() == 'F') {
+      x += 5;
+      y -= 5;
+    }
+    return editor.getPaper().text(x, y, 'P').attr({
+      'font-size': 20, 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 'bold', 'fill': '#000000'
+    });
   },
 
   /**
@@ -1097,6 +1115,11 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       return;
     }
     if (this.getNode().isVirtual && this.getNode().isVirtual()) {
+      return;
+    }
+    // a person of a hidden branch is not drawn: whatever was just updated is hidden again
+    if (this.getNode().isHiddenBranch && this.getNode().isHiddenBranch()) {
+      try { this.hideAll(); } catch (e) {}
       return;
     }
     var labels = this.getLabels();

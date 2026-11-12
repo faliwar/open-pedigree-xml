@@ -29,7 +29,9 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var isSingleParent = editor.getGraph().isSingleParentRelationship(partnership.getID());
     // a donor / surrogate link is drawn like a parentless relationship: nothing at all
     // (the line from the donor to the child is drawn by the chart overlay)
-    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID()) || partnership.isArtLink();
+    // (a relationship of a hidden branch is not drawn either)
+    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID()) || partnership.isArtLink() ||
+      editor.getGraph().isHiddenBranch(partnership.getID());
 
     // Hide the junction circle for single-parent relationships or parentless relationships
     if (isSingleParent || isParentless) {
@@ -201,7 +203,8 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var id = this.getNode().getID();
 
     var isSingleParent = positionedGraph.isSingleParentRelationship(id);
-    var isParentless = positionedGraph.isParentlessRelationship(id) || this.getNode().isArtLink();
+    var isHidden = positionedGraph.isHiddenBranch(id);
+    var isParentless = positionedGraph.isParentlessRelationship(id) || this.getNode().isArtLink() || isHidden;
 
     // A relationship which used to be parentless (read-only hoverbox) and has just got parents needs a regular hoverbox.
     // This must be created BEFORE paper.setStart(): Raphael adds every element/set created between setStart() and
@@ -444,7 +447,7 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
       }
     }
 
-    if (children.length === 0) {
+    if (children.length === 0 || positionedGraph.isHiddenBranch(id)) {
       this._childhubConnection = editor.getPaper().setFinish();
       return;
     }
@@ -500,6 +503,10 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
           var xIntercept1 = findXInterceptGivenLineAndY( twinlineY, currentTwinGroupCenterX, childlineY+twinCommonVerticalPieceLength, positionL, positionY);
           var xIntercept2 = findXInterceptGivenLineAndY( twinlineY, currentTwinGroupCenterX, childlineY+twinCommonVerticalPieceLength, positionR, positionY);
           editor.getView().drawLineWithCrossings( id, xIntercept1, twinlineY, xIntercept2, twinlineY, PedigreeEditorParameters.attributes.partnershipLines);
+        } else if (editor.getView().getNode(allTwins[0]).getZygosityUnknown && editor.getView().getNode(allTwins[0]).getZygosityUnknown()) {
+          // zygosity unknown: a "?" between the twins' lines, where the monozygotic bar would be
+          editor.getPaper().text(currentTwinGroupCenterX, childlineY + PedigreeEditorParameters.attributes.twinMonozygothicLineShiftY + 6, '?')
+            .attr({ 'font-size': 18, 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 'bold', 'fill': '#000000' });
         }
       } else if (twinGroupId == null) {
         numPregnancies++;

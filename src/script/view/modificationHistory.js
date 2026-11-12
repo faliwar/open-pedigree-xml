@@ -74,7 +74,9 @@ var FIELDS = {
   setSexAtBirth: ['sex assigned at birth', 'sexo designado ao nascer'], setArtRole: ['assisted reproduction', 'reprodução assistida'],
   setHistoryUnknown: ['family history availability', 'disponibilidade da história familiar'],
   setChildlessReason: ['reason for no children', 'motivo de não ter filhos'],
-  setRelationDegree: ['degree of relationship', 'grau de parentesco']
+  setRelationDegree: ['degree of relationship', 'grau de parentesco'],
+  setCollapsed: ['hidden branch', 'ramo oculto'], setConsultand: ['consultand', 'consulente'],
+  setZygosityUnknown: ['twin zygosity', 'zigosidade dos gêmeos']
 };
 
 // Values that would leak free text into a short summary are not shown (only the field name is)

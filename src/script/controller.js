@@ -226,6 +226,7 @@ var Controller = Class.create({
     var twinUpdate = undefined;
     var reconcileTwinSex = false;
     var needUpdateAncestors = false;
+    var needRelayout = false;
     var needUpdateRelationship = false;
     var needUpdateAllRelationships = false;
 
@@ -251,6 +252,14 @@ var Controller = Class.create({
         }
 
         undoEvent.memo.properties[propertySetFunction] = oldValue;
+
+        // monozygotic and "zygosity unknown" exclude each other: undo restores both
+        if (propertySetFunction == 'setMonozygotic' && node.getZygosityUnknown) {
+          undoEvent.memo.properties['setZygosityUnknown'] = node.getZygosityUnknown();
+        }
+        if (propertySetFunction == 'setZygosityUnknown') {
+          undoEvent.memo.properties['setMonozygotic'] = node.getMonozygotic();
+        }
 
         if (propertySetFunction == 'setProband') {
           // undoing a proband change means making the previous proband the proband again
@@ -342,18 +351,28 @@ var Controller = Class.create({
           twinUpdate[propertySetFunction] = propValue;
         }
 
-        if (propertySetFunction == 'setMonozygotic') {
+        if (propertySetFunction == 'setMonozygotic' || propertySetFunction == 'setZygosityUnknown') {
+          // the two are exclusive: setting one may clear the other, on every twin of the group
+          twinUpdate = twinUpdate || {};
+          twinUpdate['setMonozygotic'] = node.getMonozygotic();
+          twinUpdate['setZygosityUnknown'] = node.getZygosityUnknown();
           needUpdateRelationship = true;
-          if (!twinUpdate) {
-            twinUpdate = {};
-          }
-          twinUpdate[propertySetFunction] = propValue;
+        }
+
+        if (propertySetFunction == 'setConsultand' || propertySetFunction == 'setProband') {
+          // hidden branches are worked out from the consultand
+          needRelayout = Controller._anyCollapsed();
         }
 
         if (propertySetFunction == 'setConsanguinity' || propertySetFunction == 'setBrokenStatus') {
           // this updates the relationship lines, as well as any lines
           // crossed by the relationship llines to maintain correct crossing graphics
           needUpdateRelationship = true;
+        }
+
+        if (propertySetFunction == 'setCollapsed') {
+          // hiding or showing a branch changes how much room it takes: arrange the chart again
+          needRelayout = true;
         }
 
         if (propertySetFunction == 'setLostContact' || propertySetFunction == 'setProband') {
@@ -393,6 +412,14 @@ var Controller = Class.create({
 
     var allProperties = node.getProperties();
     editor.getGraph().setProperties( nodeID, allProperties );
+
+    if (needRelayout) {
+      var relayoutChanges = editor.getGraph().relayout();
+      if (relayoutChanges && relayoutChanges.moved) {
+        editor.getView().applyChanges(relayoutChanges, false);
+        editor.getWorkspace().adjustSizeToScreen();
+      }
+    }
 
     if (needUpdateAncestors) {
       var changeSet = editor.getGraph().updateAncestors();
@@ -850,6 +877,44 @@ Controller._shareTwinSex = function(nodeID) {
     twinNode.setSexAtBirth(unassigned ? 'UAAB' : (symbolSex === sex ? '' : sexAtBirthFor(sex)));
     editor.getGraph().setProperties(t, twinNode.getProperties());
   });
+};
+
+/** True when at least one branch is hidden */
+Controller._anyCollapsed = function() {
+  var GG = editor.getGraph().DG.GG;
+  for (var i = 0; i <= GG.getMaxRealVertexId(); i++) {
+    if (GG.isPerson(i) && (GG.properties[i] || {}).collapsed) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * Shows every hidden branch at once ("Show all hidden branches" in the Tools menu).
+ * One step in the undo history.
+ */
+Controller.expandAll = function() {
+  var graph = editor.getGraph();
+  var changed = false;
+  for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+    var node = graph.isPerson(id) ? editor.getView().getNode(id) : null;
+    if (node && node.getCollapsed && node.getCollapsed()) {
+      node.setCollapsed(false);
+      graph.setProperties(id, node.getProperties());
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return false;
+  }
+  var relayoutChanges = graph.relayout();
+  if (relayoutChanges && relayoutChanges.moved) {
+    editor.getView().applyChanges(relayoutChanges, false);
+    editor.getWorkspace().adjustSizeToScreen();
+  }
+  editor.getActionStack().addState(null, null, editor.getSaveLoadEngine().serialize());
+  return true;
 };
 
 /** An unused key for a donor / surrogate (see Person.getArtKey) */

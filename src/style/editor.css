@@ -1861,16 +1861,21 @@ html,
   margin: 0.3em .3em 0 .3em !important;
 }
 
+.menu-box .hidden,
+.menu-box .field-box.hidden {
+  display: none !important;
+}
+
 .menu-box .field-box {
-  padding: .5em 0;
+  padding: .25em 0;
 }
 
 .menu-box .field-gender {
-  padding: .8em 0;
+  padding: .35em 0;
 }
 
 .menu-box .field-state {
-  padding: .8em 0;
+  padding: .35em 0;
 }
 
 .menu-box .field-box input[type=text] {
@@ -2118,19 +2123,51 @@ html,
   font-weight: normal;
 }
 
-.menu-box .field-date_of_birth {
+.person-menu .field-box.field-name {
+  width: 58%;
+  float: left;
+  clear: left;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box.field-external_id {
+  width: 38%;
+  float: right;
+  clear: right;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box.field-date_of_birth {
   width: 48%;
   float: left;
+  clear: left;
+  padding: 0.25em 0;
 }
 
-.menu-box .field-date_of_death {
+.person-menu .field-box.field-date_of_death {
   width: 48%;
   float: right;
+  padding: 0.25em 0;
 }
 
-/* fields after the two floated date fields must start below them (otherwise the next
-   label's first word, e.g. "A" of "A pessoa está", wraps up between the dates) */
-.menu-box .field-age_at_death,
+.person-menu .field-box.field-age_input {
+  width: 48%;
+  float: right;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box.field-date_of_death:not(.hidden) ~ .field-box.field-age_input {
+  float: left;
+  clear: left;
+}
+
+.person-menu .field-box.field-age_at_death {
+  width: 48%;
+  float: right;
+  padding: 0.25em 0;
+}
+
+/* fields after the floated date/age fields must start below them */
 .menu-box .field-state,
 .menu-box .field-gestation_age {
   clear: both;
@@ -2150,6 +2187,12 @@ html,
   grid-template-columns: repeat(3, auto);
   justify-content: start;
   column-gap: 14px;
+}
+
+.person-menu .field-state .field-values-3-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
 }
 
 .menu-box .field-values-3-columns label {
@@ -2236,48 +2279,91 @@ html,
   padding: 0.5em 0 0.5em;
 }
 
-/* person menu: adoption sits next to the heredity options */
-.person-menu .field-childlessSelect {
+/* person menu: heredity options & adoption side-by-side */
+.person-menu .field-box.field-childlessSelect {
   width: 48%;
   float: left;
+  clear: left;
+  padding: 0.25em 0;
 }
 
-.person-menu .field-adoption {
-  padding: 0.5em 0 0.5em;
+.person-menu .field-box.field-adoption {
   width: 48%;
   float: right;
+  clear: right;
+  padding: 0.25em 0;
 }
 
-.person-menu .field-adoption select {
+.person-menu .field-box.field-childless_reason {
+  width: 100%;
+  clear: both;
+  padding: 0.25em 0;
+}
+
+/* person menu: ancestry & assisted reproduction side-by-side */
+.person-menu .field-box.field-ancestry {
+  width: 48%;
+  float: left;
+  clear: left;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box.field-art_role {
+  width: 48%;
+  float: right;
+  clear: right;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box.field-sex_at_birth {
+  width: 100%;
+  clear: both;
+  padding: 0.25em 0;
+}
+
+.person-menu .field-box select {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
 }
 
-.person-menu .field-adoption~.field-box {
+/* Compact Checkbox 2-Column Grid at bottom of Personal tab */
+.menu-box .menu-checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
   clear: both;
 }
 
-/* person menu: sex assigned at birth (revealed only when distinct from gender) and assisted reproduction */
-.person-menu .field-sex_at_birth,
-.person-menu .field-art_role {
-  width: 100%;
-  float: none;
-  clear: both;
-  padding: 0.35em 0;
+.menu-box .menu-checkbox-group .field-box {
+  padding: 0 !important;
+  margin: 0 !important;
+  float: none !important;
+  clear: none !important;
+  width: auto !important;
 }
 
-.person-menu .field-sex_at_birth select,
-.person-menu .field-art_role select {
-  max-width: 100%;
-  width: 100%;
+.menu-box .menu-checkbox-group label {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #1e293b;
+  cursor: pointer;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-weight: 500;
+  word-break: break-word;
 }
 
-.person-menu .field-distinct_sex_gender {
-  padding: 0.26em 0;
-  clear: both;
-}
-
-.person-menu .field-name {
-  clear: both;
+.menu-box .menu-checkbox-group input[type="checkbox"] {
+  margin: 1px 0 0 0 !important;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 /* ===========================================

@@ -7,6 +7,9 @@ import BaseGraph from 'pedigree/model/baseGraph';
 var XCoord = function (xinit, graph, halfWidth) {
   this.graph = graph;
 
+  // nodes of hidden (collapsed) branches take no room, see PositionedGraph.getHiddenNodes()
+  this.hidden = graph.getHiddenNodes ? graph.getHiddenNodes() : {};
+
   // local copies just for convenience & performance
   // (halfWidth depends only on the graph, so copies share it instead of recomputing it)
   if (halfWidth) {
@@ -14,7 +17,7 @@ var XCoord = function (xinit, graph, halfWidth) {
   } else {
     this.halfWidth = [];
     for (var i = 0; i < graph.GG.vWidth.length; i++) {
-      if (this.isSingleParentRel(i) || this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
+      if (this.hidden[i] || this.isSingleParentRel(i) || this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
         this.halfWidth[i] = 0;
       } else {
         this.halfWidth[i] = Math.floor(graph.GG.vWidth[i] / 2);
@@ -70,6 +73,12 @@ XCoord.prototype = {
   },
 
   getSeparation: function (v1, v2) {
+    // hidden nodes sit on top of each other; next to a visible node they leave half of the usual
+    // gap on each side, so that two visible people with hidden ones between them stay apart
+    if (this.hidden[v1] || this.hidden[v2]) {
+      return (this.hidden[v1] && this.hidden[v2]) ? 0 : Math.ceil(this.graph.horizontalPersonSeparationDist / 2);
+    }
+
     if (this.isArtLinkChildhub(v1) || this.isArtLinkChildhub(v2) ||
       this.isArtLinkDummyChild(v1) || this.isArtLinkDummyChild(v2)) {
       return 0;

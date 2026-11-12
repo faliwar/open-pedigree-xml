@@ -29,6 +29,10 @@ var getNumberablePersons = function(ed) {
       if (!graph.isPerson(id) || graph.isPlaceholder(id) || graph.isVirtualDummyChild(id) || graph.isVirtualParent(id)) {
         continue;
       }
+      // people of hidden (collapsed) branches are not drawn, so they are not numbered
+      if (graph.isHiddenBranch && graph.isHiddenBranch(id)) {
+        continue;
+      }
     } catch (e) {
       continue;
     }

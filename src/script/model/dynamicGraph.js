@@ -168,8 +168,73 @@ DynamicPositionedGraph.prototype = {
     return this.DG.GG.properties[id];
   },
 
+  /** True for a node of a hidden (collapsed) branch, see PositionedGraph.getHiddenNodes() */
+  isHiddenBranch: function( id ) {
+    return !!this.DG.getHiddenNodes()[id];
+  },
+
+  /**
+   * Number of people that are (or would be) hidden by collapsing this person: those connected to
+   * the proband only through them. 0 for the proband and for people with nobody "behind" them.
+   */
+  getBranchSize: function( id ) {
+    id = parseInt(id, 10);
+    var GG = this.DG.GG;
+    var root = this.DG.getBranchRoot();
+    if (id == root || !GG.isPerson(id)) {
+      return 0;
+    }
+    // what the proband reaches without going through this person or a collapsed one
+    var reached = {};
+    reached[root] = true;
+    var stack = [root];
+    while (stack.length > 0) {
+      var next = stack.pop();
+      if (next == id || (next != root && GG.isPerson(next) && (GG.properties[next] || {}).collapsed)) {
+        continue;
+      }
+      var neighbours = GG.getOutEdges(next).concat(GG.getInEdges(next));
+      for (var i = 0; i < neighbours.length; i++) {
+        if (!reached[neighbours[i]]) {
+          reached[neighbours[i]] = true;
+          stack.push(neighbours[i]);
+        }
+      }
+    }
+    if (!reached[id]) {
+      return 0;  // already inside another hidden branch
+    }
+    // the rest of what this person reaches is their branch
+    var count = 0;
+    var seen = {};
+    seen[id] = true;
+    stack = [id];
+    while (stack.length > 0) {
+      var v = stack.pop();
+      var around = GG.getOutEdges(v).concat(GG.getInEdges(v));
+      for (var j = 0; j < around.length; j++) {
+        var u = around[j];
+        if (seen[u] || reached[u]) {
+          continue;
+        }
+        seen[u] = true;
+        stack.push(u);
+        var props = GG.properties[u] || {};
+        if (GG.isPerson(u) && !props.isVirtualParent && !props.isVirtualDummyChild && !props.isPlaceholder) {
+          count += (props.numPersons > 1 ? props.numPersons : 1);
+        }
+      }
+    }
+    return count;
+  },
+
   setProperties: function( id, newSetOfProperties ) {
     var oldProps = this.DG.GG.properties[id] || {};
+    if (!!oldProps.collapsed != !!(newSetOfProperties && newSetOfProperties.collapsed) ||
+        !!oldProps.consultand != !!(newSetOfProperties && newSetOfProperties.consultand) ||
+        !!oldProps.probandFlag != !!(newSetOfProperties && newSetOfProperties.probandFlag)) {
+      this.DG.invalidateHiddenNodes();
+    }
     var hadArt = !!(oldProps.artLink || oldProps.artRole);
     this.DG.GG.properties[id] = newSetOfProperties;
     // the drawn node was edited: it no longer matches the data it was first drawn from
@@ -191,6 +256,38 @@ DynamicPositionedGraph.prototype = {
       }
     }
     return 0;
+  },
+
+  /**
+   * Makes the saved data name exactly one proband: getProbandId() (the person marked as proband,
+   * or the first person). Any other mark is removed, and the first person is marked "not the
+   * proband" when someone else is. Without this, data with two marks (e.g. the first person had
+   * lost its "not the proband" mark) showed two probands, and the previous one came back when the
+   * file or draft was opened again.
+   *
+   * @return {Number} the proband's id
+   */
+  normalizeProband: function() {
+    var GG = this.DG.GG;
+    var proband = this.getProbandId();
+    for (var i = 0; i <= GG.getMaxRealVertexId(); i++) {
+      var props = GG.isPerson(i) ? GG.properties[i] : null;
+      if (!props) {
+        continue;
+      }
+      if (i == proband) {
+        if (i == 0) {
+          delete props.probandFlag;
+        } else {
+          props.probandFlag = true;
+        }
+      } else if (i == 0) {
+        props.probandFlag = false;
+      } else {
+        delete props.probandFlag;
+      }
+    }
+    return proband;
   },
 
   // returns false if this gender is incompatible with this pedigree; true otherwise
@@ -1960,6 +2057,7 @@ DynamicPositionedGraph.prototype = {
 
   toJSON: function () {
     this.stripUnusedProperties();
+    this.normalizeProband();
 
     //var timer = new Timer();
     var output = {};
@@ -2001,6 +2099,8 @@ DynamicPositionedGraph.prototype = {
     this.DG.order.deserialize(serializedData['order']);
 
     this.DG.positions = serializedData['positions'];
+    this.normalizeProband();
+    this.DG.invalidateHiddenNodes();
 
     this._updateauxiliaryStructures();
 
@@ -2048,6 +2148,8 @@ DynamicPositionedGraph.prototype = {
     }
 
     //this._debugPrintAll("after");
+
+    this.normalizeProband();
 
     var newNodes = this._getAllNodes();
 
@@ -3202,6 +3304,9 @@ Heuristics.prototype = {
 
   improvePositioning: function (ranksBefore, rankYBefore) {
     var timer = new Timer();
+
+    // the graph was just edited: work out again which nodes belong to hidden branches
+    this.DG.invalidateHiddenNodes();
 
     //var xcoord = new XCoord(this.DG.positions, this.DG);
     //this.DG.displayGraph(xcoord.xcoord, "pre-fix");
