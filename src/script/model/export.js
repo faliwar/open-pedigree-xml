@@ -129,163 +129,196 @@ function removeOverlay(dom, kind) {
  * Temporarily detaches screen-only overlays, editing handles, invisible elements, and hidden branches
  * so that native SVG bounding box computation evaluates the true transformed bounds of visible nodes.
  */
-function captureExportSvgAndBBox(image, svgElement) {
-  var detached = [];
-  function detach(el) {
-    if (el && el.parentNode) {
-      detached.push({ parent: el.parentNode, next: el.nextSibling, el: el });
-      el.parentNode.removeChild(el);
+/**
+ * Returns the transformed bounding box of an SVG element in the coordinate space of svgElement.
+ * Fully resolves Raphael matrix/translation transforms, ensuring true on-canvas coordinates.
+ */
+function getTransformedBBox(el, svgElement) {
+  try {
+    var b = el.getBBox();
+    if (!b || (b.width === 0 && b.height === 0)) return null;
+
+    if (svgElement && typeof svgElement.getScreenCTM === 'function' && typeof el.getScreenCTM === 'function') {
+      var sCTM = svgElement.getScreenCTM();
+      var eCTM = el.getScreenCTM();
+      if (sCTM && eCTM) {
+        var m = sCTM.inverse().multiply(eCTM);
+        var p1x = m.a * b.x + m.c * b.y + m.e;
+        var p1y = m.b * b.x + m.d * b.y + m.f;
+        var p2x = m.a * (b.x + b.width) + m.c * b.y + m.e;
+        var p2y = m.b * (b.x + b.width) + m.d * b.y + m.f;
+        var p3x = m.a * (b.x + b.width) + m.c * (b.y + b.height) + m.e;
+        var p3y = m.b * (b.x + b.width) + m.d * (b.y + b.height) + m.f;
+        var p4x = m.a * b.x + m.c * (b.y + b.height) + m.e;
+        var p4y = m.b * b.x + m.d * (b.y + b.height) + m.f;
+        var minX = Math.min(p1x, p2x, p3x, p4x);
+        var minY = Math.min(p1y, p2y, p3y, p4y);
+        var maxX = Math.max(p1x, p2x, p3x, p4x);
+        var maxY = Math.max(p1y, p2y, p3y, p4y);
+        return {
+          x: minX,
+          y: minY,
+          maxX: maxX,
+          maxY: maxY,
+          width: maxX - minX,
+          height: maxY - minY
+        };
+      }
     }
+
+    if (el.transform && el.transform.baseVal && el.transform.baseVal.numberOfItems > 0) {
+      try {
+        var consolidated = el.transform.baseVal.consolidate();
+        if (consolidated && consolidated.matrix) {
+          var mat = consolidated.matrix;
+          var x1 = mat.a * b.x + mat.c * b.y + mat.e;
+          var y1 = mat.b * b.x + mat.d * b.y + mat.f;
+          var x2 = mat.a * (b.x + b.width) + mat.c * (b.y + b.height) + mat.e;
+          var y2 = mat.b * (b.x + b.width) + mat.d * (b.y + b.height) + mat.f;
+          return {
+            x: Math.min(x1, x2),
+            y: Math.min(y1, y2),
+            maxX: Math.max(x1, x2),
+            maxY: Math.max(y1, y2),
+            width: Math.abs(x2 - x1),
+            height: Math.abs(y2 - y1)
+          };
+        }
+      } catch (e) {}
+    }
+
+    return {
+      x: b.x,
+      y: b.y,
+      maxX: b.x + b.width,
+      maxY: b.y + b.height,
+      width: b.width,
+      height: b.height
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Computes a tight, transform-aware bounding box of only visible, exportable pedigree elements.
+ * Correctly excludes hidden branches (collapsed individuals), screen-only overlays, and editing handles.
+ */
+function computeVisibleBBox(svgElement) {
+  var graph = (typeof editor !== 'undefined' && editor && editor.getGraph) ? editor.getGraph() : null;
+  var hasGraph = graph && typeof graph.getMaxNodeId === 'function';
+
+  var graphMinX = Infinity, graphMinY = Infinity, graphMaxX = -Infinity, graphMaxY = -Infinity;
+  var hasVisibleNodes = false;
+  var radius = (typeof PedigreeEditorParameters !== 'undefined' && PedigreeEditorParameters.attributes && PedigreeEditorParameters.attributes.radius) || 40;
+
+  if (hasGraph) {
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (!graph.isValidID(id)) continue;
+      if (graph.isHiddenBranch && graph.isHiddenBranch(id)) continue;
+      var node = editor.getNode(id);
+      if (!node || !node.getX || (node.isVirtual && node.isVirtual())) continue;
+
+      var nx = node.getX();
+      var ny = node.getY();
+      var rad = radius * 1.35; // covers 1.25 * radius deceased slashes
+      graphMinX = Math.min(graphMinX, nx - rad);
+      graphMaxX = Math.max(graphMaxX, nx + rad);
+      graphMinY = Math.min(graphMinY, ny - rad);
+      graphMaxY = Math.max(graphMaxY, ny + rad);
+
+      if (node.getGraphics && node.getGraphics()) {
+        var g = node.getGraphics();
+        if (typeof g.getBottomY === 'function') {
+          graphMaxY = Math.max(graphMaxY, g.getBottomY() + 40);
+        }
+        if (g._labelsBox) {
+          try {
+            var lbX = g._labelsBox.attr('x');
+            var lbW = g._labelsBox.attr('width');
+            if (isFinite(lbX) && isFinite(lbW) && lbW > 0) {
+              graphMinX = Math.min(graphMinX, lbX - 10);
+              graphMaxX = Math.max(graphMaxX, lbX + lbW + 10);
+            }
+          } catch (e) {}
+        }
+      }
+      hasVisibleNodes = true;
+    }
+  }
+
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  var foundAny = false;
+
+  if (svgElement && typeof svgElement.querySelectorAll === 'function') {
+    var all = svgElement.querySelectorAll('path, rect, circle, ellipse, text, polygon, polyline, image');
+    var margin = 90;
+    var allowedMinX = hasVisibleNodes ? (graphMinX - margin) : -Infinity;
+    var allowedMaxX = hasVisibleNodes ? (graphMaxX + margin) : Infinity;
+    var allowedMinY = hasVisibleNodes ? (graphMinY - margin) : -Infinity;
+    var allowedMaxY = hasVisibleNodes ? (graphMaxY + margin) : Infinity;
+
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.classList && el.classList.contains('panning-background')) continue;
+      if (el.getAttribute('data-opx-export') === 'omit') continue;
+      var ov = el.getAttribute('data-opx-overlay');
+      if (ov === 'cascade' || ov === 'search' || ov === 'collapsed-badge') continue;
+
+      var s = el.style;
+      if (s) {
+        if (s.display === 'none' || s.visibility === 'hidden') continue;
+        if (s.opacity === '0' || (s.fillOpacity === '0' && s.strokeOpacity === '0')) continue;
+      }
+      if (el.getAttribute('display') === 'none' || el.getAttribute('visibility') === 'hidden') continue;
+      if (el.getAttribute('opacity') === '0') continue;
+      if (el.getAttribute('fill-opacity') === '0' && (el.getAttribute('stroke-opacity') === '0' || el.getAttribute('stroke') === 'none')) continue;
+      if (el.getAttribute('fill') === 'none' && (el.getAttribute('stroke') === 'none' || !el.getAttribute('stroke')) && !el.textContent) continue;
+      if (el.classList && (el.classList.contains('hover-box') || el.classList.contains('delete'))) continue;
+
+      var tb = getTransformedBBox(el, svgElement);
+      if (tb && (tb.width > 0 || tb.height > 0)) {
+        if (hasVisibleNodes) {
+          if (tb.maxX < allowedMinX || tb.x > allowedMaxX ||
+              tb.maxY < allowedMinY || tb.y > allowedMaxY) {
+            continue;
+          }
+        }
+        minX = Math.min(minX, tb.x);
+        minY = Math.min(minY, tb.y);
+        maxX = Math.max(maxX, tb.maxX);
+        maxY = Math.max(maxY, tb.maxY);
+        foundAny = true;
+      }
+    }
+  }
+
+  var pad = 36;
+  if (foundAny && isFinite(minX) && isFinite(maxX) && maxX > minX && maxY > minY) {
+    return {
+      x: Math.floor(minX - pad),
+      y: Math.floor(minY - pad),
+      width: Math.ceil(maxX - minX + pad * 2),
+      height: Math.ceil(maxY - minY + pad * 2)
+    };
+  }
+
+  if (hasVisibleNodes && isFinite(graphMinX) && graphMaxX > graphMinX) {
+    return {
+      x: Math.floor(graphMinX - pad),
+      y: Math.floor(graphMinY - pad),
+      width: Math.ceil(graphMaxX - graphMinX + pad * 2),
+      height: Math.ceil(graphMaxY - graphMinY + pad * 2)
+    };
   }
 
   try {
-    // 1. Detach background rect (.panning-background)
-    var bg = image.getElementsByClassName('panning-background');
-    for (var bIdx = bg.length - 1; bIdx >= 0; bIdx--) {
-      detach(bg[bIdx]);
-    }
-
-    // 2. Detach editing handles and omitted elements (junction circles, badges, etc.)
-    var omitted = svgElement.querySelectorAll('[data-opx-export="omit"]');
-    for (var i = 0; i < omitted.length; i++) {
-      detach(omitted[i]);
-    }
-
-    // 3. Detach screen-only overlays
-    var overlays = svgElement.querySelectorAll('[data-opx-overlay="cascade"], [data-opx-overlay="search"], [data-opx-overlay="collapsed-badge"]');
-    for (var j = 0; j < overlays.length; j++) {
-      detach(overlays[j]);
-    }
-
-    // 4. Detach hidden branch graphics from editor.getGraph()
-    if (typeof editor !== 'undefined' && editor && editor.getGraph) {
-      var graph = editor.getGraph();
-      if (graph && typeof graph.getMaxNodeId === 'function') {
-        for (var nId = 0; nId <= graph.getMaxNodeId(); nId++) {
-          if (!graph.isValidID(nId)) continue;
-          if (graph.isHiddenBranch && graph.isHiddenBranch(nId)) {
-            var nodeObj = editor.getNode(nId);
-            if (nodeObj && nodeObj.getGraphics) {
-              var gr = nodeObj.getGraphics();
-              if (gr && gr.getAllGraphics) {
-                try {
-                  gr.getAllGraphics().forEach(function (item) {
-                    if (item && item.node) detach(item.node);
-                  });
-                } catch (e) { }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 5. Detach invisible / zero-opacity / non-rendered elements
-    var allEls = svgElement.querySelectorAll('path, rect, circle, ellipse, text, g, polygon, polyline, image');
-    for (var k = 0; k < allEls.length; k++) {
-      var el = allEls[k];
-      if (!el.parentNode) continue;
-
-      var s = el.style;
-      var isHidden = false;
-      if (s) {
-        if (s.display === 'none' || s.visibility === 'hidden') isHidden = true;
-        if (s.opacity === '0' || (s.fillOpacity === '0' && (s.strokeOpacity === '0' || s.stroke === 'none'))) isHidden = true;
-      }
-      if (el.getAttribute('display') === 'none' || el.getAttribute('visibility') === 'hidden') isHidden = true;
-      if (el.getAttribute('opacity') === '0') isHidden = true;
-      if (el.getAttribute('fill-opacity') === '0' && (el.getAttribute('stroke-opacity') === '0' || el.getAttribute('stroke') === 'none')) isHidden = true;
-      if (el.getAttribute('fill') === 'none' && (el.getAttribute('stroke') === 'none' || !el.getAttribute('stroke')) && !el.textContent) isHidden = true;
-      if (el.classList && (el.classList.contains('hover-box') || el.classList.contains('delete'))) isHidden = true;
-
-      if (isHidden) {
-        detach(el);
-      }
-    }
-
-    // 6. Native SVG bounding box calculation with all transforms applied
-    var bbox = null;
-    try {
-      bbox = svgElement.getBBox();
-    } catch (e) {
-      console.warn('svgElement.getBBox failed:', e);
-    }
-
-    // Fallback: graph node positions if getBBox is unavailable or returned zero/invalid bounds
-    if (!bbox || bbox.width <= 0 || bbox.height <= 0 || !isFinite(bbox.x) || !isFinite(bbox.y)) {
-      var graphMinX = Infinity, graphMinY = Infinity, graphMaxX = -Infinity, graphMaxY = -Infinity;
-      var hasVis = false;
-      if (typeof editor !== 'undefined' && editor && editor.getGraph) {
-        var g = editor.getGraph();
-        var rad = (typeof PedigreeEditorParameters !== 'undefined' && PedigreeEditorParameters.attributes && PedigreeEditorParameters.attributes.radius) || 40;
-        for (var id = 0; id <= g.getMaxNodeId(); id++) {
-          if (!g.isValidID(id) || (g.isHiddenBranch && g.isHiddenBranch(id))) continue;
-          var nd = editor.getNode(id);
-          if (!nd || !nd.getX || (nd.isVirtual && nd.isVirtual())) continue;
-          var nx = nd.getX(), ny = nd.getY();
-          graphMinX = Math.min(graphMinX, nx - rad * 1.5);
-          graphMaxX = Math.max(graphMaxX, nx + rad * 1.5);
-          graphMinY = Math.min(graphMinY, ny - rad * 1.5);
-          graphMaxY = Math.max(graphMaxY, ny + rad * 1.5);
-          if (nd.getGraphics && nd.getGraphics()) {
-            var ngr = nd.getGraphics();
-            if (typeof ngr.getBottomY === 'function') {
-              graphMaxY = Math.max(graphMaxY, ngr.getBottomY() + 60);
-            }
-          }
-          hasVis = true;
-        }
-      }
-      if (hasVis && isFinite(graphMinX) && graphMaxX > graphMinX) {
-        bbox = {
-          x: graphMinX,
-          y: graphMinY,
-          width: graphMaxX - graphMinX,
-          height: graphMaxY - graphMinY
-        };
-      } else {
-        bbox = { x: 0, y: 0, width: svgElement.clientWidth || 1200, height: svgElement.clientHeight || 900 };
-      }
-    }
-
-    var pad = 36;
-    var bX = Math.floor(bbox.x - pad);
-    var bY = Math.floor(bbox.y - pad);
-    var bWidth = Math.ceil(bbox.width + pad * 2);
-    var bHeight = Math.ceil(bbox.height + pad * 2);
-
-    var rawSvg = image.innerHTML
-      .replace(/&nbsp;/g, '&#160;')
-      .replace(/xmlns:xlink=".*?"/, '')
-      .replace(/width=".*?"/, '')
-      .replace(/height=".*?"/, '');
-
-    if (/viewBox=".*?"/.test(rawSvg)) {
-      rawSvg = rawSvg.replace(/viewBox=".*?"/, 'viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
-    } else {
-      rawSvg = rawSvg.replace(/<svg /i, '<svg viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
-    }
-
-    var context = window.location.href.replace(/&/g, '&amp;');
-    rawSvg = rawSvg.split(context).join('');
-
-    return {
-      rawSvg: rawSvg,
-      bX: bX,
-      bY: bY,
-      bWidth: bWidth,
-      bHeight: bHeight
-    };
-  } finally {
-    // 7. Restore all detached elements in reverse order to preserve exact DOM tree order
-    for (var r = detached.length - 1; r >= 0; r--) {
-      var item = detached[r];
-      if (item.parent && item.el) {
-        item.parent.insertBefore(item.el, item.next);
-      }
-    }
+    return svgElement.getBBox();
+  } catch (e) {
+    return { x: 0, y: 0, width: svgElement.clientWidth || 1200, height: svgElement.clientHeight || 900 };
   }
 }
+
 
 PedigreeExport.exportAsSVG = function (pedigree, privacySetting = 'all') {
   var restoredPrivacyLabels = false;
@@ -297,13 +330,38 @@ PedigreeExport.exportAsSVG = function (pedigree, privacySetting = 'all') {
   }
   try {
     var image = $('canvas');
+    var background = image.getElementsByClassName('panning-background')[0];
+    var backgroundPosition = background ? background.nextSibling : null;
+    var backgroundParent = background ? background.parentNode : null;
+    if (backgroundParent && background) {
+      backgroundParent.removeChild(background);
+    }
+
     var svgElement = image.down();
-    var captured = captureExportSvgAndBBox(image, svgElement);
-    var bX = captured.bX;
-    var bY = captured.bY;
-    var bWidth = captured.bWidth;
-    var bHeight = captured.bHeight;
-    var pedigreeImage = captured.rawSvg;
+    var bbox = computeVisibleBBox(svgElement);
+    var bWidth = (bbox && bbox.width > 0) ? bbox.width : (svgElement.clientWidth || 1200);
+    var bHeight = (bbox && bbox.height > 0) ? bbox.height : (svgElement.clientHeight || 900);
+    var bX = (bbox && typeof bbox.x === 'number') ? bbox.x : 0;
+    var bY = (bbox && typeof bbox.y === 'number') ? bbox.y : 0;
+
+    var pedigreeImage = image.innerHTML
+      .replace(/&nbsp;/g, '&#160;')
+      .replace(/xmlns:xlink=".*?"/, '')
+      .replace(/width=".*?"/, '')
+      .replace(/height=".*?"/, '');
+
+    if (/viewBox=".*?"/.test(pedigreeImage)) {
+      pedigreeImage = pedigreeImage.replace(/viewBox=".*?"/, 'viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+    } else {
+      pedigreeImage = pedigreeImage.replace(/<svg\b/i, '<svg viewBox="' + bX + ' ' + bY + ' ' + bWidth + ' ' + bHeight + '" width="' + bWidth + '" height="' + bHeight + '" xmlns:xlink="http://www.w3.org/1999/xlink"');
+    }
+
+    var context = window.location.href.replace(/&/g, '&amp;');
+    pedigreeImage = pedigreeImage.split(context).join('');
+
+    if (backgroundParent && background) {
+      backgroundParent.insertBefore(background, backgroundPosition);
+    }
 
     const parser = new DOMParser();
     let dom = parser.parseFromString(pedigreeImage, 'image/svg+xml');
