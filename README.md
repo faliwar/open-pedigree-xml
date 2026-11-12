@@ -34,18 +34,20 @@ OPX (Open Pedigree X) is an enhanced fork of [Open Pedigree by PhenoTips](https:
 - **Family History Summary (`Y`)**: Writes the family history for the medical record in English or Portuguese, one line per relative in clinical order (parents and ancestry, father, mother, siblings with their children, the proband's children, maternal and paternal grandparents and uncles/aunts), with ages or ages at death, conditions with age at diagnosis, test results and comments; relatives with nothing recorded are grouped (e.g., *"- 3 tios e 1 tia (lado paterno), sem condições registradas."*).
 - **CanRisk / BOADICEA v4 Export**: Generates compliant CanRisk files mapped with breast pathology, multi-gene panels, Ashkenazi ancestry flags, and generation IDs (`I-1`, `II-1`).
 - **Ancestry Tracking**: Multi-ancestry tracking (gnomAD groups + founder populations) with per-node chart display.
-- **Bennett et al. (2008 / 2022) Pedigree Nomenclature**: Assisted reproduction (`D` gamete donors and `S` surrogates) with an interactive linking handle and biological vs. gestational kinship modeling; sex assigned at birth (`AMAB`, `AFAB`, `UAAB`) distinct from gender; childless/infertility reason; consanguineous degree label; and unknown family history (`?`).
+- **Bennett et al. (2008 / 2022) Pedigree Nomenclature**: Assisted reproduction (`D` gamete donors and `S` surrogates) with an interactive linking handle and biological vs. gestational kinship modeling; sex assigned at birth (`AMAB`, `AFAB`, `UAAB`) distinct from gender; consultand designation (`C`) separate from proband (`P`); unknown twin zygosity (`?`); childless/infertility reason; consanguineous degree label; and unknown family history (`?`).
 
 ### 🎨 Charting, Navigation & Usability
+- **Branch Collapsing**: Collapse distant or secondary family branches to focus on core relatives, with branch count badges (`+N`) and one-click expand all (`action-expand-all`).
 - **Search & Filters (`/` or `Ctrl+F`)**: Filter people by diagnosis, gene results, age, ancestry, or degree of relationship with real-time visual canvas rings.
 - **Robust Graph Layout**: Full rendering support for complex family setups (consanguinity, childless couples, parentless siblings/individuals), manual twin linking, and compact single-parent and donor placement. Reassignable probands.
+- **High-Performance Canvas**: Cached text metrics and smart node preservation make large pedigrees (100+ individuals) up to 5× faster during editing, undo, and redo.
 - **Fast Keyboard Editing**: Single-key additions (`P` parents, `S` sibling, `C` child, `R` partner, `M`/`F`/`U` sex, `D` deceased, `N` notes).
 - **Mobile & Touch**: Smooth pinch-to-zoom, pan, responsive header menus, and touch-calibrated hoverboxes.
 - **Session Safety & History**: In-browser draft autosave prevents tab-close losses. View session undo/redo timelines in plain language via *Edit → History*.
 
 ### 💾 Interoperability & Cloud
 - **Invitae / Progeny XML**: Full round-trip fidelity preserving `<condition_tests>`, `<surgical_removals>`, `<gail_properties>`, custom condition colors (`#RRGGBB`), cascade testing state, and pedigree notes.
-- **Standard Imports/Exports**: Import from PED, LINKAGE, GEDCOM, BOADICEA, and GA4GH Pedigree (FHIR). Export vector PDFs with embedded round-trip XML or copy directly to clipboard.
+- **Standard Imports/Exports**: Import from PED, LINKAGE, GEDCOM, BOADICEA, and GA4GH Pedigree (FHIR). Export vector PDFs and high-res PNGs with transform-aware visible bounding boxes (no blank whitespace on collapsed charts or node clipping) and embedded round-trip XML.
 - **Google Workspace Ready**: Native integration with Google Apps Script and Google Drive for cloud-based file management, auto-saving, and sidebar embedding.
 
 ---

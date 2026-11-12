@@ -17,12 +17,12 @@ var store = {
 
 // What's new in this version: [title, description, action]. Update it for each minor release.
 var NEWS = [
-  ['Assisted reproduction (D / S)', 'Gamete donors (D) and surrogates (S) with an interactive linking handle, plus biological vs. gestational kinship in cascade testing and summaries.', null],
-  ['Bennett 2008 / 2022 nomenclature', 'Sex assigned at birth (AMAB, AFAB, UAAB) distinct from gender, childless/infertility reason, consanguineous degree label and unknown family history (?).', null],
-  ['Cascade testing saved in XML & PDF', 'Cascade testing settings and selected relatives are saved inside Invitae/Progeny XML and PDF files.', function() { editor.getCascadeTestingDialog().show(); }],
-  ['Custom condition colors in XML', 'Condition colors chosen in the legend (#RRGGBB) are saved and restored when importing XML or PDF.', null],
-  ['External identifier privacy & display', 'Show or hide external identifiers under Label Display Options, and automatically strip them when exporting without personal information.', function() { editor.getLabelOptionsSelector().show(); }],
-  ['Manual twin linking & layout', 'Link existing siblings as twins from the node menu, and keep single-parent and donor symbols compact.', null]
+  ['Hide and show branches', 'Collapse distant or secondary family branches to focus on core relatives, with counter badge (+N) and one-click expand all.', function() { Controller.expandAll(); }],
+  ['Consultand indicator (C)', 'Designate the consultand (person seeking genetic counselling) with a dedicated arrow, distinct from the affected proband (P).', null],
+  ['Unknown twin zygosity (?)', 'Bennett et al. nomenclature symbol for twins of unknown zygosity.', null],
+  ['High-performance rendering', 'Cached text metrics and smart node preservation make large pedigrees up to 5× faster to edit, undo, and redo.', null],
+  ['Pixel-perfect PDF & image export', 'Transform-aware bounding box framed tightly to visible relatives without blank whitespace, badge artifacts, or cropped nodes.', function() { editor.getExportSelector().show(); }],
+  ['Compact person menu', 'Space-optimized person editor with conditional sections for sex assigned at birth and reproductive history.', null]
 ];
 
 var timeAgo = function(savedAt) {
