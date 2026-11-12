@@ -85,6 +85,21 @@ InvitaeConverter._getDisorderHexColor = function (disorderKey, disorderName) {
   return hexColor ? hexColor.toUpperCase() : '';
 };
 
+/** 'M', 'F' or 'U' of an <indi>: its "Sex assigned at birth" note when present, else its gender */
+InvitaeConverter._sexForTwins = function(indiEl) {
+  var notes = indiEl ? indiEl.querySelectorAll(':scope > notes > note') : [];
+  for (var i = 0; i < notes.length; i++) {
+    if (notes[i].getAttribute('string_title') === STANDARD_NOTES.sexAtBirth) {
+      var v = String(notes[i].getAttribute('string_value') || notes[i].getAttribute('value') || '').trim().toUpperCase();
+      if (v === 'AMAB') return 'M';
+      if (v === 'AFAB') return 'F';
+      if (v === 'UAAB') return 'U';
+    }
+  }
+  var g = InvitaeConverter._getChildAttr(indiEl, 'gender', 'value');
+  return g === '0' ? 'M' : (g === '1' ? 'F' : 'U');
+};
+
 InvitaeConverter._getDisorderColorIndex = function (disorderKey, disorderName, disorderIndexMap) {
   var hexColor = InvitaeConverter._getDisorderHexColor(disorderKey, disorderName);
 
@@ -403,8 +418,9 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
     var r = findTwinRoot(id);
     if (rootGroup[r] === undefined) rootGroup[r] = nextTwinGroup++;
     twinGroupIdMap[id] = rootGroup[r];
-    var g = InvitaeConverter._getChildAttr(indiById[id], 'gender', 'value');
-    (twinGroupGenders[rootGroup[r]] = twinGroupGenders[rootGroup[r]] || {})[g] = true;
+    // monozygotic twins share the sex (sex at birth note when present, else the symbol), not the symbol
+    var g = InvitaeConverter._sexForTwins(indiById[id]);
+    if (g !== 'U') (twinGroupGenders[rootGroup[r]] = twinGroupGenders[rootGroup[r]] || {})[g] = true;
   });
   twinPairMz.forEach(function(p) {
     if (p.mz) twinGroupMz[twinGroupIdMap[p.a]] = true;
@@ -447,7 +463,7 @@ InvitaeConverter.initFromInvitaeXML = function (inputText) {
       var tg = twinGroupIdMap[indiId];
       properties.twinGroup = tg;
       // monozygotic twins share the sex; a mixed-sex group can only be dizygotic
-      properties.monozygotic = !!twinGroupMz[tg] && Object.keys(twinGroupGenders[tg] || {}).length === 1;
+      properties.monozygotic = !!twinGroupMz[tg] && Object.keys(twinGroupGenders[tg] || {}).length <= 1;
     }
 
     var useId;

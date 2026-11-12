@@ -1512,7 +1512,22 @@ PositionedGraph.prototype = {
     var totalPenaltyForFatherOnRight = 0;  // penalty for not having father on the left/mother on the right
     var totalPenaltyForChildAgeOrder = 0;  // penalty for not having children ordered by age
 
-    for (var i = 0; i < this.GG.getNumVertices(); i++) {
+    // performance: when only one rank is of interest only visit vertices on ranks [onlyRank-1, onlyRank+1]
+    // (only relationship and childhub vertices contribute to the score, and those are always in the ordering)
+    var verticesToCheck;
+    if (onlyRank) {
+      verticesToCheck = [];
+      for (var r = Math.max(0, onlyRank - 1); r <= onlyRank + 1 && r < order.order.length; r++) {
+        var atRank = order.order[r];
+        for (var k = 0; k < atRank.length; k++) {
+          verticesToCheck.push(atRank[k]);
+        }
+      }
+    }
+    var numToCheck = onlyRank ? verticesToCheck.length : this.GG.getNumVertices();
+
+    for (var idx = 0; idx < numToCheck; idx++) {
+      var i = onlyRank ? verticesToCheck[idx] : idx;
 
       if (onlyRank) {
         var rank = this.ranks[i];
@@ -1565,11 +1580,9 @@ PositionedGraph.prototype = {
           var maxOrder = order.vOrder[orderedChildren[orderedChildren.length-1]];
           totalEdgeLengthInChildren += (maxOrder - minOrder);
 
-          var leftChildDOB = this.GG.properties[orderedChildren[0]].hasOwnProperty('dob') ?
-            new Date(this.GG.properties[orderedChildren[0]]['dob']) : null;
+          var leftChildDOB = this._getDOBTime(orderedChildren[0]);
           for (var j = 1; j < orderedChildren.length; j++) {
-            var thisChildDOB = this.GG.properties[orderedChildren[j]].hasOwnProperty('dob') ?
-              new Date(this.GG.properties[orderedChildren[j]]['dob']) : null;
+            var thisChildDOB = this._getDOBTime(orderedChildren[j]);
 
             if (thisChildDOB != null) {
               if (leftChildDOB == null) {
@@ -1577,7 +1590,7 @@ PositionedGraph.prototype = {
                 totalPenaltyForChildAgeOrder++;
               } else {
                 // both are not null: compare dates
-                if (leftChildDOB.getTime() > thisChildDOB.getTime()) {
+                if (leftChildDOB > thisChildDOB) {
                   // penalty for older child on the right
                   totalPenaltyForChildAgeOrder++;
                 }
@@ -1590,6 +1603,31 @@ PositionedGraph.prototype = {
     }
 
     return totalEdgeLengthInPositions*100000 + totalEdgeLengthInChildren*1000 + totalPenaltyForFatherOnRight*5 + totalPenaltyForChildAgeOrder;
+  },
+
+  // Returns the date of birth of v as a timestamp (or null if v has no date of birth).
+  // Parsed dates are cached on the properties object (keyed by the raw value, so edits are picked up),
+  // since edge_length_score() is called many thousands of times during ordering.
+  _getDOBTime: function(v) {
+    var props = this.GG.properties[v];
+    if (!props || !props.hasOwnProperty('dob')) {
+      return null;
+    }
+    if (!this._dobCache) {
+      this._dobCache = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+    }
+    var raw = props['dob'];
+    if (this._dobCache) {
+      var cached = this._dobCache.get(props);
+      if (cached && cached.raw === raw) {
+        return cached.time;
+      }
+    }
+    var time = new Date(raw).getTime();
+    if (this._dobCache) {
+      this._dobCache.set(props, { raw: raw, time: time });
+    }
+    return time;
   },
 
   edge_crossing: function(order, onlyRank, dontUseApproximationForRelationshipEdges) {

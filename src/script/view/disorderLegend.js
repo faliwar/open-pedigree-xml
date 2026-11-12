@@ -35,11 +35,14 @@ var DisorgerLegend = Class.create(Legend, {
     document.observe('pedigree:condition:rename', function (event) {
       _this._onRename(event);
     });
-    document.observe('mousedown', function (event) {
+    var closeOutside = function (event) {
       if (_this._picker && !event.findElement('.condition-color-picker') && !event.findElement('.disorder-color') && !event.findElement('.disorder-name')) {
         _this._closePicker();
       }
-    });
+    };
+    // touchstart too: on touch screens the canvas takes the touch and no mousedown follows
+    document.observe('mousedown', closeOutside);
+    document.observe('touchstart', closeOutside);
   },
 
   /** Colour chosen by the user for this condition (saved with the pedigree), or '' */

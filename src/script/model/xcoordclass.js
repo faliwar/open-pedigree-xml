@@ -4,16 +4,21 @@ import BaseGraph from 'pedigree/model/baseGraph';
 /*
  * xinit: coordinates of _center_ of every vertex, or null
  */
-var XCoord = function (xinit, graph) {
+var XCoord = function (xinit, graph, halfWidth) {
   this.graph = graph;
 
   // local copies just for convenience & performance
-  this.halfWidth = [];
-  for (var i = 0; i < graph.GG.vWidth.length; i++) {
-    if (this.isSingleParentRel(i) || this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
-      this.halfWidth[i] = 0;
-    } else {
-      this.halfWidth[i] = Math.floor(graph.GG.vWidth[i] / 2);
+  // (halfWidth depends only on the graph, so copies share it instead of recomputing it)
+  if (halfWidth) {
+    this.halfWidth = halfWidth;
+  } else {
+    this.halfWidth = [];
+    for (var i = 0; i < graph.GG.vWidth.length; i++) {
+      if (this.isSingleParentRel(i) || this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
+        this.halfWidth[i] = 0;
+      } else {
+        this.halfWidth[i] = Math.floor(graph.GG.vWidth[i] / 2);
+      }
     }
   }
 
@@ -345,12 +350,24 @@ XCoordScore.prototype = {
     if (!this.inEdgeMaxLen[u] || length > this.inEdgeMaxLen[u]) {
       this.inEdgeMaxLen[u] = length;
     }
+    // note: unset entries below u are treated as 0 (see _sumAndMax), which avoids
+    //       an O(V) fill on every edge
+  },
 
-    for (var i = 0; i < u; i++) {
-      if (this.inEdgeMaxLen[i] === undefined) {
-        this.inEdgeMaxLen[i] = 0;
+  // sum and max of inEdgeMaxLen, treating unset entries as 0
+  // (max of an empty array is -Infinity, same as Math.max())
+  _sumAndMax: function () {
+    var arr = this.inEdgeMaxLen;
+    var sum = 0;
+    var max = -Infinity;
+    for (var i = 0, len = arr.length; i < len; i++) {
+      var val = arr[i] === undefined ? 0 : arr[i];
+      sum += val;
+      if (val > max) {
+        max = val;
       }
     }
+    return { sum: sum, max: max };
   },
 
   isBettertThan: function (otherScore) {
@@ -358,15 +375,13 @@ XCoordScore.prototype = {
       if (this.numStraightLong == otherScore.numStraightLong) {
         // if score is the same the arrangements with smaller sum of
         // longest in-edges wins
-        var score1 = this.inEdgeMaxLen.length == 0 ? 0 : this.inEdgeMaxLen.reduce(function (a, b) {
-          return a + b;
-        });
-        var score2 = otherScore.inEdgeMaxLen.length == 0 ? 0 : otherScore.inEdgeMaxLen.reduce(function (a, b) {
-          return a + b;
-        });
+        var s1 = this._sumAndMax();
+        var s2 = otherScore._sumAndMax();
+        var score1 = s1.sum;
+        var score2 = s2.sum;
 
         if (score1 == score2) {
-          return (Math.max.apply(null, this.inEdgeMaxLen) < Math.max.apply(null, otherScore.inEdgeMaxLen));
+          return (s1.max < s2.max);
         } // given everything else equal, prefer layout with shorter longest edge
 
         return (score1 < score2); // prefer layout with smaller total edge length

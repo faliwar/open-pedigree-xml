@@ -1,4 +1,5 @@
 import { Timer } from 'pedigree/model/helpers';
+import { sexOfProperties, canShareSex } from 'pedigree/model/twinSex';
 import { ChildlessBehavior } from 'pedigree/view/abstractNode';
 import AbstractPerson from 'pedigree/view/abstractPerson';
 import PersonVisuals from 'pedigree/view/personVisuals';
@@ -1144,6 +1145,12 @@ var Person = Class.create(AbstractPerson, {
      * @param [skipConfirmation=false] {Boolean} if true, no confirmation box will pop up
      */
   remove: function($super) {
+    // the labels are about to be deleted: do not lay them out again after each step below
+    // (never resumed on purpose; measuring text is the slowest part of drawing a person)
+    var graphics = this.getGraphics();
+    if (graphics) {
+      graphics._labelBatchDepth = (graphics._labelBatchDepth || 0) + 1;
+    }
     this.setDisorders([]);  // remove disorders form the legend
     this.setHPO([]);
     this.setGenes([]);
@@ -1254,16 +1261,12 @@ var Person = Class.create(AbstractPerson, {
     var disableMonozygothic  = true;
     var twins = editor.getGraph().getAllTwinsSortedByOrder(this.getID());
     if (twins.length > 1) {
-      // check that there are twins and that all twins
-      // have the same gender, otherwise can't be monozygothic
+      // monozygotic twins share the sex (the sex at birth when recorded, else the symbol); their
+      // gender identity may differ
       inactiveMonozygothic = false;
-      disableMonozygothic  = false;
-      for (var i = 0; i < twins.length; i++) {
-        if (editor.getGraph().getGender(twins[i]) != this.getGender()) {
-          disableMonozygothic = true;
-          break;
-        }
-      }
+      var graph = editor.getGraph();
+      var sexes = twins.map(function(t) { return sexOfProperties(graph.getProperties(t)); });
+      disableMonozygothic = !canShareSex(sexes);
     }
 
     var inactiveCarriers = [];

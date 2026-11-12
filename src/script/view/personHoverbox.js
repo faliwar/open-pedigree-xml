@@ -27,9 +27,12 @@ var showArtChoices = function(personID, left, top) {
 
   var box = new Element('div', { 'class': 'art-choices twin-of-list' });
   box.insert(new Element('div', { 'class': 'twin-of-title' }).update(translate('Assisted reproduction')));
+  // touch screens do not send "mousedown" when the canvas takes the touch (it cancels the default
+  // action to pan and zoom), so the list also closes on pointer and touch events
+  var OUTSIDE_EVENTS = ['mousedown', 'pointerdown', 'touchstart'];
   var close = function() {
     box.parentNode && box.parentNode.removeChild(box);
-    document.removeEventListener('mousedown', onOutside, true);
+    OUTSIDE_EVENTS.forEach(function(type) { document.removeEventListener(type, onOutside, true); });
     document.removeEventListener('keydown', onKey, true);
   };
   var onOutside = function(e) { if (!box.contains(e.target)) close(); };
@@ -45,7 +48,7 @@ var showArtChoices = function(personID, left, top) {
   box.setStyle({ position: 'absolute', left: left + 'px', top: top + 'px', zIndex: 1000 });
   (editor.getWorkspace().getWorkArea ? editor.getWorkspace().getWorkArea() : document.body).insert(box);
   setTimeout(function() {
-    document.addEventListener('mousedown', onOutside, true);
+    OUTSIDE_EVENTS.forEach(function(type) { document.addEventListener(type, onOutside, true); });
     document.addEventListener('keydown', onKey, true);
   }, 0);
 };

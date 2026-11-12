@@ -1,6 +1,7 @@
 import { cloneObject, Timer } from 'pedigree/model/helpers';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { translate } from 'pedigree/i18n';
+import { sexOf, sexOfProperties, canShareSex, sharedSex, sexAtBirthFor } from 'pedigree/model/twinSex';
 
 /**
  * ...
@@ -223,6 +224,7 @@ var Controller = Class.create({
     var changed = false;
 
     var twinUpdate = undefined;
+    var reconcileTwinSex = false;
     var needUpdateAncestors = false;
     var needUpdateRelationship = false;
     var needUpdateAllRelationships = false;
@@ -309,13 +311,22 @@ var Controller = Class.create({
 
         changedValue = true;
 
-        if (propertySetFunction == 'setGender') {
-          if (node.getMonozygotic()) {
-            if (!twinUpdate) {
-              twinUpdate = {};
-            }
-            twinUpdate[propertySetFunction] = propValue;
+        // Monozygotic twins share the sex, not necessarily the gender identity the symbol shows
+        // (Bennett et al. 2022): a new symbol for one twin is not copied to the others. When it no
+        // longer matches the twins' sex and no sex at birth is recorded, that sex is recorded for
+        // this person (e.g. a circle with AMAB), so the twins keep the same sex.
+        if (propertySetFunction == 'setGender' && node.getMonozygotic() && node.getSexAtBirth && !node.getSexAtBirth()) {
+          var coTwinSex = sharedSex(Controller._coTwins(nodeID).map(function(t) {
+            return sexOfProperties(editor.getGraph().getProperties(t));
+          }));
+          // includes a diamond (non-binary): it is then drawn with the twins' sex at birth under it
+          if (coTwinSex && sexOf(node.getGender(), '') !== coTwinSex) {
+            undoEvent.memo.properties['setSexAtBirth'] = '';
+            node.setSexAtBirth(sexAtBirthFor(coTwinSex));
           }
+        }
+        if (propertySetFunction == 'setSexAtBirth' && node.getMonozygotic()) {
+          reconcileTwinSex = true;
         }
 
         if (propertySetFunction == 'setAdoptionStatus') {
@@ -355,6 +366,11 @@ var Controller = Class.create({
 
     // some properties should be the same for all the twins. If one of those
     // was changed, need to update all the twins
+    // a new sex at birth for a monozygotic twin applies to the whole twin group
+    if (reconcileTwinSex) {
+      Controller._shareTwinSex(nodeID);
+    }
+
     if (twinUpdate) {
       var allTwins = editor.getGraph().getAllTwinsSortedByOrder(nodeID);
       for (var propertySetFunction in twinUpdate) {
@@ -812,6 +828,30 @@ var Controller = Class.create({
   }
 });
 
+/** The other members of this person's twin group */
+Controller._coTwins = function(nodeID) {
+  return editor.getGraph().getAllTwinsSortedByOrder(nodeID).filter(function(t) { return t != nodeID; });
+};
+
+/**
+ * Gives the other monozygotic twins the sex of this person: a twin whose symbol already shows
+ * that sex needs no annotation; the others get the sex at birth written under the symbol.
+ */
+Controller._shareTwinSex = function(nodeID) {
+  var node = editor.getView().getNode(nodeID);
+  var sex = sexOf(node.getGender(), node.getSexAtBirth());
+  var unassigned = node.getSexAtBirth() === 'UAAB';
+  Controller._coTwins(nodeID).forEach(function(t) {
+    var twinNode = editor.getView().getNode(t);
+    if (!twinNode || !twinNode.setSexAtBirth || !twinNode.getMonozygotic()) return;
+    var twinSex = sexOf(twinNode.getGender(), twinNode.getSexAtBirth());
+    if (twinSex === sex && (twinNode.getSexAtBirth() === 'UAAB') === unassigned) return;
+    var symbolSex = sexOf(twinNode.getGender(), '');
+    twinNode.setSexAtBirth(unassigned ? 'UAAB' : (symbolSex === sex ? '' : sexAtBirthFor(sex)));
+    editor.getGraph().setProperties(t, twinNode.getProperties());
+  });
+};
+
 /** An unused key for a donor / surrogate (see Person.getArtKey) */
 Controller._nextArtKey = function() {
   var GG = editor.getGraph().DG.GG;
@@ -904,7 +944,8 @@ Controller._setTwinOf = function(nodeID, siblingID) {
     }
     // monozygotic twins share the sex: keep it only if this person matches
     var groupTwins = graph.getAllTwinsSortedByOrder(target);
-    var mz = !!GG.properties[target].monozygotic && graph.getGender(nodeID) == graph.getGender(target);
+    var mz = !!GG.properties[target].monozygotic &&
+      canShareSex([sexOfProperties(GG.properties[nodeID]), sexOfProperties(GG.properties[target])]);
     setTwin(nodeID, group, mz);
     if (!mz) {
       groupTwins.forEach(function(t) { setTwin(t, group, false); });
