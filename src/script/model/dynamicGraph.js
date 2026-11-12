@@ -172,6 +172,10 @@ DynamicPositionedGraph.prototype = {
     var oldProps = this.DG.GG.properties[id] || {};
     var hadArt = !!(oldProps.artLink || oldProps.artRole);
     this.DG.GG.properties[id] = newSetOfProperties;
+    // the drawn node was edited: it no longer matches the data it was first drawn from
+    if (typeof editor !== 'undefined' && editor && editor.getView && editor.getView() && editor.getView().noteNodeEdited) {
+      editor.getView().noteNodeEdited(id);
+    }
     var hasArt = !!(newSetOfProperties && (newSetOfProperties.artLink || newSetOfProperties.artRole));
     if (hadArt !== hasArt && this._heuristics) {
       this._heuristics.improvePositioning(this.DG.ranks.slice(0), this.DG.rankY.slice(0));

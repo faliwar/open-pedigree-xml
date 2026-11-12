@@ -195,6 +195,61 @@ function getElementHalfHeight(t) {
   return Math.floor(t.getBBox().height/2);
 }
 
+/**
+ * Moves a Raphael text element to (x, y); pass undefined to keep a coordinate.
+ *
+ * element.attr({x, y}) gives the same result, but Raphael measures the text again on every such
+ * call (to centre it vertically), and measuring text is the slowest thing a browser does while a
+ * pedigree is drawn. The vertical centring offset does not change when a text only moves, so the
+ * attributes can be written directly.
+ */
+function moveTextFast(el, x, y) {
+  var node = el.node;
+  var attrs = el.attrs;
+  if (x !== undefined && attrs.x !== x) {
+    attrs.x = x;
+    node.setAttribute('x', x);
+    // every line after the first has its own x
+    var tspans = node.getElementsByTagName('tspan');
+    for (var i = 0; i < tspans.length; i++) {
+      if (tspans[i].hasAttribute('x')) {
+        tspans[i].setAttribute('x', x);
+      }
+    }
+  }
+  if (y !== undefined && attrs.y !== y) {
+    attrs.y = y;
+    node.setAttribute('y', y);
+  }
+  if (el._) {
+    el._.dirty = 1;  // Raphael's cached bounding box no longer applies
+  }
+}
+
+/**
+ * Size of a Raphael text element relative to its (x, y), measured once and remembered for as
+ * long as its text and font size stay the same: { top, bottom, left, right, height }.
+ * The element must have no transform when it is first measured.
+ */
+function getTextMetrics(el) {
+  var attrs = el.attrs;
+  var cached = el._opxMetrics;
+  if (cached && cached.text === attrs.text && cached.fontSize === attrs['font-size']) {
+    return cached;
+  }
+  var box = el.getBBox();
+  el._opxMetrics = {
+    text: attrs.text,
+    fontSize: attrs['font-size'],
+    top: box.y - attrs.y,
+    bottom: box.y2 - attrs.y,
+    left: box.x - attrs.x,
+    right: box.x2 - attrs.x,
+    height: box.height
+  };
+  return el._opxMetrics;
+}
+
 //Animation helpers
 window.requestAnimFrame = (function(){
   return  window.requestAnimationFrame   ||
@@ -208,4 +263,4 @@ window.requestAnimFrame = (function(){
 })();
 
 
-export { sector, generateOrb, drawCornerCurve, drawLevelChangeCurve, findXInterceptGivenLineAndY, getElementHalfHeight };
+export { sector, generateOrb, drawCornerCurve, drawLevelChangeCurve, findXInterceptGivenLineAndY, getElementHalfHeight, moveTextFast, getTextMetrics };

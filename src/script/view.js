@@ -8,6 +8,18 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { drawCornerCurve, drawLevelChangeCurve } from 'pedigree/view/graphicHelpers';
 import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 
+// JSON with object keys in a fixed order, to compare two sets of properties
+var stableStringify = function (value) {
+  return JSON.stringify(value, function (key, v) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      var sorted = {};
+      Object.keys(v).sort().forEach(function (k) { sorted[k] = v[k]; });
+      return sorted;
+    }
+    return v;
+  });
+};
+
 /**
  * View is responsible for graphical representation of th epedigree as well as user interaction
  *
@@ -404,8 +416,19 @@ var View = Class.create({
     }
 
     this.getNodeMap()[id] = node;
+    // what the node was drawn from, see _keepUnchangedPersons(); forgotten when the node is edited
+    node._drawnFrom = stableStringify(properties);
+    node._drawnProps = properties;
 
     return node;
+  },
+
+  /** The node's data changed: its drawing no longer matches the data it was created from */
+  noteNodeEdited: function (id) {
+    var node = this.getNodeMap()[id];
+    if (node) {
+      node._drawnFrom = null;
+    }
   },
 
   moveNode: function (id, animate) {
@@ -680,6 +703,64 @@ var View = Class.create({
     }
   },
 
+  /**
+   * Moves from "removed" + "new" to "moved" the people whose drawing can be kept: same id, same
+   * kind of node and exactly the same properties in the graph as in what is drawn. Relationships
+   * are always drawn again, as their lines depend on everyone around them.
+   */
+  _keepUnchangedPersons: function (changeSet) {
+    if (this._redrawEverything || changeSet.removed.length == 0 || changeSet['new'].length == 0 || changeSet.removedInternally.length > 0) {
+      return;
+    }
+    var graph = editor.getGraph();
+    var isNew = {};
+    for (var i = 0; i < changeSet['new'].length; i++) {
+      isNew[changeSet['new'][i]] = true;
+    }
+    var kept = {};
+    var anyKept = false;
+    for (var j = 0; j < changeSet.removed.length; j++) {
+      var id = changeSet.removed[j];
+      var node = this.getNodeMap()[id];
+      if (!isNew[id] || !node || !graph.isValidID(id) || !graph.isPerson(id) || (node instanceof Partnership)) {
+        continue;
+      }
+      try {
+        if (graph.isPersonGroup(id) != (node instanceof PersonGroup)) {
+          continue;
+        }
+        // the same as the data the node was drawn from (kept until the node is edited), or as
+        // the data the node itself reports
+        var wanted = stableStringify(graph.getProperties(id));
+        // the snapshot is trusted only if the object it was taken from was not changed in place
+        var snapshotValid = node._drawnFrom && stableStringify(node._drawnProps) === node._drawnFrom;
+        if (!(snapshotValid && wanted === node._drawnFrom) && wanted !== stableStringify(node.getProperties())) {
+          continue;
+        }
+        node._drawnFrom = wanted;
+        node._drawnProps = graph.getProperties(id);
+      } catch (e) {
+        continue;
+      }
+      kept[id] = true;
+      anyKept = true;
+    }
+    if (!anyKept) {
+      return;
+    }
+    var notKept = function (nodeID) { return !kept[nodeID]; };
+    changeSet.removed = changeSet.removed.filter(notKept);
+    changeSet['new'] = changeSet['new'].filter(notKept);
+    for (var keptID in kept) {
+      if (kept.hasOwnProperty(keptID)) {
+        keptID = parseInt(keptID, 10);
+        if (!arrayContains(changeSet.moved, keptID)) {
+          changeSet.moved.push(keptID);
+        }
+      }
+    }
+  },
+
   applyChanges: function (changeSet, markNew) {
     // applies change set of the form {"new": {list of nodes}, "moved": {list of nodes} }
 
@@ -708,6 +789,11 @@ var View = Class.create({
       if (!Array.isArray(changeSet['new'])) {
         changeSet['new'] = [];
       }
+
+      // A full reload (undo, redo, loading a saved state) lists every node as both removed and
+      // new. A person who is still there with the same data keeps their drawing and is only
+      // moved: drawing a person again (measuring their text) is by far the slowest step.
+      this._keepUnchangedPersons(changeSet);
 
       // 0. remove all removed
       //

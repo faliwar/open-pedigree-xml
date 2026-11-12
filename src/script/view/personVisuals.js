@@ -7,7 +7,7 @@ import { ChildlessBehaviorVisuals } from 'pedigree/view/abstractNodeVisuals';
 import PersonHoverbox from 'pedigree/view/personHoverbox';
 import ReadOnlyHoverbox from 'pedigree/view/readonlyHoverbox';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
-import { getElementHalfHeight, sector } from 'pedigree/view/graphicHelpers';
+import { sector, moveTextFast, getTextMetrics } from 'pedigree/view/graphicHelpers';
 import getAge from 'pedigree/view/ageCalc';
 import { testLabel as clinicalTestLabel, compactAge } from 'pedigree/model/clinicalData';
 import { getLanguage, translate } from 'pedigree/i18n';
@@ -813,7 +813,12 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      * @method setSelected
      */
   setSelected: function ($super, isSelected) {
+    // every edit "unselects" all people: only move the labels of those whose state changes
+    var changed = (!!this.isSelected() != !!isSelected);
     $super(isSelected);
+    if (!changed) {
+      return;
+    }
     if (isSelected) {
       this.shiftLabels();
     } else {
@@ -1116,20 +1121,22 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     for (var j = 0; j < labels.length; j++) {
       labels[j].stop();
       labels[j].transform('');
-      labels[j].attr('x', curX);
     }
 
+    // Each label is measured once (getTextMetrics) and placed without being measured again
+    // (moveTextFast): the positions are the same as with attr('x') / attr('y') and getBBox()
     for (var i = 0; i < labels.length; i++) {
-      var offset = (labels[i].alignTop) ? (getElementHalfHeight(labels[i]) - 7) : 0;
-      labels[i].attr('y', startY + offset);
-      labels[i].oy = (labels[i].attr('y') - selectionOffset);
-      startY = labels[i].getBBox().y2 + 11;
+      var metrics = getTextMetrics(labels[i]);
+      var offset = (labels[i].alignTop) ? (Math.floor(metrics.height / 2) - 7) : 0;
+      var labelY = startY + offset;
+      moveTextFast(labels[i], curX, labelY);
+      labels[i].oy = (labelY - selectionOffset);
+      startY = labelY + metrics.bottom + 11;
 
-      var bbox = labels[i].getBBox();
-      if (bbox.x < minX) minX = bbox.x;
-      if (bbox.x2 > maxX) maxX = bbox.x2;
-      if (bbox.y < minY) minY = bbox.y;
-      if (bbox.y2 > maxY) maxY = bbox.y2;
+      if (curX + metrics.left < minX) minX = curX + metrics.left;
+      if (curX + metrics.right > maxX) maxX = curX + metrics.right;
+      if (labelY + metrics.top < minY) minY = labelY + metrics.top;
+      if (labelY + metrics.bottom > maxY) maxY = labelY + metrics.bottom;
       hasLabels = true;
     }
     if (!editor.isUnsupportedBrowser()) {

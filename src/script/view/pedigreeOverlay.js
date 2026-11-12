@@ -2,6 +2,7 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { getLanguage, translate } from 'pedigree/i18n';
 import { makeInbreeding, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
+import { moveTextFast } from 'pedigree/view/graphicHelpers';
 
 /**
  * PedigreeOverlay draws non-interactive annotations on top of the pedigree canvas:
@@ -221,6 +222,8 @@ var PedigreeOverlay = Class.create({
       }
       if (this._showNumbering) {
         this._drawNumbering();
+      } else {
+        this._dropNumbers();
       }
       if (this._showInbreeding) {
         this._drawInbreeding();
@@ -235,6 +238,7 @@ var PedigreeOverlay = Class.create({
     var radius = PedigreeEditorParameters.attributes.radius || 40;
     var numbering = computeStandardNumbering(editor);
     if (!numbering.tiers.length) {
+      this._dropNumbers();
       return;
     }
 
@@ -242,26 +246,58 @@ var PedigreeOverlay = Class.create({
     var globalMinX = Math.min.apply(null, numbering.tiers.map(function(t) { return t.minX; }));
     var numeralX = globalMinX - radius * 2.6;
 
-    var _this = this;
-    numbering.tiers.forEach(function(tier) {
-      _this._tag(paper.text(numeralX, tier.y, tier.roman).attr({
+    // The numbers are kept between redraws and only moved: creating a text makes the browser
+    // measure it, and there is one per person, redrawn after every change to the pedigree
+    var pool = this._numberPool || (this._numberPool = {});
+    var used = {};
+    var place = function(key, x, y, content, attrs) {
+      var el = pool[key];
+      if (el && (el.removed || !el.node || !el.node.parentNode || el.attrs.text !== content)) {
+        try { el.remove(); } catch (e) {}
+        el = null;
+      }
+      if (el) {
+        moveTextFast(el, x, y);
+        el.toFront();
+      } else {
+        el = paper.text(x, y, content).attr(attrs);
+        el.node.setAttribute('data-opx-overlay', 'numbering');
+        el.node.style.pointerEvents = 'none';
+        pool[key] = el;
+      }
+      used[key] = true;
+    };
+
+    numbering.tiers.forEach(function(tier, t) {
+      place('tier' + t, numeralX, tier.y, tier.roman, {
         'font-size': 28,
         'font-family': 'Arial, Helvetica, sans-serif',
         'font-weight': 'bold',
         'fill': '#475569',
         'text-anchor': 'middle'
-      }), 'numbering');
+      });
 
       tier.persons.forEach(function(p) {
-        var label = numbering.byId[p.id].index;
-        _this._tag(paper.text(p.x - radius - 3, p.y - radius - 7, String(label)).attr({
+        place('person' + p.id, p.x - radius - 3, p.y - radius - 7, String(numbering.byId[p.id].index), {
           'font-size': 18,
           'font-family': 'Arial, Helvetica, sans-serif',
           'font-weight': 'bold',
           'fill': '#334155',
           'text-anchor': 'end'
-        }), 'numbering');
+        });
       });
+    });
+    this._dropNumbers(used);
+  },
+
+  // Removes the pooled numbers that are not in "used" (all of them when it is not given)
+  _dropNumbers: function(used) {
+    var pool = this._numberPool || {};
+    Object.keys(pool).forEach(function(key) {
+      if (!used || !used[key]) {
+        try { pool[key].remove(); } catch (e) {}
+        delete pool[key];
+      }
     });
   },
 

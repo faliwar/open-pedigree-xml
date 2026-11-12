@@ -70,12 +70,13 @@ var computeStandardNumbering = function(ed) {
       }
     }
     if (!tier) {
-      tier = { y: p.y, generation: p.generation, persons: [] };
+      tier = { y: p.y, sumY: 0, generation: p.generation, persons: [] };
       tiers.push(tier);
     }
     tier.persons.push(p);
     // mean drawing height of the generation, used to place its label on the canvas
-    tier.y = tier.persons.reduce(function(sum, q) { return sum + q.y; }, 0) / tier.persons.length;
+    tier.sumY += p.y;
+    tier.y = tier.sumY / tier.persons.length;
   });
 
   tiers.sort(function(a, b) { return byRank ? a.generation - b.generation : a.y - b.y; });
