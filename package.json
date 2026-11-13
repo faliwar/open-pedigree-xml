@@ -1,6 +1,6 @@
 {
   "name": "opx-pedigree",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "OPX (Open Pedigree X): a browser-based pedigree editor for clinical genetics, based on Open Pedigree by PhenoTips",
   "main": "index.js",
   "repository": {
