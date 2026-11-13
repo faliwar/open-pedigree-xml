@@ -69,6 +69,11 @@ var Controller = Class.create({
     editor.getView().applyChanges(changeSet, true);
     Controller._addArtLink(childID, key);
 
+    // now that the line of descent exists, the donor / surrogate can be placed near the child
+    // (see _placeDonorsNearChildren in the layout heuristics)
+    graph._heuristics.improvePositioning(graph.DG.ranks.slice(0), graph.DG.rankY.slice(0));
+    editor.getView().applyChanges({ 'moved': graph._getAllNodes() }, false);
+
     if (!event.memo.noUndoRedo) {
       editor.getActionStack().addState( event );
     }

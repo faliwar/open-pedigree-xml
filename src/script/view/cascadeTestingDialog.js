@@ -70,6 +70,8 @@ var CascadeTestingDialog = Class.create({
     this._approx = null;
     this._presetName = null;   // name of the model last imported or exported
     this._inUse = false;       // cascade testing was used for this pedigree: save its state with it
+    this._pendingShifts = [];  // renumberings not yet attached to an undo state, see onNodeIdsChanged()
+    this._refreshTimer = null;
     try {
       var saved = JSON.parse(localStorage.getItem('openpedigree_cascade_v1') || '{}');
       if (INHERITANCE_NAMES[saved.mode]) this._mode = saved.mode;
@@ -149,6 +151,10 @@ var CascadeTestingDialog = Class.create({
    */
   loadPedigreeState: function(state, idMap) {
     this.hide();
+    this._pendingShifts = [];
+    // rings drawn for the previous pedigree
+    var overlay = editor.getOverlay && editor.getOverlay();
+    if (overlay && overlay.hasCascadeHighlight()) overlay.clearCascadeHighlight();
     this._indexId = null;
     this._overrides = {};
     this._condition = null;
@@ -189,6 +195,104 @@ var CascadeTestingDialog = Class.create({
         this.highlight();
       } catch (e) {}
     }
+  },
+
+  // -------------------------------------------------------------------------------------------
+  // People are referred to by node id, and the ids after a removed node are renumbered: the index
+  // person and the relatives ticked by hand must follow, or they would silently become other people
+
+  /**
+   * Nodes were removed and the ones after them renumbered (called by the view).
+   * @param {Array} removed ids that no longer exist
+   * @param {Object} changed { old id: new id }
+   */
+  onNodeIdsChanged: function(removed, changed) {
+    var shift = { removed: (removed || []).map(Number), changed: Object.assign({}, changed || {}) };
+    this._applyIdShift(shift, false);
+    // kept for the undo state of this change, so that undoing it can renumber back
+    this._pendingShifts.push(shift);
+  },
+
+  /** The renumberings since the last call (for the undo / redo state being added), or null */
+  takeIdShifts: function() {
+    var shifts = this._pendingShifts;
+    this._pendingShifts = [];
+    return shifts.length ? shifts : null;
+  },
+
+  /**
+   * Renumbers again after undo or redo restored a whole saved state (no removal is reported then).
+   * @param {Array} shifts as returned by takeIdShifts()
+   * @param {Boolean} inverse true when the change is being undone
+   */
+  applyIdShifts: function(shifts, inverse) {
+    var list = (shifts || []).slice();
+    if (inverse) list.reverse();
+    for (var i = 0; i < list.length; i++) {
+      this._applyIdShift(list[i], inverse);
+    }
+    this.onGraphChanged();
+  },
+
+  _applyIdShift: function(shift, inverse) {
+    var map;
+    if (inverse) {
+      var back = {};
+      Object.keys(shift.changed).forEach(function(oldId) {
+        if (shift.removed.indexOf(Number(oldId)) === -1) back[shift.changed[oldId]] = Number(oldId);
+      });
+      map = function(id) { return back.hasOwnProperty(id) ? back[id] : Number(id); };
+    } else {
+      map = function(id) {
+        if (shift.removed.indexOf(Number(id)) !== -1) return null;
+        return shift.changed.hasOwnProperty(id) ? Number(shift.changed[id]) : Number(id);
+      };
+    }
+    var overlay = editor.getOverlay && editor.getOverlay();
+    if (this._indexId !== null) {
+      this._indexId = map(this._indexId);
+      if (this._indexId === null) {
+        // the index person was removed: nothing left to follow
+        this._overrides = {};
+        this._rows = [];
+        if (overlay && overlay.hasCascadeHighlight()) overlay.clearCascadeHighlight();
+        return;
+      }
+    }
+    var overrides = {};
+    var own = this._overrides;
+    Object.keys(own).forEach(function(id) {
+      var mapped = map(id);
+      if (mapped !== null) overrides[mapped] = own[id];
+    });
+    this._overrides = overrides;
+    this._rows = []; // they hold the old ids: computed again when needed
+    if (overlay && overlay.remapCascadeIds) overlay.remapCascadeIds(map);
+  },
+
+  /**
+   * The pedigree changed while the highlight is on the chart: compute it again (shortly after, as
+   * one edit reports several changes), so the rings follow the people and the new relatives.
+   */
+  onGraphChanged: function() {
+    var _this = this;
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(function() {
+      var overlay = editor.getOverlay && editor.getOverlay();
+      if (!overlay || !overlay.hasCascadeHighlight() || _this.dialog) return;
+      try {
+        var graph = editor.getGraph();
+        if (_this._indexId === null || !isRealPerson(graph, _this._indexId)) {
+          overlay.clearCascadeHighlight();
+          return;
+        }
+        Object.keys(_this._overrides).forEach(function(id) {
+          if (!isRealPerson(graph, Number(id))) delete _this._overrides[id];
+        });
+        _this._computeRows();
+        _this.highlight();
+      } catch (e) {}
+    }, 60);
   },
 
   /** Saves a file (Blob) with the editor's download helper, or a plain link */
@@ -257,7 +361,9 @@ var CascadeTestingDialog = Class.create({
       mutationRatio: pick('mutationRatio', 1),
       conditionParams: (m.conditionParams && typeof m.conditionParams === 'object') ? m.conditionParams : {},
       usePhenotypes: flag('usePhenotypes'),
-      unrecordedUnaffected: flag('unrecordedUnaffected'),
+      // off unless chosen: right after drawing a pedigree with the consultand, a relative without
+      // the condition recorded is rarely known to be unaffected
+      unrecordedUnaffected: m.unrecordedUnaffected === true,
       useTests: flag('useTests')
     };
   },
@@ -618,15 +724,25 @@ var CascadeTestingDialog = Class.create({
 
     var birth = node.getBirthDate && node.getBirthDate();
     var death = node.getDeathDate && node.getDeathDate();
-    if (birth && birth.getTime) {
-      var end = (death && death.getTime) ? death : new Date();
+    var hasDeath = !!(death && death.getTime);
+    // someone who is not alive and has no date of death did not live until today: the age then
+    // comes from the "age at death" field, or is unknown
+    if (birth && birth.getTime && (hasDeath || info.lifeStatus === 'alive')) {
+      var end = hasDeath ? death : new Date();
       info.ageYears = (end.getTime() - birth.getTime()) / (365.25 * 24 * 3600 * 1000);
-      info.ageText = getAge(birth, (death && death.getTime) ? death : null);
+      info.ageText = getAge(birth, hasDeath ? death : null);
       if (getLanguage() === 'pt-BR') {
         info.ageText = info.ageText.replace(/(\d) y$/, '$1 anos').replace(/(\d) mo$/, '$1 meses')
           .replace(/(\d) wk$/, '$1 sem').replace(/(\d) days?$/, function(m, d) { return d + (/days$/.test(m) ? ' dias' : ' dia'); })
           .replace('not born yet', 'não nascido');
       }
+    } else if (info.lifeStatus === 'deceased' && node.getAgeAtDeath) {
+      var atDeath = String(node.getAgeAtDeath() || '').trim();
+      var years = /^(\d{1,3}(?:[.,]\d+)?)\s*(?:$|y|a)/i.exec(atDeath);
+      if (years) {
+        info.ageYears = parseFloat(years[1].replace(',', '.'));
+      }
+      info.ageText = atDeath;
     }
 
     var carrier = node.getCarrierStatus && node.getCarrierStatus();
@@ -677,9 +793,11 @@ var CascadeTestingDialog = Class.create({
     var node = this._indexId !== null ? editor.getNode(this._indexId) : null;
     var tests = (node && node.getGeneticTests) ? node.getGeneticTests() : [];
     var genes = tests.filter(function(t) { return clinicalTestResult(t) === 'positive'; })
-      .map(function(t) { return t.gene; });
-    var finding = (this._finding || '').toUpperCase();
-    var named = genes.filter(function(g) { return finding.indexOf(g) !== -1; });
+      .map(function(t) { return t.gene; })
+      .filter(function(g) { return typeof g === 'string' && g.trim(); });
+    // the gene must be named as a whole word ("AR" is not named by "PARP1")
+    var words = (this._finding || '').toUpperCase().split(/[^A-Z0-9-]+/);
+    var named = genes.filter(function(g) { return words.indexOf(g.trim().toUpperCase()) !== -1; });
     return named.length ? named : genes;
   },
 
@@ -759,6 +877,17 @@ var CascadeTestingDialog = Class.create({
     var biallelic = this._isBiallelic();
     var rows = [];
     this._notAtRisk = 0;
+    this._ruledOut = 0;
+    // the same risks without the evidence, to tell relatives who cannot carry the variant under
+    // this mode from those left out because of what is recorded (phenotypes, tests)
+    var priorProbs = null;
+    if (Object.keys(evidence).length) {
+      try {
+        priorProbs = computeVariantRisks(graph, this._indexId, this._mode, this._indexGenotype, 1 / (2 * this._carrierFreqN), {
+          deNovo: model.deNovo / 100, mutationRatio: model.mutationRatio, exact: false
+        }).probs;
+      } catch (e) {}
+    }
 
     findBloodRelatives(graph, this._indexId, this._maxDegree).forEach(function(k) {
       var p = risks.probs[k.id] || [1, 0, 0, 0];
@@ -767,7 +896,12 @@ var CascadeTestingDialog = Class.create({
       if (any < MIN_RISK && !info.tested) {
         // blood relative who cannot carry the variant under this mode (e.g. sons of a man for
         // X-linked) or whose risk the evidence ruled out; tested relatives stay listed
-        _this._notAtRisk++;
+        var prior = priorProbs && priorProbs[k.id];
+        if (prior && prior[1] + prior[2] + prior[3] >= MIN_RISK) {
+          _this._ruledOut++;
+        } else {
+          _this._notAtRisk++;
+        }
         return;
       }
       var reason = _this._getExclusionReason(info);
@@ -918,6 +1052,14 @@ var CascadeTestingDialog = Class.create({
       if (helpTexts) label.insert(help(helpTexts));
       wrap.insert(label);
       wrap.insert(input);
+      // a click on the label text goes to the field itself (by default the browser would
+      // activate the first control inside the label, which is the help button)
+      wrap.observe('click', function(e) {
+        if (e.findElement('button, input, select, textarea, a')) return;
+        e.preventDefault();
+        var control = (input.match && input.match('input, select')) ? input : input.down('input, select');
+        if (control && !control.disabled) control.focus();
+      });
       return wrap;
     };
     controls.insert(field('Index person', indexSelect, 'cascade-field-wide'));
@@ -964,7 +1106,7 @@ var CascadeTestingDialog = Class.create({
       _this._saveSettings();
       syncGenotypeField();
       syncModelFields();
-      recompute(true);
+      recompute(false);
     };
     var renderFit = function() {
       var fit = _this._fit;
@@ -1004,7 +1146,8 @@ var CascadeTestingDialog = Class.create({
           'title': translate(INHERITANCE_NAMES[r.mode]) + (r.incompatible ? ' — ' + translate('incompatible with the pedigree')
             : ' — ' + translate('best fit with') + ' ' + _this._fittedText(r.mode, r.fitted))
         });
-        chip.setStyle({ '--fit': Math.max(0, Math.min(100, pct)) + '%' });
+        // a custom property: Prototype's setStyle does not set those
+        chip.style.setProperty('--fit', Math.max(0, Math.min(100, pct)) + '%');
         chip.insert(new Element('span', { 'class': 'cascade-fit-mode' }).update(r.mode));
         chip.insert(new Element('span', { 'class': 'cascade-fit-pct' }).update(r.incompatible ? '0%' : (pct < 0.1 ? '<0.1%' : pct + '%')));
         chip.observe('click', function() { if (r.mode !== _this._mode && !r.incompatible) useMode(r.mode, r.fitted); });
@@ -1043,7 +1186,7 @@ var CascadeTestingDialog = Class.create({
       _this._condition = (list && list.length) ? list : '';
       refreshConditions();
       syncModelFields();
-      recompute(true);
+      recompute(false);
     };
     var refreshConditions = function() {
       var current = _this._resolvedConditions();
@@ -1120,7 +1263,7 @@ var CascadeTestingDialog = Class.create({
       cb.observe('change', function() {
         _this._setModel(key, cb.checked);
         syncModelFields();
-        recompute(true);
+        recompute(false);
       });
       return cb;
     };
@@ -1237,7 +1380,7 @@ var CascadeTestingDialog = Class.create({
             all[cond] = entry;
             _this._setModel('conditionParams', all);
             renderConditionTable(xl);
-            recompute(true);
+            recompute(false);
           });
           row.insert(new Element('td').insert(input));
         });
@@ -1306,7 +1449,7 @@ var CascadeTestingDialog = Class.create({
         if (v < min || v > max) return; // wait until the value is complete
         if (_this._getModel()[key] === v) return;
         _this._setModel(key, v);
-        recompute(true);
+        recompute(false);
       });
       input.observe('change', function() {
         cancel();
@@ -1316,7 +1459,7 @@ var CascadeTestingDialog = Class.create({
         input.value = v;
         if (_this._getModel()[key] === v) return;
         _this._setModel(key, v);
-        recompute(true);
+        recompute(false);
       });
     };
     bindNumber(deNovoInput, 'deNovo', 0, 100);
@@ -1332,7 +1475,7 @@ var CascadeTestingDialog = Class.create({
       _this._setModel('curve', parsePenetranceCurve(text) ? text : '');
       curveInput.value = _this._getModel().curve;
       syncModelFields();
-      recompute(true);
+      recompute(false);
     });
     onsetModeSelect.observe('change', function() {
       onsetMode = onsetModeSelect.value;
@@ -1340,7 +1483,7 @@ var CascadeTestingDialog = Class.create({
         // back to the age range: the curve no longer applies
         _this._setModel('curve', '');
         syncModelFields();
-        recompute(true);
+        recompute(false);
         return;
       }
       syncModelFields();
@@ -1365,7 +1508,7 @@ var CascadeTestingDialog = Class.create({
     haldaneFix.observe('click', function() {
       _this._setModel('deNovo', 5);
       syncModelFields();
-      recompute(true);
+      recompute(false);
     });
     haldaneFlag.insert(haldaneFix);
     content.insert(haldaneFlag);
@@ -1376,7 +1519,22 @@ var CascadeTestingDialog = Class.create({
     approxFlag.insert(approxText);
     approxFlag.insert(help(['With consanguinity loops, a relative whose two parents may both carry the variant is computed treating the parents as independent, which is an approximation. Very large or deep pedigrees are also searched only up to 10 generations and 512 lines of origin. Check important results with dedicated linkage software.']));
     content.insert(approxFlag);
-    var summary = new Element('div', { 'class': 'cascade-summary' });
+    // relatives who could carry the variant but were left out by the recorded phenotypes and tests
+    var ruledOutFlag = new Element('div', { 'class': 'cascade-flag', 'role': 'status' });
+    ruledOutFlag.insert(new Element('span', { 'class': 'cascade-flag-icon', 'aria-hidden': 'true' }).update('!'));
+    var ruledOutText = new Element('span');
+    ruledOutFlag.insert(ruledOutText);
+    ruledOutFlag.insert(help(['These relatives could carry the variant under this mode of inheritance, but the model rules them out: with the penetrance and age at onset set in it, a carrier would already be affected, and they are not recorded as affected (or a test result excludes them).',
+      'If the condition has incomplete or late penetrance, set the penetrance and the age at onset in "Model and evidence", or stop counting relatives without the condition as unaffected.']));
+    var ruledOutFix = new Element('button', { 'type': 'button', 'class': 'cascade-flag-fix' }).update(translate('Do not count them as unaffected'));
+    ruledOutFix.observe('click', function() {
+      _this._setModel('unrecordedUnaffected', false);
+      syncModelFields();
+      recompute(false);
+    });
+    ruledOutFlag.insert(ruledOutFix);
+    content.insert(ruledOutFlag);
+    var summary =new Element('div', { 'class': 'cascade-summary' });
     content.insert(summary);
     var tableWrap = new Element('div', { 'class': 'cascade-table-wrap' });
     content.insert(tableWrap);
@@ -1396,6 +1554,11 @@ var CascadeTestingDialog = Class.create({
       if (ap.truncated || ap.depthLimited) approxReasons.push(translate('search limit reached'));
       approxText.update((translate('Approximate result') + ': ' + approxReasons.join(', ')).escapeHTML());
       approxFlag.setStyle({ display: approxReasons.length ? '' : 'none' });
+      var ruledOut = _this._warning ? 0 : (_this._ruledOut || 0);
+      var fitModel = _this._getModel();
+      ruledOutText.update((ruledOut + ' ' + translate(ruledOut === 1 ? 'relative left out by the recorded phenotypes and tests' : 'relatives left out by the recorded phenotypes and tests')).escapeHTML());
+      ruledOutFlag.setStyle({ display: ruledOut ? '' : 'none' });
+      ruledOutFix.setStyle({ display: (fitModel.usePhenotypes && fitModel.unrecordedUnaffected && !(_this._mode === 'AR' && !biallelic)) ? '' : 'none' });
 
       summary.update('');
       var chips = [[rows.length, 'at risk'], [selectedCount, 'selected to approach'], [testedCount, 'already tested']];
@@ -1469,7 +1632,8 @@ var CascadeTestingDialog = Class.create({
           editor.getWorkspace().centerAroundNode(row.id);
         });
 
-        var degreeBadge = new Element('span', { 'class': 'cascade-degree' }).setStyle({ borderColor: DEGREE_COLORS[row.degree] || '#94A3B8' }).update(String(row.degree) + 'º');
+        var degreeBadge = new Element('span', { 'class': 'cascade-degree' }).setStyle({ borderColor: DEGREE_COLORS[row.degree] || '#94A3B8' }).update(
+          String(row.degree) + (getLanguage() === 'pt-BR' ? 'º' : (['', 'st', 'nd', 'rd'][row.degree] || 'th')));
 
         tr.insert(new Element('td').insert(cb));
         tr.insert(new Element('td', { 'class': 'cascade-id' }).update(row.label));
@@ -1494,6 +1658,8 @@ var CascadeTestingDialog = Class.create({
       tableWrap.insert(table);
     };
 
+    // relatives ticked or unticked by hand keep that choice when the model changes; only a new
+    // index person or "Restore default selection" clears it
     var recompute = function(resetOverrides) {
       if (resetOverrides) _this._overrides = {};
       _this._computeRows();
@@ -1508,28 +1674,28 @@ var CascadeTestingDialog = Class.create({
       _this._condition = null; // follow the new index person's condition
       refreshConditions();
       syncModelFields();
-      recompute(true);
+      recompute(true); // the selection made by hand was for the relatives of the previous index
     });
     modeSelect.observe('change', function() {
       _this._mode = modeSelect.value;
       _this._saveSettings();
       syncGenotypeField();
       syncModelFields();
-      recompute(true);
+      recompute(false);
     });
     genotypeSelect.observe('change', function() {
       _this._indexGenotype = genotypeSelect.value;
       _this._saveSettings();
       syncGenotypeField();
       syncModelFields();
-      recompute(true);
+      recompute(false);
     });
     freqInput.observe('change', function() {
       var n = parseFloat(freqInput.value);
       _this._carrierFreqN = (isNaN(n) || n < 2) ? 100 : n;
       freqInput.value = _this._carrierFreqN;
       _this._saveSettings();
-      recompute(true);
+      recompute(false);
     });
     degreeSelect.observe('change', function() {
       _this._maxDegree = parseInt(degreeSelect.value, 10);
@@ -1539,7 +1705,7 @@ var CascadeTestingDialog = Class.create({
       v = Math.max(0, Math.round(v));
       if (v === _this._minAge) return;
       _this._minAge = v;
-      recompute(true);
+      recompute(false);
     });
     minAgeInput.observe('change', function() {
       cancelMinAge();
@@ -1548,10 +1714,15 @@ var CascadeTestingDialog = Class.create({
       minAgeInput.value = v;
       if (v === _this._minAge) return;
       _this._minAge = v;
-      recompute(true);
+      recompute(false);
     });
+    var findingTimer = null;
     findingInput.observe('input', function() {
       _this._finding = findingInput.value;
+      // a gene named here chooses the familial variant among the index's positive tests, which
+      // changes whose results count
+      clearTimeout(findingTimer);
+      findingTimer = setTimeout(function() { if (_this.dialog) recompute(false); }, 500);
     });
 
     renderTable();
@@ -1605,7 +1776,7 @@ var CascadeTestingDialog = Class.create({
    */
   highlight: function() {
     this._inUse = true;
-    if (!this._rows.length && this._indexId === null) {
+    if (!this._rows.length) {
       this._computeRows();
     }
     var colorById = {};
@@ -1702,6 +1873,8 @@ var CascadeTestingDialog = Class.create({
   exportCSV: function() {
     var csvCell = function(v) {
       v = (v === undefined || v === null) ? '' : String(v);
+      // text that a spreadsheet would run as a formula (a name starting with "=", "+", "-" or "@")
+      if (/^[=+\-@\t\r]/.test(v)) v = '\'' + v;
       return /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
     var text = this._preamble().concat(this._buildTable()).map(function(row) {

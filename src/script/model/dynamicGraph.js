@@ -3808,6 +3808,8 @@ Heuristics.prototype = {
 
     this._straightenOnlyChildren(xcoord);
     this._pullDonorsCloseToParents(xcoord);
+    this._placeDonorsNearChildren(xcoord);
+    this._resolveOverlaps(xcoord);
 
     this.DG.positions = xcoord.xcoord;
 
@@ -3821,9 +3823,8 @@ Heuristics.prototype = {
 
   /**
    * An only child of a single parent, with no family of its own, is put right under the parent,
-   * so that its line of descent is straight instead of bent. Invisible placeholder children
-   * (of childless couples and of donor links) that are in the way are pushed aside; nothing is
-   * moved when a visible node is in the way.
+   * so that its line of descent is straight instead of bent. Nothing is moved unless the spot
+   * under the parent is free (see _spotIsFree).
    */
   _straightenOnlyChildren: function( xcoord ) {
     var GG = this.DG.GG;
@@ -3850,35 +3851,86 @@ Heuristics.prototype = {
         continue;
       }
 
-      // walk away from the child in the direction of the move, collecting the hidden nodes that
-      // have to give way; stop at the first node that is far enough already
-      var dir      = shift > 0 ? 1 : -1;
-      var order    = this.DG.order.order[this.DG.ranks[child]];
-      var moves    = {};
-      moves[child] = xcoord.xcoord[child] + shift;
-      var feasible = true;
-      var prev     = child;
-      for (var i = this.DG.order.vOrder[child] + dir; i >= 0 && i < order.length; i += dir) {
-        var next   = order[i];
-        var minGap = xcoord.halfWidth[prev] + xcoord.halfWidth[next] + xcoord.getSeparation(prev, next);
-        if ((xcoord.xcoord[next] - moves[prev]) * dir >= minGap) {
-          break;
-        }
-        if (!isHiddenChild(next)) {
-          feasible = false;
-          break;
-        }
-        moves[next] = moves[prev] + dir * minGap;
-        prev = next;
-      }
-      if (feasible) {
-        for (var node in moves) {
-          if (moves.hasOwnProperty(node)) {
-            xcoord.xcoord[node] = moves[node];
-          }
-        }
+      // only when the spot under the parent is really free and the child keeps its place in the row
+      if (this._spotIsFree(xcoord, child, xcoord.xcoord[child] + shift, true)) {
+        xcoord.xcoord[child] += shift;
       }
     }
+  },
+
+  /**
+   * Last step of the positioning: guarantees that no two nodes of a row are closer than their
+   * minimum distance. The alignment steps above move groups of nodes and can, in rare
+   * arrangements (single parents and donor links next to wide sibships), leave a node on top of a
+   * neighbour. Going through each row from left to right, a node that is too close to the one
+   * before it is pushed right just enough; a line may end up bent, but symbols never overlap.
+   *
+   * The invisible helper nodes that are deliberately not kept in row order (hidden branches,
+   * donor-link helpers) are left alone.
+   */
+  _resolveOverlaps: function( xcoord ) {
+    var rows = this.DG.order.order;
+    for (var r = 1; r < rows.length; r++) {
+      var prev = null;
+      for (var i = 0; i < rows[r].length; i++) {
+        var u = rows[r][i];
+        if (xcoord.hidden[u] || xcoord.isArtLinkRel(u) || xcoord.isArtLinkChildhub(u) || xcoord.isArtLinkDummyChild(u)) {
+          continue;
+        }
+        // only what is drawn as a symbol or a junction: people and relationships
+        if (!this.DG.GG.isPerson(u) && !this.DG.GG.isRelationship(u)) {
+          continue;
+        }
+        // the placeholder child of a childless couple is not drawn either: nothing to keep away from
+        var props = this.DG.GG.properties[u] || {};
+        if (this.DG.GG.isPerson(u) && (props.isVirtualDummyChild || props.isPlaceholder) && this.DG.GG.getOutEdges(u).length == 0) {
+          continue;
+        }
+        if (prev !== null) {
+          var minX = xcoord.xcoord[prev] + xcoord.halfWidth[prev] + xcoord.getSeparation(prev, u) + xcoord.halfWidth[u];
+          if (xcoord.xcoord[u] < minX) {
+            xcoord.xcoord[u] = minX;
+          }
+        }
+        prev = u;
+      }
+    }
+  },
+
+  /**
+   * True when node v can be put at x on its rank without touching anything that is drawn there.
+   * Every node of the rank is checked by its position, not by walking the row order: the
+   * invisible helper nodes of donor links and of childless couples are not kept in order, so
+   * "the next node in the row is far away" does not mean the space in between is empty.
+   *
+   * Invisible nodes (hidden branches, placeholder children, donor-link helpers) are ignored.
+   * @param {Boolean} keepOrder also require every drawn node to stay on the same side of v
+   */
+  _spotIsFree: function( xcoord, v, x, keepOrder ) {
+    var GG = this.DG.GG;
+    var vOrder = this.DG.order.vOrder;
+    var row = this.DG.order.order[this.DG.ranks[v]];
+    for (var i = 0; i < row.length; i++) {
+      var u = row[i];
+      if (u == v || xcoord.hidden[u]) {
+        continue;
+      }
+      var props = GG.properties[u] || {};
+      if (GG.isPerson(u) && (props.isVirtualDummyChild || props.isPlaceholder) && GG.getOutEdges(u).length == 0) {
+        continue;
+      }
+      if (xcoord.isArtLinkRel(u) || xcoord.isArtLinkChildhub(u)) {
+        continue;
+      }
+      var minGap = xcoord.halfWidth[v] + xcoord.halfWidth[u] + xcoord.getSeparation(v, u);
+      if (Math.abs(xcoord.xcoord[u] - x) < minGap) {
+        return false;
+      }
+      if (keepOrder && ((xcoord.xcoord[u] - x) > 0) != (vOrder[u] > vOrder[v])) {
+        return false;
+      }
+    }
+    return true;
   },
 
   /**
@@ -3954,6 +4006,176 @@ Heuristics.prototype = {
     }
   },
 
+  /**
+   * A donor or surrogate is first placed beside the parent it is linked to. When the child they
+   * have a line of descent to is far from that parent (a wide sibship), the line runs almost flat
+   * along the sibship line and across the other children. Such a donor is moved, within its own
+   * generation, to the free spot closest to above the child (one slot to the side, so that the line
+   * stays a short diagonal and does not cover the child's own line).
+   *
+   * Any gap of the row that is not on a relationship line (between a couple) can be used; when the
+   * gap nearest to the child is too narrow, room is made for the donor there, so the donor never
+   * ends up far away just because the row is full.
+   */
+  _placeDonorsNearChildren: function( xcoord ) {
+    var GG = this.DG.GG;
+    var order = this.DG.order;
+    var maxId = GG.getMaxRealVertexId();
+
+    // children by the key of the donor / surrogate they point at
+    var childrenByKey = {};
+    for (var c = 0; c <= maxId; c++) {
+      var links = GG.isPerson(c) ? (GG.properties[c] || {}).artLinks : null;
+      if (!links || !links.length || xcoord.hidden[c]) {
+        continue;
+      }
+      for (var l = 0; l < links.length; l++) {
+        (childrenByKey[links[l]] = childrenByKey[links[l]] || []).push(c);
+      }
+    }
+
+    for (var donor = 0; donor <= maxId; donor++) {
+      var props = GG.isPerson(donor) ? (GG.properties[donor] || {}) : null;
+      // only people who are in the pedigree just as a donor / surrogate: no parents, no family
+      if (!props || !props.artRole || typeof props.artKey !== 'number' || xcoord.hidden[donor] ||
+          GG.getInEdges(donor).length != 0 || GG.getOutEdges(donor).length != 1) {
+        continue;
+      }
+      var link = GG.getOutEdges(donor)[0];
+      if (!GG.isRelationship(link) || !(GG.properties[link] || {}).artLink) {
+        continue;
+      }
+      var rank = this.DG.ranks[donor];
+      var ranks = this.DG.ranks;
+      var children = (childrenByKey[props.artKey] || []).filter(function(child) { return ranks[child] == rank + 2; });
+      if (children.length == 0) {
+        continue;
+      }
+      var childX = 0;
+      for (var k = 0; k < children.length; k++) {
+        childX += xcoord.xcoord[children[k]];
+      }
+      childX = Math.round(childX / children.length);
+
+      var slot = 2 * xcoord.halfWidth[donor] + this.DG.horizontalPersonSeparationDist;
+      // right above the child the line would cover the child's own line of descent
+      var costOf = function(x) { return Math.abs(x - childX) + (Math.abs(x - childX) < slot / 2 ? 1000 : 0); };
+      var currentX = xcoord.xcoord[donor];
+      if (costOf(currentX) <= 2 * slot) {
+        continue;  // already close: the usual place beside the parent is fine
+      }
+
+      // the side of the child that faces where the donor is now is tried first
+      var side = currentX < childX ? -1 : 1;
+      var preferred = [childX + side * slot, childX - side * slot];
+
+      // what is drawn on the donor's row, from left to right by position (the row order is not
+      // always spatial for the invisible helper nodes, which are left out)
+      var self = this;
+      var drawn = order.order[rank].filter(function(u) { return u != donor && self._isDrawnInRow(xcoord, u); });
+      drawn.sort(function(a, b) { return xcoord.xcoord[a] - xcoord.xcoord[b]; });
+      // relationship lines of the row (from a relationship node to each partner): a spot on one of
+      // them would put the donor in the middle of a couple
+      var lines = [];
+      drawn.forEach(function(u) {
+        if (!GG.isRelationship(u)) {
+          return;
+        }
+        GG.getInEdges(u).forEach(function(partner) {
+          if (ranks[partner] == rank) {
+            lines.push([Math.min(xcoord.xcoord[u], xcoord.xcoord[partner]), Math.max(xcoord.xcoord[u], xcoord.xcoord[partner])]);
+          }
+        });
+      });
+
+      // every gap between two neighbours is a candidate. A gap that is too narrow is still usable:
+      // everything from its right neighbour on is then moved right to make room, in all
+      // generations at once, which only lengthens horizontal lines
+      var best = null;
+      for (var g = 0; g <= drawn.length; g++) {
+        var left = drawn[g - 1];
+        var right = drawn[g];
+        var probe = (left === undefined) ? (right === undefined ? 0 : xcoord.xcoord[right] - 1)
+          : (right === undefined ? xcoord.xcoord[left] + 1 : (xcoord.xcoord[left] + xcoord.xcoord[right]) / 2);
+        var onLine = false;
+        for (var n = 0; n < lines.length; n++) {
+          if (probe > lines[n][0] && probe < lines[n][1]) {
+            onLine = true;
+            break;
+          }
+        }
+        if (onLine) {
+          continue;
+        }
+        var lo = (left === undefined) ? -Infinity
+          : xcoord.xcoord[left] + xcoord.halfWidth[left] + xcoord.getSeparation(left, donor) + xcoord.halfWidth[donor];
+        var hi = (right === undefined) ? Infinity
+          : xcoord.xcoord[right] - xcoord.halfWidth[right] - xcoord.getSeparation(donor, right) - xcoord.halfWidth[donor];
+        var room = (lo > hi) ? lo - hi : 0;  // how far the right side has to move
+        for (var p = 0; p < preferred.length; p++) {
+          var x = room > 0 ? lo : Math.round(Math.min(Math.max(preferred[p], lo), hi));
+          if (x < lo || (room == 0 && x > hi)) {
+            continue;  // rounding left the gap
+          }
+          // the child moves too when it is on the side that makes room
+          var childAfter = childX + ((room > 0 && childX >= xcoord.xcoord[right]) ? room : 0);
+          var dist = Math.abs(x - childAfter);
+          var cost = dist + (dist < slot / 2 ? 3 * slot : 0) + (room > 0 ? slot / 2 : 0) + p;
+          if (best === null || cost < best.cost) {
+            best = { x: x, cost: cost, before: right, room: room };
+          }
+        }
+      }
+      if (best === null || best.cost >= costOf(currentX)) {
+        continue;
+      }
+      if (best.room > 0) {
+        var cut = xcoord.xcoord[best.before];
+        for (var m = 0; m < xcoord.xcoord.length; m++) {
+          if (m != donor && xcoord.xcoord[m] >= cut) {
+            xcoord.xcoord[m] += best.room;
+          }
+        }
+      }
+      var newOrder = (best.before === undefined) ? order.order[rank].length : order.vOrder[best.before];
+      order.moveVertexToOrder(rank, order.vOrder[donor], newOrder);
+      xcoord.xcoord[donor] = best.x;
+    }
+  },
+
+  /**
+   * True for a person who is in the pedigree only as a donor / surrogate (no parents, no family, one
+   * hidden link) and for the helper nodes of such a link.
+   */
+  _isDonorOrHelper: function( xcoord, u ) {
+    var GG = this.DG.GG;
+    if (xcoord.isArtLinkRel(u) || xcoord.isArtLinkChildhub(u) || xcoord.isArtLinkDummyChild(u)) {
+      return true;
+    }
+    if (!GG.isPerson(u) || !(GG.properties[u] || {}).artRole) {
+      return false;
+    }
+    var out = GG.getOutEdges(u);
+    return GG.getInEdges(u).length == 0 && out.length == 1 && GG.isRelationship(out[0]) && !!(GG.properties[out[0]] || {}).artLink;
+  },
+
+  /**
+   * True for what takes up room on a row of the drawing: people, relationship nodes and the lines
+   * of long edges. Hidden branches, the placeholder children of childless couples and the helper
+   * nodes of donor links are not drawn.
+   */
+  _isDrawnInRow: function( xcoord, u ) {
+    var GG = this.DG.GG;
+    if (xcoord.hidden[u] || xcoord.isArtLinkRel(u) || xcoord.isArtLinkChildhub(u) || xcoord.isArtLinkDummyChild(u)) {
+      return false;
+    }
+    var props = GG.properties[u] || {};
+    if (GG.isPerson(u) && (props.isVirtualDummyChild || props.isPlaceholder) && GG.getOutEdges(u).length == 0) {
+      return false;
+    }
+    return true;
+  },
+
   _compactGraph: function( xcoord, maxComponentSize ) {
     // tries to shorten edges that can be shortened (thus compacting the graph)
     //
@@ -4011,6 +4233,13 @@ Heuristics.prototype = {
 
           var rightNeighbour = this.DG.order.order[rank][order+1];
 
+          // donors / surrogates and the helper nodes of their hidden link are placed by their own
+          // steps (beside the parent, or near the child); a donor placed near the child is linked to
+          // nothing around it, and closing the gap beside it would drag the whole pedigree after it
+          if (this._isDonorOrHelper(xcoord, v) || this._isDonorOrHelper(xcoord, rightNeighbour)) {
+            continue;
+          }
+
           // either move V and nodes connected to V left, or rightNeighbour and nodes connected to it right
           // (in both cases "connected" means "connected not using edges spanning V-rightNeighbour gap")
           // If maxComponentSize is not limited, then no point to analize other component, since
@@ -4035,7 +4264,10 @@ Heuristics.prototype = {
           slack = leftSide ? xcoord.findVertexSetSlacks(component.component).rightSlack // slack on the right side of left component
             : -xcoord.findVertexSetSlacks(component.component).leftSlack;
 
-          if (slack == 0) {
+          // a component with nothing beside it (the helper nodes of a donor who was placed near the
+          // child, at the end of their rows) has unlimited slack: moving it by that would turn
+          // every position into NaN
+          if (slack == 0 || !isFinite(slack)) {
             continue;
           }
 

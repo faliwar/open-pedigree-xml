@@ -71,6 +71,24 @@ var LineSet = Class.create({
     return bendPoints;
   },
 
+  /**
+   * Where the segment (x1,y1)-(x2,y2) would cross the lines already drawn, without adding it:
+   * for lines drawn outside this set (the donor / surrogate lines of descent of the overlay)
+   *
+   * @return {Array} [ {x, y}, ... ]
+   */
+  getCrossings: function( x1, y1, x2, y2 ) {
+    var crossings = [];
+    var probe = { 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2 };
+    for (var i = 0; i < this._lines.length; i++) {
+      var crossingPoint = this._getLineCrossing(probe, this._lines[i]);
+      if (crossingPoint) {
+        crossings.push(crossingPoint);
+      }
+    }
+    return crossings;
+  },
+
   removeAllLinesByOwner: function(owner) {
     //console.log("removing all lines by " + owner);
 

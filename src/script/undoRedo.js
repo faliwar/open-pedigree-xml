@@ -29,11 +29,31 @@ var ActionStack = Class.create({
       memo['noUndoRedo'] = true;  // so that this event is not added to the undo/redo stack again
       document.fire( nextState.eventToGetToThisState.eventName, memo );
       this._currentState++;
+      this._cascadeShifts(); // already applied while the event ran
       return;
     }
 
     editor.getSaveLoadEngine().createGraphFromSerializedData( nextState.serializedState, true /* do not re-add to undo/redo stack */ );
     this._currentState++;
+    this._cascadeShifts(nextState.idShifts, false);
+  },
+
+  /**
+   * Cascade testing refers to people by node id. Removing a node renumbers the ones after it,
+   * which the cascade dialog follows as it happens; restoring a whole saved state reports no
+   * removal, so the renumbering stored with the state is applied here (backwards for undo).
+   * Without arguments, only forgets renumberings that belong to no new state.
+   */
+  _cascadeShifts: function(shifts, inverse) {
+    var dialog = (typeof editor !== 'undefined' && editor.getCascadeTestingDialog) ? editor.getCascadeTestingDialog() : null;
+    if (!dialog || !dialog.takeIdShifts) {
+      return null;
+    }
+    var pending = dialog.takeIdShifts();
+    if (shifts) {
+      dialog.applyIdShifts(shifts, inverse);
+    }
+    return pending;
   },
 
   /**
@@ -112,12 +132,14 @@ var ActionStack = Class.create({
       memo['noUndoRedo'] = true; // so that this event is not added to the undo/redo stack again
       document.fire( currentState.eventToUndo.eventName, memo );
       this._currentState--;
+      this._cascadeShifts(); // already applied while the event ran
       return;
     }
 
     // no easy way - have to recreate the graph from serialization
     editor.getSaveLoadEngine().createGraphFromSerializedData( prevState.serializedState, true /* do not re-add to undo/redo stack */);
     this._currentState--;
+    this._cascadeShifts(currentState.idShifts, true);
   },
 
   /**
@@ -158,6 +180,11 @@ var ActionStack = Class.create({
     //}
 
     var state = new State( serializedState, eventToGetToThisState, eventToUndo );
+    // renumbering of the people caused by this change (a node was removed), for cascade testing
+    var idShifts = this._cascadeShifts();
+    if (idShifts) {
+      state.idShifts = idShifts;
+    }
     var history = (typeof editor !== 'undefined' && editor.getHistory) ? editor.getHistory() : null;
     if (history) {
       state.description = history.describeState(eventToGetToThisState);

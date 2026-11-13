@@ -27,7 +27,7 @@
  * (the only one, or the paternal one in biallelic AR), bit 2 = maternal allele in biallelic AR.
  */
 
-import { makeTwinCanon, getGeneticSex, getParentSlots } from './kinship.js';
+import { makeTwinCanon, withMissingParents, getGeneticSex, getParentSlots } from './kinship.js';
 
 var MODES = ['AD', 'AR', 'XLR', 'XLD', 'MT', 'YL'];
 
@@ -282,6 +282,8 @@ var topologicalPersons = function(graph) {
  */
 var computeVariantRisks = function(fullGraph, indexId, mode, indexGenotype, alleleFrequency, options) {
   options = options || {};
+  // siblings of one sibship share both parents, also when a parent is not drawn
+  fullGraph = withMissingParents(fullGraph);
   // monozygotic twins are one genome: only one member of each twin group takes part, and the
   // co-twins' evidence and results are merged into it
   var canon = makeTwinCanon(fullGraph);

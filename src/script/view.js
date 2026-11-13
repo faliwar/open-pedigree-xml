@@ -886,6 +886,10 @@ var View = Class.create({
         if (idChanged) {
           this.changeNodeIds(changedIDs);
         }
+        // cascade testing refers to people by id (index person, relatives chosen by hand)
+        if (changeSet.removedInternally.length > 0 && typeof editor !== 'undefined' && editor && editor.getCascadeTestingDialog) {
+          editor.getCascadeTestingDialog().onNodeIdsChanged(changeSet.removedInternally, changedIDs);
+        }
 
         for (var node in affectedByLineRemoval) {
           if (affectedByLineRemoval.hasOwnProperty(node)) {

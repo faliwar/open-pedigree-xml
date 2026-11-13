@@ -107,6 +107,70 @@ var getBiologicalParents = function(graph, id) {
 };
 
 /**
+ * A view of the graph in which the parents who are not drawn exist as (virtual) people, for
+ * sibships with at least two children: siblings on one sibship line share both parents, also when
+ * only one parent, or none, is drawn. Without this, children of a single parent would count as
+ * half-siblings, and a variant coming from the parent who is not drawn would never reach them.
+ * Virtual people have ids above getMaxNodeId() of the real graph, no parents and no data; the sex
+ * of a single missing parent is the opposite of the drawn one. Returns the graph itself when there
+ * is nothing to add.
+ */
+var withMissingParents = function(graph) {
+  if (graph.isVirtualPerson) return graph; // already a view
+  var extra = {};   // child id -> [virtual parent ids]
+  var virtual = {}; // virtual id -> sex
+  var maxId, count = 0;
+  try {
+    maxId = graph.getMaxNodeId();
+    var sibships = {};
+    for (var id = 0; id <= maxId; id++) {
+      if (!isRealPerson(graph, id) || (graph.isAdopted && graph.isAdopted(id)) || !graph.getParentRelationship) continue;
+      var rel = graph.getParentRelationship(id);
+      if (rel === null || rel === undefined) continue;
+      (sibships[rel] = sibships[rel] || []).push(id);
+    }
+    Object.keys(sibships).forEach(function(rel) {
+      var children = sibships[rel];
+      if (children.length < 2) return;
+      var known = (graph.DG.GG.getParents(children[0]) || []).filter(function(p) { return isRealPerson(graph, p); });
+      if (known.length >= 2) return;
+      var sexes = ['M', 'F'];
+      if (known.length === 1) {
+        var g = getGeneticSex(graph, known[0]);
+        sexes = [g === 'M' ? 'F' : (g === 'F' ? 'M' : 'U')];
+      }
+      var ids = sexes.map(function(sex) {
+        var v = maxId + 1 + count++;
+        virtual[v] = sex;
+        return v;
+      });
+      children.forEach(function(c) { extra[c] = ids; });
+    });
+  } catch (e) {
+    return graph;
+  }
+  if (!count) return graph;
+  var isVirtual = function(v) { return virtual.hasOwnProperty(v); };
+  return {
+    isVirtualPerson: isVirtual,
+    isPerson: function(v) { return isVirtual(v) || graph.isPerson(v); },
+    isPlaceholder: function(v) { return !isVirtual(v) && graph.isPlaceholder(v); },
+    isVirtualDummyChild: function(v) { return !isVirtual(v) && graph.isVirtualDummyChild(v); },
+    isVirtualParent: function(v) { return !isVirtual(v) && graph.isVirtualParent(v); },
+    isAdopted: function(v) { return !isVirtual(v) && !!(graph.isAdopted && graph.isAdopted(v)); },
+    getGender: function(v) { return isVirtual(v) ? virtual[v] : graph.getGender(v); },
+    getProperties: function(v) { return isVirtual(v) ? {} : (graph.getProperties ? graph.getProperties(v) : {}); },
+    getParentRelationship: function(v) { return isVirtual(v) ? null : graph.getParentRelationship(v); },
+    getMaxNodeId: function() { return maxId + count; },
+    DG: { GG: { getParents: function(v) {
+      if (isVirtual(v)) return [];
+      var parents = graph.DG.GG.getParents(v) || [];
+      return extra[v] ? parents.concat(extra[v]) : parents;
+    } } }
+  };
+};
+
+/**
  * Maps every member of a monozygotic twin group to one representative (the lowest id), so
  * that genetic calculations treat identical twins as the same genome. Other persons map to
  * themselves.
@@ -356,11 +420,13 @@ var findBloodRelatives = function(graph, indexId, maxDegree) {
   var cache = {};
   var result = [];
   var maxId = graph.getMaxNodeId();
+  // parents who are not drawn still make the children of one sibship full siblings
+  var view = withMissingParents(graph);
   for (var id = 0; id <= maxId; id++) {
     if (id === indexId || !isRealPerson(graph, id)) {
       continue;
     }
-    var k = describeKinship(graph, indexId, id, cache);
+    var k = describeKinship(view, indexId, id, cache);
     if (k && k.degree >= 1 && k.degree <= maxDegree) {
       k.id = id;
       result.push(k);
@@ -468,4 +534,4 @@ var formatCoefficient = function(value, lang) {
 };
 
 export { findBloodRelatives, describeKinship, relationshipName, isRealPerson, getGeneticSex, getParentSlots, getBiologicalParents,
-  makeInbreeding, makeTwinCanon, inbreedingOfChildren, inbreedingOf, formatCoefficient, coupleIsConsanguineous };
+  makeInbreeding, makeTwinCanon, withMissingParents, inbreedingOfChildren, inbreedingOf, formatCoefficient, coupleIsConsanguineous };

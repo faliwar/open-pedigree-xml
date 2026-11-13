@@ -111,13 +111,33 @@ var PedigreeOverlay = Class.create({
   },
 
   /**
-   * Called after the graph structure changed. Node ids are renumbered when a node is
-   * removed, so an existing cascade highlight would point at the wrong people: drop it.
+   * Node ids were renumbered (a node was removed): the rings follow their people.
+   * @param {Function} map old id -> new id, or null when that person no longer exists
+   */
+  remapCascadeIds: function(map) {
+    if (!this._cascade) return;
+    var colorById = {};
+    var old = this._cascade.colorById;
+    Object.keys(old).forEach(function(id) {
+      var mapped = map(id);
+      if (mapped !== null) colorById[mapped] = old[id];
+    });
+    this._cascade.colorById = colorById;
+    var index = map(this._cascade.indexId);
+    if (index === null) {
+      this.clearCascadeHighlight();
+    } else {
+      this._cascade.indexId = index;
+    }
+  },
+
+  /**
+   * Called after the graph structure changed. A cascade highlight is computed again by the
+   * cascade dialog (the relatives may have changed), which also follows renumbered people.
    */
   onGraphChanged: function(changeSet) {
-    if (this._cascade && changeSet && changeSet.removed && changeSet.removed.length > 0) {
-      this.clearCascadeHighlight();
-      return;
+    if (this._cascade && editor.getCascadeTestingDialog) {
+      editor.getCascadeTestingDialog().onGraphChanged();
     }
     this.scheduleRedraw();
   },
@@ -427,13 +447,51 @@ var PedigreeOverlay = Class.create({
       child.getArtLinks().forEach(function(key) {
         var donor = byArtKey[key];
         if (!donor) return;
-        var line = editor.getPaper().path([['M', donor.getX(), donor.getY() + radius], ['L', child.getX(), child.getY() - radius]])
+        var line = editor.getPaper().path(_this._pathWithBumps(donor.getX(), donor.getY() + radius, child.getX(), child.getY() - radius))
           .attr(PedigreeEditorParameters.attributes.partnershipLines);
         if (background) line.insertAfter(background);
         _this._tag(line, 'standard');
         _this._addArtLinkHandle(line, child.getID(), key);
       });
     });
+  },
+
+  /**
+   * Path of a straight line from (x1,y1) to (x2,y2) that hops over every pedigree line it crosses
+   * with the same small "bump" the relationship and sibship lines use, so that a crossing is never
+   * read as a junction. The bump is drawn along the line, bulging towards the top of the chart.
+   */
+  _pathWithBumps: function(x1, y1, x2, y2) {
+    var path = 'M ' + x1 + ' ' + y1;
+    var length = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+    var lineSet = editor.getView() && editor.getView()._lineSet;
+    if (length > 0 && lineSet && lineSet.getCrossings) {
+      var dx = (x2 - x1) / length, dy = (y2 - y1) / length;   // along the line
+      var nx = dy, ny = -dx;                                  // across it...
+      if (ny > 0 || (ny == 0 && nx < 0)) {                    // ...on the upper side
+        nx = -nx;
+        ny = -ny;
+      }
+      var along = function(p) { return (p.x - x1) * dx + (p.y - y1) * dy; };
+      var at = function(p, a, b) {
+        return (p.x + a * dx + b * nx).toFixed(1) + ' ' + (p.y + a * dy + b * ny).toFixed(1);
+      };
+      var crossings = lineSet.getCrossings(x1, y1, x2, y2).sort(function(p, q) { return along(p) - along(q); });
+      var last = -Infinity;
+      for (var i = 0; i < crossings.length; i++) {
+        var p = crossings[i];
+        var t = along(p);
+        // not at the ends (where the line meets a symbol) and not on top of the previous bump
+        if (t < 14 || t > length - 14 || t - last < 24) {
+          continue;
+        }
+        last = t;
+        path += ' L ' + at(p, -10, 0);
+        path += ' C ' + at(p, -7, -1) + ' ' + at(p, -7, 7) + ' ' + at(p, 0, 7);
+        path += ' C ' + at(p, 7, 7) + ' ' + at(p, 7, -1) + ' ' + at(p, 10, 0);
+      }
+    }
+    return path + ' L ' + x2 + ' ' + y2;
   },
 
   /**
