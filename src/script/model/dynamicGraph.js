@@ -3992,6 +3992,15 @@ Heuristics.prototype = {
           }
         }
       }
+      // with nothing beside it in the row, the hidden link was pushed "as far as possible", which is
+      // not a position: keep it at the parent it belongs to
+      if (!isFinite(xcoord.xcoord[v])) {
+        var linkParents = parents.filter(function(p) { return isFinite(xcoord.xcoord[p]) && !(GG.properties[p] || {}).artRole; });
+        if (linkParents.length == 0) {
+          linkParents = parents.filter(function(p) { return isFinite(xcoord.xcoord[p]); });
+        }
+        xcoord.xcoord[v] = linkParents.length > 0 ? xcoord.xcoord[linkParents[0]] : 0;
+      }
       var chHub = GG.getRelationshipChildhub(v);
       if (chHub !== null && chHub !== undefined) {
         xcoord.xcoord[chHub] = xcoord.xcoord[v];

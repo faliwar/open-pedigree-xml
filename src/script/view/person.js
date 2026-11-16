@@ -1313,12 +1313,11 @@ var Person = Class.create(AbstractPerson, {
      * @return {Object} Summary object for the menu
      */
   getSummary: function () {
-    var inactiveStates;
-    if (this.isFetus()) {
-      inactiveStates = ['alive', 'deceased'];
-    } else {
-      inactiveStates = ['unborn', 'aborted', 'miscarriage', 'stillborn'];
-    }
+    // someone who has a partner or children was born and lived: only then the pregnancy outcomes
+    // (stillborn, miscarriage, unborn, aborted) are not offered. Everyone else can be given any
+    // status, and a pregnancy can be changed back to alive or deceased.
+    var onceAlive = editor.getGraph().hasRelationships(this.getID());
+    var inactiveStates = onceAlive ? ['unborn', 'aborted', 'miscarriage', 'stillborn'] : false;
 
     var inactiveGenders = false;
     var genderSet = editor.getGraph().getPossibleGenders(this.getID());

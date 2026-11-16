@@ -21,6 +21,22 @@ INHERITANCE_OPTIONS.forEach(function(o) { INHERITANCE_NAMES[o[0]] = o[1]; });
 
 var MIN_RISK = 0.0005; // below this a relative is considered not at risk
 
+// Mode ranking: weight of each mode before looking at the pedigree, roughly the share of Mendelian
+// conditions with each mode of inheritance (about half recessive, four in ten dominant, a few
+// percent X-linked, about one percent mitochondrial, Y-linked very rare). With equal weights, a
+// sibship of affected children of unaffected parents came out as mitochondrial.
+var MODE_PRIOR = { AD: 0.40, AR: 0.50, XLR: 0.05, XLD: 0.015, MT: 0.01, YL: 0.001 };
+
+// Mode ranking: chance that an affected relative was drawn without the condition recorded. Used
+// when "relatives without the condition recorded are unaffected" is off: those relatives then count
+// as probably, not certainly, unaffected. Without this, unaffected parents say nothing and the
+// difference between recessive and dominant or mitochondrial inheritance is lost.
+var RANK_MISS_RATE = 0.25;
+
+// Mode ranking: inbreeding coefficient assumed for the index when the parents are marked as
+// consanguineous by hand and their common ancestors are not drawn (first cousins)
+var ASSUMED_F = 1 / 16;
+
 var PEDIGREE_STATE_FORMAT = 'open-pedigree-x/cascade-state';
 
 var DEGREE_COLORS = { 1: '#DC2626', 2: '#EA580C', 3: '#CA8A04' };
@@ -481,6 +497,9 @@ var CascadeTestingDialog = Class.create({
     // whether that is possible under the model counts (P(carrier | affected) ~ 1 for a rare variant
     // when the penetrance is above 0), not how likely it was
     var ascertained = !!(opts && opts.ascertained);
+    // mode ranking only, when relatives without the condition recorded do not count as unaffected:
+    // they still count as probably unaffected (see RANK_MISS_RATE)
+    var softMiss = (opts && !model.unrecordedUnaffected) ? RANK_MISS_RATE : 0;
     var TEST_ERROR = 0.0001;
     var specs = this._phenotypeSpecs(model);
     var counts = { affected: 0, unaffected: 0, tested: 0 };
@@ -536,6 +555,16 @@ var CascadeTestingDialog = Class.create({
               L[s] *= affected ? (pAff + (1 - pAff) * spec.phenocopy) : (1 - pAff) * (1 - spec.phenocopy);
             }
             if (affected) anyAffected = true;
+          } else if (softMiss > 0 && frac !== null) {
+            // mode ranking: a relative without the condition recorded is probably unaffected, but
+            // an affected one may simply not have been recorded (chance softMiss)
+            for (var u = 0; u < 4; u++) {
+              var pu = penetranceOf(spec, u, info.geneticSex);
+              if (pu === null) continue;
+              informative = true;
+              var pOnset = pu * frac;
+              L[u] *= 1 - (pOnset + (1 - pOnset) * spec.phenocopy) * (1 - softMiss);
+            }
           }
         }
         if (informative) {
@@ -574,8 +603,10 @@ var CascadeTestingDialog = Class.create({
    * the average likelihood over a grid of penetrance, penetrance in heterozygous women (X-linked:
    * low for XLR, high for XLD) and de novo proportion (the age at onset and the evidence options
    * are the mode's own). Averaging rather than taking the best keeps modes with more freedom from
-   * winning by flexibility alone. With equal prior weight for the modes, the score is
-   * P(pedigree | mode) / sum over modes. With ascertainment correction (default), the
+   * winning by flexibility alone. The score is prior(mode) P(pedigree | mode) / sum over modes, with
+   * the priors of MODE_PRIOR; recessive is further weighted by 1 + F (1 - q) / q when the index's
+   * parents are consanguineous, and relatives without the condition recorded count as probably
+   * unaffected (RANK_MISS_RATE) unless the model says they are unaffected. With ascertainment correction (default), the
    * family is taken to have come to attention through the affected index: the index's phenotype
    * only rules out settings in which it is impossible (penetrance 0 for the index's sex), instead
    * of favoring settings with high penetrance. Recessive assumes an affected (biallelic) index. The best grid point of each mode
@@ -640,7 +671,16 @@ var CascadeTestingDialog = Class.create({
           });
         });
       });
-      return { mode: mode, L: n ? sum / n : 0, fitted: best };
+      var L = n ? sum / n : 0;
+      // weight of the mode beforehand
+      L *= MODE_PRIOR[mode];
+      // consanguineous parents make a recessive condition in the index much more likely: the
+      // chance of two copies of a rare variant is q^2 + F q (1 - q) instead of q^2, while the
+      // chance of a dominant, X-linked or mitochondrial one does not change
+      if (mode === 'AR' && _this._fitF > 0) {
+        L *= 1 + _this._fitF * (1 - q) / q;
+      }
+      return { mode: mode, L: L, fitted: best };
     });
     var total = results.reduce(function(s, r) { return s + r.L; }, 0);
     var ranking = results.map(function(r) {
@@ -871,6 +911,12 @@ var CascadeTestingDialog = Class.create({
     try { indexParents = graph.getParentRelationship(this._indexId); } catch (e) {}
     if (indexParents !== null && indexParents !== undefined && !coupleIsConsanguineous(graph, indexParents)) {
       this._indexF = 0; // the user marked the parents as not consanguineous
+    }
+    // for the mode ranking: parents marked as consanguineous by hand, without their common
+    // ancestors drawn, are taken as first cousins
+    this._fitF = this._indexF;
+    if (!(this._fitF > 0) && indexParents !== null && indexParents !== undefined && coupleIsConsanguineous(graph, indexParents)) {
+      this._fitF = ASSUMED_F;
     }
     // how well each mode of inheritance explains the pedigree
     this._fit = this._rankModes();
@@ -1115,7 +1161,8 @@ var CascadeTestingDialog = Class.create({
       head.insert(new Element('span', { 'class': 'cascade-fit-title' }).update(translate('Relative compatibility of the modes of inheritance')));
       head.insert(help([
         'How well each mode of inheritance explains the affected and unaffected relatives (for the condition chosen in the model) and the test results. Each mode is tried over a range of penetrance, penetrance in women (X-linked: low for recessive, high for dominant) and de novo proportion, with the age at onset set for it. Recessive assumes an affected index with two variants.',
-        'The percentages compare the modes with each other (equal weight beforehand). They are a relative score, not a calibrated probability or a diagnosis: few relatives or unknown ages can change them. Choosing a mode here also applies the settings that fit best.',
+        'The percentages compare the modes with each other. Before looking at the pedigree, each mode weighs about as much as its share of Mendelian conditions (recessive 50%, dominant 40%, X-linked 6.5%, mitochondrial 1%, Y-linked 0.1%). They are a relative score, not a calibrated probability or a diagnosis: few relatives or unknown ages can change them. Choosing a mode here also applies the settings that fit best.',
+        'Consanguineous parents of the index raise the weight of autosomal recessive, by 1 + F (1 − q) / q (F: inbreeding coefficient of the index; q: variant frequency, from the carrier frequency). Parents marked as consanguineous without common ancestors drawn are taken as first cousins. In this comparison, relatives without the condition recorded count as probably unaffected (certainly, when that option is on in the model).',
         'Ascertainment correction (recommended): the family came to attention through the affected index, so the index\'s phenotype only rules out settings in which it is impossible (for example no affected women), instead of favoring settings with high penetrance.'
       ]));
       fitBox.insert(head);

@@ -111,6 +111,17 @@ var KeyboardShortcuts = Class.create({
     return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
   },
 
+  // a field in which text is typed (it has its own undo), as opposed to a button-like control
+  _isTextEntry: function(target) {
+    if (!target || !target.tagName) return false;
+    if (target.isContentEditable) return true;
+    var tag = target.tagName.toLowerCase();
+    if (tag === 'textarea') return true;
+    if (tag !== 'input') return false;
+    var type = (target.getAttribute('type') || 'text').toLowerCase();
+    return ['radio', 'checkbox', 'button', 'submit', 'reset', 'range', 'file', 'color', 'image'].indexOf(type) === -1;
+  },
+
   _isDialogOpen: function() {
     var boxes = document.querySelectorAll('.msdialog-box, .xdialog-box');
     for (var i = 0; i < boxes.length; i++) {
@@ -135,11 +146,20 @@ var KeyboardShortcuts = Class.create({
       return;
     }
 
-    if (this._isTyping(e.target) || this._isDialogOpen()) return;
-    if (e.altKey) return;
-
     var mod = IS_MAC ? e.metaKey : e.ctrlKey;
     var lower = key && key.length === 1 ? key.toLowerCase() : key;
+
+    // Undo / redo also work while the focus is on an option of the person menu (radio button,
+    // checkbox, list): the focus stays there after a click, and those controls have no undo of
+    // their own. In a text field the browser's own undo of the typing is kept.
+    if (mod && !e.altKey && (lower === 'z' || lower === 'y') && this._isTyping(e.target) &&
+        !this._isTextEntry(e.target) && !this._isDialogOpen()) {
+      if (lower === 'z' && !e.shiftKey) return this._run(e, function() { document.fire('pedigree:undo'); });
+      return this._run(e, function() { document.fire('pedigree:redo'); });
+    }
+
+    if (this._isTyping(e.target) || this._isDialogOpen()) return;
+    if (e.altKey) return;
 
     if (mod) {
       if (lower === 'z' && !e.shiftKey) return this._run(e, function() { document.fire('pedigree:undo'); });
