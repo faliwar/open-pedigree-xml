@@ -35,10 +35,44 @@ var STANDARD_NOTES = {
   // twins of unknown zygosity; Progeny's sibling type 1 means "twin, dizygotic or unknown"
   zygosityUnknown: 'Twin zygosity',
   artKey: 'Assisted reproduction key',
-  artLinks: 'Assisted reproduction lines'
+  artLinks: 'Assisted reproduction lines',
+  // no contact with proband (dashed/dotted cross-bar on relationship line)
+  lostContact: 'Contact with proband'
 };
 
 InvitaeConverter.prototype = {};
+
+/**
+ * Combines unified name, firstName (fName), and lastName (lName) into a single full name
+ * without losing lName or duplicating it when fName already contains the surname.
+ */
+InvitaeConverter._combineFullName = function (name, fName, lName) {
+  var clean = function (val) {
+    if (!val || val === 'undefined' || val === 'null') return '';
+    return String(val).trim();
+  };
+  var base = clean(name) || clean(fName);
+  var first = clean(fName);
+  var last = clean(lName);
+  if (first && base && base.toLowerCase() !== first.toLowerCase()) {
+    // If name is shorter than fName (e.g. name had only first token while fName had full name), prefer longer
+    if (first.toLowerCase().indexOf(base.toLowerCase()) === 0 && first.length > base.length) {
+      base = first;
+    }
+  }
+  if (!last) {
+    return base;
+  }
+  if (!base) {
+    return last;
+  }
+  var baseLower = base.toLowerCase();
+  var lastLower = last.toLowerCase();
+  if (baseLower === lastLower || baseLower.slice(-(lastLower.length + 1)) === ' ' + lastLower) {
+    return base;
+  }
+  return (base + ' ' + last).trim();
+};
 
 // Invitae colour index -> colour (see model/conditionColors.js)
 InvitaeConverter.PREF_COLORS = INVITAE_PALETTE;
@@ -685,22 +719,29 @@ InvitaeConverter._parseIndividual = function (indiEl) {
   }
 
   // Names
-  var fName = InvitaeConverter._getChildAttr(indiEl, 'first_name', 'value');
-  var lName = InvitaeConverter._getChildAttr(indiEl, 'last_name', 'value');
-  var fullName = '';
-  if (fName && fName !== '' && fName !== 'undefined') {
-    fullName += fName;
-  }
-  if (lName && lName !== '' && lName !== 'undefined') {
-    if (fullName !== '') {
-      fullName += ' ';
+  var getChildValOrText = function (tag) {
+    var child = indiEl.querySelector(':scope > ' + tag);
+    if (!child) return '';
+    var attrVal = child.getAttribute('value');
+    if (attrVal !== null && attrVal !== undefined && attrVal !== '') {
+      return attrVal;
     }
-    fullName += lName;
-  }
-  fullName = fullName.trim();
+    return (child.textContent || '').trim();
+  };
+  var fName = getChildValOrText('first_name');
+  var lName = getChildValOrText('last_name');
+  var rawName = getChildValOrText('name') || getChildValOrText('full_name') || indiEl.getAttribute('name') || '';
+  var fullName = InvitaeConverter._combineFullName(rawName, fName, lName);
   if (fullName !== '') {
     properties.name = fullName;
     properties.fName = fullName;
+  }
+
+  var lostContactAttr = indiEl.getAttribute('lost_contact') || indiEl.getAttribute('nocontact') ||
+    InvitaeConverter._getChildAttr(indiEl, 'lost_contact', 'value') ||
+    InvitaeConverter._getChildAttr(indiEl, 'nocontact', 'value');
+  if (lostContactAttr === '1' || /^true$/i.test(lostContactAttr || '')) {
+    properties.lostContact = true;
   }
 
   // External ID (MRN)
@@ -976,6 +1017,8 @@ InvitaeConverter._parseIndividual = function (indiEl) {
           if (!isNaN(parseInt(noteValue, 10))) properties.artKey = parseInt(noteValue, 10);
         } else if (noteType === STANDARD_NOTES.artLinks) {
           properties.artLinks = noteValue.split(';').map(function(k) { return parseInt(k, 10); }).filter(function(k) { return !isNaN(k); });
+        } else if (noteType === STANDARD_NOTES.lostContact || /^(lost|no)\s*contact/i.test(noteType || '')) {
+          properties.lostContact = !/^(yes|in\s*contact|false|0)$/i.test(noteValue.trim());
         } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
@@ -1290,10 +1333,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Names
   if (privacySetting === 'all') {
-    var pName = props.name || props.fName || '';
-    if (!pName && props.lName) {
-      pName = props.lName;
-    }
+    var pName = InvitaeConverter._combineFullName(props.name, props.fName, props.lName);
     xml += '<first_name value="' + InvitaeConverter._escapeXml(pName) + '"/>';
     xml += '<last_name value=""/>';
   } else {
@@ -1508,6 +1548,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   }
   if (typeof props.artKey === 'number') standardNotes.push([STANDARD_NOTES.artKey, String(props.artKey)]);
   if (props.artLinks && props.artLinks.length) standardNotes.push([STANDARD_NOTES.artLinks, props.artLinks.join('; ')]);
+  if (props.lostContact) standardNotes.push([STANDARD_NOTES.lostContact, 'Not in contact']);
   if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {
     xml += '<notes>';
     standardNotes.forEach(function(sn, idx) {

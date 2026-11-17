@@ -433,6 +433,13 @@ var Controller = Class.create({
 
     if (needUpdateAllRelationships) {
       var rels = editor.getGraph().getAllRelatedRelationships(nodeID);
+      if (properties && properties.hasOwnProperty('setProband')) {
+        for (var rId = 0; rId <= editor.getGraph().getMaxNodeId(); rId++) {
+          if (editor.getGraph().isRelationship(rId) && rels.indexOf(rId) === -1) {
+            rels.push(rId);
+          }
+        }
+      }
       var changeSet = {'moved': rels};
       editor.getView().applyChanges(changeSet, true);
     }

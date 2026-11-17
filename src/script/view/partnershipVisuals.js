@@ -404,9 +404,10 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
         editor.getView().drawCurvedLineWithCrossings(id, xFrom, yFrom, yTop, xTo, finalYTo, lastBend, lineAttr, consangr, goesLeft);
       }
 
-      var lostContact = !editor.getView().getNode(person).isProband() &&
-        editor.getView().getNode(person).getLostContact() &&
-        editor.getGraph().isPartnershipRelatedToProband(id);
+      var personNode = editor.getView().getNode(person);
+      var lostContact = personNode && !personNode.isProband() &&
+        personNode.getLostContact() &&
+        (editor.getGraph().isPartnershipRelatedToProband(id) || editor.getGraph().getParentRelationship(person) === null);
       if (lostContact) {
         var xCross = goesLeft ? this.getX() - 20 : this.getX() + 20;
         var lineSize = PedigreeEditorParameters.attributes.notInContactLineSize;
@@ -545,12 +546,29 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
         editor.getView().drawLineWithCrossings(id, xIntercept, twinlineY, childX, childY, childLineAttr);
       }
 
-      var lostContact = editor.getGraph().isChildOfProband(child) && editor.getView().getNode(child).getLostContact();
+      var drawnOnPartnerLine = false;
+      if (childNode && !childNode.isProband() && childNode.getLostContact()) {
+        try {
+          var childRels = positionedGraph.DG && positionedGraph.DG.GG ? positionedGraph.DG.GG.getAllRelationships(child) : [];
+          for (var rIdx = 0; rIdx < childRels.length; rIdx++) {
+            if (positionedGraph.isPartnershipRelatedToProband(childRels[rIdx])) {
+              drawnOnPartnerLine = true;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+      var lostContact = childNode && !childNode.isProband() && !drawnOnPartnerLine && childNode.getLostContact();
       if (lostContact) {
+        var lineSize = PedigreeEditorParameters.attributes.notInContactLineSize;
         if (twinGroupId == null) {
-          var lineSize = PedigreeEditorParameters.attributes.notInContactLineSize;
           editor.getPaper().path('M ' + (topLineX - lineSize) + ' ' + (topLineY + 20) + ' L ' + (topLineX + lineSize) + ' ' + (topLineY + 20)).attr(PedigreeEditorParameters.attributes.noContactLines).toBack();
         } else {
+          var twinStartX = (!currentIsMonozygothic || childX == positionL || childX == positionR) ? topLineX : xIntercept;
+          var twinStartY = (!currentIsMonozygothic || childX == positionL || childX == positionR) ? topLineY : twinlineY;
+          var twinTickY = twinStartY + (childY - twinStartY) * 0.45;
+          var twinTickX = findXInterceptGivenLineAndY(twinTickY, twinStartX, twinStartY, childX, childY);
+          editor.getPaper().path('M ' + (twinTickX - lineSize) + ' ' + twinTickY + ' L ' + (twinTickX + lineSize) + ' ' + twinTickY).attr(PedigreeEditorParameters.attributes.noContactLines).toBack();
         }
       }
     }

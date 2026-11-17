@@ -169,6 +169,7 @@ var Person = Class.create(AbstractPerson, {
       return;
     }
     this._isProband = true;
+    this._lostContact = false;
 
     // There is exactly one proband. Everyone else loses the role, both in what is drawn and in
     // the saved data: the first person (id 0) is the proband unless the data says otherwise, so it
@@ -416,6 +417,7 @@ var Person = Class.create(AbstractPerson, {
      * @method setLostContact
      */
   setLostContact: function (lostContact) {
+    lostContact = !!lostContact;
     if (lostContact == this._lostContact) {
       return;
     }
@@ -1366,7 +1368,7 @@ var Person = Class.create(AbstractPerson, {
       inactiveCarriers.push('presymptomatic');
     }
 
-    var inactiveLostContact = this.isProband() || !editor.getGraph().isRelatedToProband(this.getID());
+    var inactiveLostContact = this.isProband() || this.isFetus();
 
     return {
       identifier: { value: this.getID() },
@@ -1552,11 +1554,24 @@ var Person = Class.create(AbstractPerson, {
     this._setDefault();
 
     if (superAssign(info)) {
-      if (info.name && this.getName() != info.name) {
-        this.setName(info.name);
-      } else if ((info.fName || info.lName) && (this.getName() != info.fName || (info.lName && this.getLastName() != info.lName))) {
-        var combined = ((info.fName || '') + ' ' + (info.lName || '')).trim();
-        this.setName(combined);
+      if (info.name || info.fName || info.lName) {
+        var baseName = String(info.name || info.fName || '').trim();
+        var last = String(info.lName || '').trim();
+        var fullName = baseName;
+        if (last) {
+          if (!baseName) {
+            fullName = last;
+          } else {
+            var baseLower = baseName.toLowerCase();
+            var lastLower = last.toLowerCase();
+            if (baseLower !== lastLower && baseLower.slice(-(lastLower.length + 1)) !== ' ' + lastLower) {
+              fullName = (baseName + ' ' + last).trim();
+            }
+          }
+        }
+        if (fullName && this.getName() != fullName) {
+          this.setName(fullName);
+        }
       }
       if (info.externalID && this.getExternalID() != info.externalID) {
         this.setExternalID(info.externalID);

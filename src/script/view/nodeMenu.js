@@ -45,6 +45,9 @@ var NodeMenu = Class.create({
     this.closeButton.observe('touchend', hideMenu);
 
     this.form = new Element('form', {'method' : 'get', 'action' : '', 'class': 'tabs-content'});
+    this.form.observe('submit', function(e) {
+      e.stop();
+    });
 
     this.tabs = {};
     this.tabHeaders = {};
@@ -644,16 +647,68 @@ var NodeMenu = Class.create({
   },
 
   update: function(newTarget) {
+    var targetChanged = false;
     if (newTarget) {
+      if (this.targetNode && this.targetNode !== newTarget) {
+        this._commitPendingInputs();
+        targetChanged = true;
+      }
       this.targetNode = newTarget;
     }
 
     if (this.targetNode) {
       this._updating = true;   // needed to avoid infinite loop: update -> _attachFieldEventListeners -> update -> ...
+      this._targetChanged = targetChanged;
       this._setCrtData(this.targetNode.getSummary());
       this.reposition();
+      delete this._targetChanged;
       delete this._updating;
     }
+  },
+
+  _commitPendingInputs: function() {
+    if (!this.targetNode || this._updating) {
+      return;
+    }
+    var _this = this;
+    var target = this.targetNode;
+    try {
+      if (typeof document !== 'undefined' && document.activeElement &&
+          this.menuBox && this.menuBox.contains && this.menuBox.contains(document.activeElement) &&
+          typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+    } catch (e) {}
+    if (!this.targetNode) {
+      this.targetNode = target;
+    }
+    var summary = (typeof target.getSummary === 'function') ? target.getSummary() : null;
+    if (!summary) {
+      return;
+    }
+    Object.keys(this.fieldMap).each(function(fieldName) {
+      var fieldEntry = _this.fieldMap[fieldName];
+      if (!fieldEntry || fieldEntry.inactive || (fieldEntry.type !== 'text' && fieldEntry.type !== 'textarea')) {
+        return;
+      }
+      var inputEl = fieldEntry.type === 'textarea'
+        ? fieldEntry.element.down('textarea')
+        : fieldEntry.element.down('input[type=text]');
+      if (!inputEl || typeof inputEl._getValue !== 'function') {
+        return;
+      }
+      var val = inputEl._getValue()[0];
+      var currentModelVal = summary[fieldName] ? summary[fieldName].value : '';
+      if (val !== undefined && val !== currentModelVal) {
+        fieldEntry.crtValue = val;
+        var method = fieldEntry['function'];
+        if (method && method.indexOf('set') === 0 && typeof target[method] === 'function') {
+          var properties = {};
+          properties[method] = val;
+          document.fire('pedigree:node:setproperty', { 'nodeID': target.getID(), 'properties': properties });
+        }
+      }
+    });
   },
 
   _generateField : {
@@ -698,8 +753,7 @@ var NodeMenu = Class.create({
       text._getValue = function() {
         return [this.value];
       }.bind(text);
-      //this._attachFieldEventListeners(text, ['keypress', 'keyup'], [true]);
-      this._attachFieldEventListeners(text, ['keyup'], [true]);
+      this._attachFieldEventListeners(text, ['input', 'keyup', 'change', 'blur'], [true]);
       return result;
     },
     'textarea' : function (data) {
@@ -712,7 +766,7 @@ var NodeMenu = Class.create({
       text._getValue = function() {
         return [this.value];
       }.bind(text);
-      this._attachFieldEventListeners(text, ['keyup'], [true]);
+      this._attachFieldEventListeners(text, ['input', 'keyup', 'change', 'blur'], [true]);
       return result;
     },
     'date-picker' : function (data) {
@@ -962,6 +1016,9 @@ var NodeMenu = Class.create({
   },
 
   show : function(node, x, y) {
+    if (this.targetNode && this.targetNode !== node) {
+      this._commitPendingInputs();
+    }
     this._onscreen = true;
     this.targetNode = node;
     this._setCrtData(node.getSummary());
@@ -975,6 +1032,7 @@ var NodeMenu = Class.create({
   },
 
   hide : function() {
+    this._commitPendingInputs();
     this.hideSuggestPicker();
     this._onscreen = false;
     if (this._boundOnClickOutside) {
@@ -1147,13 +1205,29 @@ var NodeMenu = Class.create({
     'text' : function (container, value) {
       var target = container.down('input[type=text]');
       if (target) {
-        target.value = value;
+        var nextVal = (value !== undefined && value !== null) ? String(value) : '';
+        if (this._updating && !this._targetChanged && typeof document !== 'undefined' && document.activeElement === target) {
+          if (target.value === nextVal || target.value.toLowerCase() === nextVal.toLowerCase()) {
+            return;
+          }
+        }
+        if (target.value !== nextVal) {
+          target.value = nextVal;
+        }
       }
     },
     'textarea' : function (container, value) {
       var target = container.down('textarea');
       if (target) {
-        target.value = value;
+        var nextVal = (value !== undefined && value !== null) ? String(value) : '';
+        if (this._updating && !this._targetChanged && typeof document !== 'undefined' && document.activeElement === target) {
+          if (target.value === nextVal || target.value.toLowerCase() === nextVal.toLowerCase()) {
+            return;
+          }
+        }
+        if (target.value !== nextVal) {
+          target.value = nextVal;
+        }
       }
     },
     'date-picker' : function (container, value) {

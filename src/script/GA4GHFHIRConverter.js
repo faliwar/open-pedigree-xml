@@ -639,7 +639,7 @@ GA4GHFHIRConverter.extractDataFromPatient = function (patientResource,
       let nameSplit = nameSplitter.exec(nameText);
       if (nameSplit == null) {
         if (maxLNameUse === -2 && maxFNameUse === -2) {
-          properties.fName = nameSplit[1];
+          properties.fName = nameText;
         }
       } else {
         if (maxFNameUse === -2) {
@@ -649,6 +649,9 @@ GA4GHFHIRConverter.extractDataFromPatient = function (patientResource,
           properties.lName = nameSplit[3];
         }
       }
+    }
+    if (properties.fName || properties.lName) {
+      properties.name = [properties.fName, properties.lName].filter(Boolean).join(' ').trim();
     }
   }
 
@@ -1270,16 +1273,16 @@ GA4GHFHIRConverter.buildPedigreeIndividual = function (containedId, nodeProperti
 
   // name
   if (privacySetting === 'all') {
-
-    if (nodeProperties.lName || nodeProperties.fName || nodeProperties.lNameAtB) {
+    let givenName = nodeProperties.fName || nodeProperties.name;
+    if (nodeProperties.lName || givenName || nodeProperties.lNameAtB) {
       patientResource.name = [];
-      if (nodeProperties.lName || nodeProperties.fName) {
+      if (nodeProperties.lName || givenName) {
         let name = {};
         if (nodeProperties.lName) {
           name.family = nodeProperties.lName;
         }
-        if (nodeProperties.fName) {
-          name.given = [nodeProperties.fName];
+        if (givenName) {
+          name.given = [givenName];
         }
         patientResource.name.push(name);
       }
