@@ -803,6 +803,21 @@ var View = Class.create({
     }
   },
 
+  // Closes the person / group / relationship menu if it shows this node (about to be removed)
+  _closeMenusOf: function (node) {
+    if (typeof editor === 'undefined' || !editor) {
+      return;
+    }
+    ['getNodeMenu', 'getNodeGroupMenu', 'getPartnershipMenu'].forEach(function (getter) {
+      var menu = editor[getter] && editor[getter]();
+      if (menu && menu.targetNode === node && menu.isVisible && menu.isVisible()) {
+        try {
+          menu.hide();
+        } catch (e) {}
+      }
+    });
+  },
+
   applyChanges: function (changeSet, markNew) {
     // applies change set of the form {"new": {list of nodes}, "moved": {list of nodes} }
 
@@ -853,6 +868,7 @@ var View = Class.create({
           var nextRemoved = changeSet.removed[i];
 
           if (this.getNodeMap()[nextRemoved]) {
+            this._closeMenusOf(this.getNodeMap()[nextRemoved]);
             this.getNodeMap()[nextRemoved].remove();
             this.removeFromNodeMap(nextRemoved);
           }

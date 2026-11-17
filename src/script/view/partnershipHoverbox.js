@@ -129,7 +129,7 @@ var PartnershipHoverbox = Class.create(AbstractHoverbox, {
      * @return {Boolean}
      */
   isMenuToggled: function() {
-    return this._isMenuToggled;
+    return this._checkMenuToggled(editor.getPartnershipMenu && editor.getPartnershipMenu());
   },
 
   /**

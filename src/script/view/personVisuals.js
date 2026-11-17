@@ -1161,6 +1161,11 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       if (labelY + metrics.top < minY) minY = labelY + metrics.top;
       if (labelY + metrics.bottom > maxY) maxY = labelY + metrics.bottom;
       hasLabels = true;
+      // text is never interactive: a tall label (e.g. ancestry) must not cover the symbol,
+      // hoverbox or menu button of a neighbouring person drawn below it in the SVG
+      if (labels[i].node) {
+        labels[i].node.style.pointerEvents = 'none';
+      }
     }
     if (!editor.isUnsupportedBrowser()) {
       labels.flatten().insertBefore(this.getHoverBox().getFrontElements().flatten());
@@ -1177,6 +1182,9 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
           'fill-opacity': 0.75,
           stroke: 'none'
         });
+        if (this._labelsBox.node) {
+          this._labelsBox.node.style.pointerEvents = 'none';
+        }
       }
       this._labelsBox.attr({
         x: minX - 4,

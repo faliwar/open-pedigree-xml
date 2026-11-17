@@ -1016,35 +1016,55 @@ var NodeMenu = Class.create({
   },
 
   show : function(node, x, y) {
-    if (this.targetNode && this.targetNode !== node) {
+    var previous = this.targetNode;
+    if (previous && previous !== node) {
       this._commitPendingInputs();
+      // the menu moves to another person: the previous one must know its menu is closed,
+      // otherwise its hoverbox keeps "menu open" and never shows its buttons or menu again
+      try {
+        previous.onWidgetHide && previous.onWidgetHide();
+      } catch (e) {}
     }
     this._onscreen = true;
     this.targetNode = node;
     this._setCrtData(node.getSummary());
     this.menuBox.show();
     this.reposition(x, y);
+    try {
+      node.onWidgetShow && node.onWidgetShow();
+    } catch (e) {}
     if (!this._boundOnClickOutside) {
       this._boundOnClickOutside = this._onClickOutside.bind(this);
     }
+    document.stopObserving('mousedown', this._boundOnClickOutside);
+    document.stopObserving('touchend', this._boundOnClickOutside);
     document.observe('mousedown', this._boundOnClickOutside);
     document.observe('touchend', this._boundOnClickOutside);
   },
 
   hide : function() {
-    this._commitPendingInputs();
-    this.hideSuggestPicker();
+    try {
+      this._commitPendingInputs();
+      this.hideSuggestPicker();
+    } catch (e) {
+      console.warn('Node menu: pending inputs not saved:', e);
+    }
     this._onscreen = false;
     if (this._boundOnClickOutside) {
       document.stopObserving('mousedown', this._boundOnClickOutside);
       document.stopObserving('touchend', this._boundOnClickOutside);
     }
-    if (this.targetNode) {
-      this.targetNode.onWidgetHide();
-      delete this.targetNode;
-    }
+    var target = this.targetNode;
+    delete this.targetNode;
     this.menuBox.hide();
-    this._clearCrtData();
+    if (target) {
+      try {
+        target.onWidgetHide();
+      } catch (e) {}
+    }
+    try {
+      this._clearCrtData();
+    } catch (e) {}
   },
 
   hideSuggestPicker: function() {
@@ -1060,6 +1080,12 @@ var NodeMenu = Class.create({
   },
 
   _onClickOutside: function (event) {
+    var target = event.target;
+    // an element the menu has just re-rendered (e.g. the "×" of an ancestry chip or an option of
+    // the ancestry list) is no longer in the page: it was inside the menu, not outside
+    if (target && target.nodeType === 1 && !document.documentElement.contains(target)) {
+      return;
+    }
     if (!event.findElement('.menu-box') && !event.findElement('.calendar_date_select') && !event.findElement('.suggestItems')) {
       this.hide();
     }

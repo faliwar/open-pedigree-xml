@@ -56,7 +56,7 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
      * @return {Boolean}
      */
   isMenuToggled: function() {
-    return this._isMenuToggled;
+    return this._checkMenuToggled(editor.getNodeGroupMenu && editor.getNodeGroupMenu());
   },
 
   /**

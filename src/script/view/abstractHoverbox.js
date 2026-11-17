@@ -838,6 +838,26 @@ var AbstractHoverbox = Class.create({
   toggleMenu: function (isMenuToggled) {
   },
 
+  /**
+   * The "menu open" flag, checked against the menu itself: it is only true while that menu is
+   * visible and shows this node. A flag left behind (the menu was closed or moved to another
+   * person without telling this hoverbox) is cleared, so that the node can be edited again.
+   *
+   * @method _checkMenuToggled
+   * @param {NodeMenu} menu the menu this hoverbox opens
+   * @return {Boolean}
+   */
+  _checkMenuToggled: function (menu) {
+    if (!this._isMenuToggled) {
+      return false;
+    }
+    if (menu && typeof menu.isVisible === 'function' && (!menu.isVisible() || menu.targetNode !== this.getNode())) {
+      this._isMenuToggled = false;
+      return false;
+    }
+    return true;
+  },
+
   /*
      * Fades the hoverbox graphics in
      *
