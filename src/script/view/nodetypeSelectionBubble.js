@@ -183,7 +183,7 @@ var NodetypeSelectionBubble = Class.create({
   handleCreateAction: function(data) {
     var id       = this._node.getID();
     var nodeType = this._node.getType();
-    if (nodeType == 'Person') {
+    if (nodeType == 'Person' || nodeType == 'PersonGroup') {
       var event = { 'personID': id, 'childParams': data.params.parameters, 'preferLeft': false };
       if (data.params.twins) {
         event['twins'] = this.numTwinNodes;

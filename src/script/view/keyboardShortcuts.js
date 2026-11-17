@@ -254,6 +254,10 @@ var KeyboardShortcuts = Class.create({
     return node && node.getType && node.getType() === 'Person';
   },
 
+  _isPersonOrGroup: function(node) {
+    return node && node.getType && (node.getType() === 'Person' || node.getType() === 'PersonGroup');
+  },
+
   _label: function(node) {
     var id = node.getID();
     var name = node.getName ? node.getName() : '';
@@ -282,9 +286,17 @@ var KeyboardShortcuts = Class.create({
     return true;
   },
 
+  _personOrGroupOnly: function(node) {
+    if (!this._isPersonOrGroup(node)) {
+      this.toast(translate('Select a person first.'));
+      return false;
+    }
+    return true;
+  },
+
   _addParents: function() {
     var node = this._getTarget();
-    if (!this._personOnly(node)) return;
+    if (!this._personOrGroupOnly(node)) return;
     var graph = editor.getGraph();
     var rel = graph.getParentRelationship(node.getID());
     if (!(rel === null || graph.isParentlessRelationship(rel) || graph.isSingleParentRelationship(rel))) {
@@ -299,7 +311,7 @@ var KeyboardShortcuts = Class.create({
 
   _addSibling: function() {
     var node = this._getTarget();
-    if (!this._personOnly(node)) return;
+    if (!this._personOrGroupOnly(node)) return;
     var label = this._label(node);
     this._releaseHoverbox(node);
     document.fire('pedigree:person:newsibling', { personID: node.getID(), childParams: { gender: 'U' }, preferLeft: false });
@@ -308,7 +320,7 @@ var KeyboardShortcuts = Class.create({
 
   _addChild: function() {
     var node = this._getTarget();
-    if (!this._personOnly(node)) return;
+    if (!this._personOrGroupOnly(node)) return;
     if (node.isFetus && node.isFetus()) {
       this.toast(translate('A pregnancy cannot have children.'));
       return;
@@ -325,7 +337,7 @@ var KeyboardShortcuts = Class.create({
 
   _addPartner: function() {
     var node = this._getTarget();
-    if (!this._personOnly(node)) return;
+    if (!this._personOrGroupOnly(node)) return;
     if (node.isFetus && node.isFetus()) {
       this.toast(translate('A pregnancy cannot have a partner.'));
       return;

@@ -21,16 +21,12 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
   },
 
   /**
-    * Creates the handles used in this hoverbox - overriden to generate no handles
+    * Creates the handles used in this hoverbox (inherited from PersonHoverbox so groups can have descendants/partners/parents)
     *
     * @method generateHandles
-    * @return {Raphael.st} A set of handles
     */
   generateHandles: function($super) {
-    if (this._currentHandles !== null) {
-      return;
-    }
-    // else: no handles
+    $super();
   },
 
   /**
@@ -43,10 +39,6 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
       return;
     }
     $super();
-
-    // note: no call to super as we don't want default person buttons
-    this.generateMenuBtn();
-    this.generateDeleteBtn();
   },
 
   /**
@@ -77,6 +69,10 @@ var PersonGroupHoverbox = Class.create(PersonHoverbox, {
       var y = optBBox.y;
       var position = editor.getWorkspace().canvasToDiv(x+5, y);
       editor.getNodeGroupMenu().show(this.getNode(), position.x, position.y);
+    } else {
+      if (editor.getNodeGroupMenu && editor.getNodeGroupMenu().isVisible()) {
+        editor.getNodeGroupMenu().hide();
+      }
     }
   },
 

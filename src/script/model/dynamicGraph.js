@@ -632,9 +632,6 @@ DynamicPositionedGraph.prototype = {
       if (!this.isRelationship(i) && !this.isPerson(i)) {
         continue;
       }
-      if (this.isPersonGroup(i)) {
-        continue;
-      }
       if (this.DG.ancestors[i].hasOwnProperty(v)) {
         continue;
       }
@@ -2897,9 +2894,6 @@ DynamicPositionedGraph.prototype = {
 
     for (var i = 0; i <= this.DG.GG.getMaxRealVertexId(); i++) {
       if (!this.isPerson(i)) {
-        continue;
-      }
-      if (this.isPersonGroup(i)) {
         continue;
       }
       var gender = this.getProperties(i)['gender'].toLowerCase();
