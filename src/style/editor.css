@@ -5656,6 +5656,60 @@ textarea.pedigree-info-input {
   color: #475569;
 }
 
+/* built-in disease / gene preset banner and controls */
+.cascade-preset-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 7px 11px;
+  border: 1px solid #BAE6FD;
+  border-radius: 8px;
+  background: #F0F9FF;
+  color: #075985;
+  font-size: 12.5px;
+}
+
+.cascade-preset-banner.is-active {
+  border-color: #BBF7D0;
+  background: #F0FDF4;
+  color: #166534;
+}
+
+.cascade-preset-banner-text {
+  flex: 1 1 280px;
+  line-height: 1.4;
+}
+
+.cascade-preset-badge {
+  font-weight: 600;
+}
+
+.cascade-preset-ref {
+  font-size: 11.5px;
+  opacity: 0.88;
+}
+
+.cascade-preset-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cascade-preset-notes {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.cascade-prev-calc {
+  margin-left: 4px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
 /* model file links (export / import), at the end of "Model and evidence" */
 .cascade-onset-box {
   display: flex;

@@ -4,7 +4,7 @@ import { getLanguage, translate } from 'pedigree/i18n';
 import getAge from 'pedigree/view/ageCalc';
 import { computeVariantRisks } from 'pedigree/model/inheritance';
 import { parsePenetranceCurve, curveFraction, curveLifetime, activeCurve } from 'pedigree/model/penetrance';
-import { buildPreset, parsePreset, resolvePreset } from 'pedigree/model/cascadePresets';
+import { CATALOG_CATEGORIES, BUILTIN_PRESETS, buildPreset, parsePreset, resolvePreset, getBuiltInPreset, findMatchingPresets, carrierFreqFromPrevalence } from 'pedigree/model/cascadePresets';
 import { testLabel as clinicalTestLabel, testResult as clinicalTestResult } from 'pedigree/model/clinicalData';
 
 var INHERITANCE_OPTIONS = [
@@ -84,7 +84,8 @@ var CascadeTestingDialog = Class.create({
     // through an affected index)
     this._ascertainment = true;
     this._approx = null;
-    this._presetName = null;   // name of the model last imported or exported
+    this._presetName = null;   // name of the model last imported, exported or chosen from the catalog
+    this._presetNotes = '';    // reference/source notes of the active preset
     this._inUse = false;       // cascade testing was used for this pedigree: save its state with it
     this._pendingShifts = [];  // renumberings not yet attached to an undo state, see onNodeIdsChanged()
     this._refreshTimer = null;
@@ -106,7 +107,7 @@ var CascadeTestingDialog = Class.create({
     var names = {};
     this._pedigreeDisorders().forEach(function(d) { names[d.id] = d.name; });
     return buildPreset({
-      name: name, notes: notes, mode: this._mode, indexGenotype: this._indexGenotype,
+      name: name, notes: notes !== undefined ? notes : this._presetNotes, mode: this._mode, indexGenotype: this._indexGenotype,
       carrierFreqN: this._carrierFreqN, model: this._getModel(), conditionIds: this._resolvedConditions(),
       conditionNames: names, ascertainment: this._ascertainment
     });
@@ -122,6 +123,7 @@ var CascadeTestingDialog = Class.create({
     this._condition = r.condition;
     this._ascertainment = r.ascertainment;
     this._presetName = preset.name;
+    this._presetNotes = preset.notes || '';
     this._inUse = true;
     this._saveSettings();
     return r.unmatched;
@@ -149,6 +151,7 @@ var CascadeTestingDialog = Class.create({
       condition: this._condition,
       ascertainment: this._ascertainment,
       presetName: this._presetName,
+      presetNotes: this._presetNotes,
       indexId: this._indexId,
       maxDegree: this._maxDegree,
       minAge: this._minAge,
@@ -176,6 +179,7 @@ var CascadeTestingDialog = Class.create({
     this._condition = null;
     this._finding = '';
     this._presetName = null;
+    this._presetNotes = '';
     this._rows = [];
     this._inUse = false;
     if (!state || typeof state !== 'object' || state.format !== PEDIGREE_STATE_FORMAT) return;
@@ -191,7 +195,11 @@ var CascadeTestingDialog = Class.create({
     if (state.model && typeof state.model === 'object' && !Array.isArray(state.model)) this._model = state.model;
     if (state.condition === '' || typeof state.condition === 'string' || Array.isArray(state.condition)) this._condition = state.condition;
     this._ascertainment = state.ascertainment !== false;
-    if (typeof state.presetName === 'string' && state.presetName) this._presetName = state.presetName;
+    if (typeof state.presetName === 'string' && state.presetName) {
+      this._presetName = state.presetName;
+      var builtin = getBuiltInPreset(state.presetName);
+      this._presetNotes = (typeof state.presetNotes === 'string' && state.presetNotes) ? state.presetNotes : ((builtin && builtin.notes) || '');
+    }
     if (state.indexId !== null && state.indexId !== undefined) this._indexId = mapId(state.indexId);
     if ([1, 2, 3].indexOf(state.maxDegree) !== -1) this._maxDegree = state.maxDegree;
     if (typeof state.minAge === 'number' && state.minAge >= 0) this._minAge = state.minAge;
@@ -860,6 +868,76 @@ var CascadeTestingDialog = Class.create({
   },
 
   /**
+   * Built-in presets from the disease/gene catalog that match the index person's genes, the
+   * familial variant field, or the disorders recorded in the pedigree (index person's first).
+   * Falls back to an ACMG v4 rare-disease archetype when the index is an isolated early-onset
+   * case of an uncatalogued condition.
+   */
+  _matchingPresets: function() {
+    var graph = editor.getGraph();
+    var indexNode = this._indexId !== null ? editor.getNode(this._indexId) : null;
+    var genes = this._familialGenes().slice();
+    var addGene = function(g) {
+      var s = typeof g === 'string' ? g.trim().toUpperCase() : ((g && (g.gene || g.id)) ? String(g.gene || g.id).trim().toUpperCase() : '');
+      if (s && genes.indexOf(s) === -1) genes.push(s);
+    };
+    if (indexNode && indexNode.getGenes) {
+      (indexNode.getGenes() || []).forEach(addGene);
+    }
+    if (!genes.length) {
+      for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+        if (!isRealPerson(graph, id)) continue;
+        var n = editor.getNode(id);
+        if (!n) continue;
+        if (n.getGeneticTests) {
+          n.getGeneticTests().forEach(function(t) {
+            if (clinicalTestResult(t) === 'positive' && t.gene) addGene(t.gene);
+          });
+        }
+        if (n.getGenes) (n.getGenes() || []).forEach(addGene);
+      }
+    }
+    var allDisorders = this._pedigreeDisorders();
+    var indexDisorderIds = (indexNode && indexNode.getDisorders) ? (indexNode.getDisorders() || []) : [];
+    var orderedDisorders = allDisorders.filter(function(d) { return indexDisorderIds.indexOf(d.id) !== -1; })
+      .concat(allDisorders.filter(function(d) { return indexDisorderIds.indexOf(d.id) === -1; }));
+    var matches = findMatchingPresets({
+      genes: genes,
+      finding: this._finding,
+      disorders: orderedDisorders
+    });
+    if (matches.length || !orderedDisorders.length || this._indexId === null) {
+      return matches;
+    }
+    // ACMG v4 / ClinGen fallback heuristic for ultra-rare uncatalogued conditions:
+    // if the index has early-onset disease (<= 10 yrs) and unaffected parents, suggest the
+    // ACMG v4 rare early-onset archetype (recessive when consanguineous, dominant de novo otherwise)
+    var indexInfo = this._getPersonInfo(this._indexId);
+    var earlyOnset = indexInfo.ageYears !== null && indexInfo.ageYears <= 10;
+    if (!earlyOnset && indexNode && indexNode.getDisorderDetails) {
+      var details = indexNode.getDisorderDetails() || {};
+      Object.keys(details).forEach(function(k) {
+        var det = details[k] || {};
+        var mOnset = /^(\d{1,3})/.exec(String(det.onset || det.atdiag || '').trim());
+        if (mOnset && parseInt(mOnset[1], 10) <= 10) earlyOnset = true;
+      });
+    }
+    if (earlyOnset) {
+      var parents = getBiologicalParents(graph, this._indexId);
+      var parentsUnaffected = parents.length > 0 && parents.every(function(pid) {
+        var pn = editor.getNode(pid);
+        return pn && !((pn.getDisorders && pn.getDisorders() || []).length);
+      });
+      if (parentsUnaffected) {
+        var f = inbreedingOf(graph, this._indexId);
+        var arch = getBuiltInPreset(f > 0 ? 'acmg-v4-rare-ar' : 'acmg-v4-rare-ad-denovo');
+        if (arch) matches.push({ preset: arch, score: 50, matchedBy: 'ACMG v4' });
+      }
+    }
+    return matches;
+  },
+
+  /**
    * Reason why a relative is not preselected for approach, or '' when they should be: only
    * living, reachable, untested and undiagnosed relatives of known age above the minimum age are
    * preselected (diagnosed relatives may still be chosen, e.g. to confirm segregation).
@@ -1005,7 +1083,21 @@ var CascadeTestingDialog = Class.create({
     if (this.dialog) {
       this.hide();
     }
+    var wasInUse = this._inUse;
     this._inUse = true;
+    var graph = editor.getGraph();
+    if (this._indexId === null || !isRealPerson(graph, this._indexId)) {
+      this._indexId = graph.getProbandId();
+      this._overrides = {};
+    }
+    // Automatically pre-fill disease/gene parameters when cascade testing is first opened for a
+    // pedigree and a specific gene or syndrome matches the built-in catalog
+    if (!wasInUse && !this._presetName) {
+      var initialMatches = this._matchingPresets();
+      if (initialMatches.length && initialMatches[0].score >= 85) {
+        this._applyPreset(initialMatches[0].preset);
+      }
+    }
     this._computeRows();
 
     var content = new Element('div', { 'class': 'cascade-dialog-content' });
@@ -1049,7 +1141,6 @@ var CascadeTestingDialog = Class.create({
     var controls = new Element('div', { 'class': 'cascade-controls' });
 
     var indexSelect = new Element('select', { 'class': 'cascade-select', 'id': 'cascade-index' });
-    var graph = editor.getGraph();
     var byId = this._numbering.byId;
     var personIds = [];
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
@@ -1114,11 +1205,28 @@ var CascadeTestingDialog = Class.create({
     controls.insert(genotypeField);
 
     var freqInput = new Element('input', { 'type': 'number', 'min': 2, 'step': 1, 'class': 'cascade-input', 'id': 'cascade-carrier-freq', 'value': this._carrierFreqN });
+    var prevCalcBtn = new Element('button', {
+      'type': 'button',
+      'class': 'cascade-model-file-link cascade-prev-calc',
+      'title': translate('Calculate carrier frequency from disease prevalence (Hardy-Weinberg / ACMG v4)')
+    }).update(translate('From prevalence…'));
+    prevCalcBtn.observe('click', function() {
+      var raw = prompt(translate('Disease prevalence (1 in N, e.g. 40000 for 1 in 40,000):'), '');
+      if (!raw) return;
+      var d = parseFloat(String(raw).replace(/^[1\s/:]+/, '').replace(/[,.\s]/g, ''));
+      if (!(d > 1)) return;
+      _this._carrierFreqN = carrierFreqFromPrevalence(d, _this._getModel().penetrance);
+      freqInput.value = _this._carrierFreqN;
+      _this._saveSettings();
+      recompute(false);
+    });
     var freqWrap = new Element('span', { 'class': 'cascade-freq' });
     freqWrap.insert(new Element('span').update(translate('1 in')));
     freqWrap.insert(freqInput);
+    freqWrap.insert(prevCalcBtn);
     var freqField = field('Carrier frequency', freqWrap, 'cascade-field-wide',
-      ['Population carrier frequency. Used to estimate whether both variants of a biallelic index came from one common ancestor (more likely in consanguineous families and for rare variants).']);
+      ['Population carrier frequency. Used to estimate whether both variants of a biallelic index came from one common ancestor (more likely in consanguineous families and for rare variants).',
+        'By Hardy-Weinberg equilibrium (and ACMG/ClinGen population frequency guidelines), a recessive condition with prevalence 1 in D and penetrance P has carrier frequency ~ 2 / sqrt(D * P). Use "From prevalence…" to calculate it automatically.']);
     controls.insert(freqField);
 
     var syncGenotypeField = function() {
@@ -1215,11 +1323,37 @@ var CascadeTestingDialog = Class.create({
       insertOptions();
     };
 
+    // --- disease / gene auto-suggestion banner
+    var presetBanner = new Element('div', { 'class': 'cascade-preset-banner' });
+    presetBanner.setStyle({ display: 'none' });
+    content.insert(presetBanner);
+
     // --- model: de novo, penetrance, evidence
     var modelBox = new Element('details', { 'class': 'cascade-model' });
     var modelSummary = new Element('span', { 'class': 'cascade-model-summary' });
     modelBox.insert(new Element('summary').insert(new Element('span', { 'class': 'cascade-model-title' }).update(translate('Model and evidence'))).insert(modelSummary));
+
+    // built-in disease / gene preset picker
+    var presetSelect = new Element('select', { 'class': 'cascade-select', 'id': 'cascade-preset-select' });
+    presetSelect.insert(new Element('option', { 'value': '' }).update(translate('Custom / manual settings')));
+    CATALOG_CATEGORIES.forEach(function(cat) {
+      var group = new Element('optgroup', { 'label': translate(cat.label) });
+      BUILTIN_PRESETS.filter(function(p) { return p.category === cat.id; }).forEach(function(p) {
+        var opt = new Element('option', { 'value': p.id }).update(p.name.escapeHTML());
+        if (_this._presetName === p.name) opt.selected = true;
+        group.insert(opt);
+      });
+      if (group.childElements().length) presetSelect.insert(group);
+    });
+    var presetNotesSpan = new Element('div', { 'class': 'cascade-preset-notes' });
+    var presetWrap = new Element('div', { 'class': 'cascade-preset-wrap' }).insert(presetSelect).insert(presetNotesSpan);
+    var presetField = field('Disease / gene preset', presetWrap, 'cascade-field-wide', [
+      'Pre-fills inheritance mode, penetrance, age-specific curve or onset range, de novo rate and population carrier frequency from published clinical genetics databases (ClinGen CSpec, GeneReviews, ASK2ME, BOADICEA/CanRisk and Orphadata).',
+      'Includes ACMG v4 / ClinGen archetypes for ultra-rare early-onset disorders where high penetrance and de novo rates follow the Whiffin/Ware population-frequency framework.'
+    ]);
+
     var modelGrid = new Element('div', { 'class': 'cascade-controls cascade-model-grid' });
+    modelGrid.insert(presetField);
     modelBox.insert(modelGrid);
 
     // several conditions can be chosen when the variant causes more than one: chosen ones are chips
@@ -1441,6 +1575,11 @@ var CascadeTestingDialog = Class.create({
       var m = _this._getModel();
       var biallelic = _this._isBiallelic();
       var xl = _this._mode === 'XLR' || _this._mode === 'XLD';
+      var matchedBuiltIn = BUILTIN_PRESETS.filter(function(p) { return p.name === _this._presetName; })[0];
+      presetSelect.value = matchedBuiltIn ? matchedBuiltIn.id : '';
+      var noteText = _this._presetNotes ? (translate('Source:') + ' ' + _this._presetNotes) : (_this._presetName && !matchedBuiltIn ? _this._presetName : '');
+      presetNotesSpan.update(noteText.escapeHTML());
+      presetNotesSpan.setStyle({ display: noteText ? '' : 'none' });
       deNovoInput.value = m.deNovo;
       penInput.value = m.penetrance;
       femalePenInput.value = m.femalePen;
@@ -1477,6 +1616,88 @@ var CascadeTestingDialog = Class.create({
       usePhenoCb.up('label').setStyle({ display: phenoUseful ? '' : 'none' });
       unrecordedCb.up('label').setStyle({ display: phenoUseful ? '' : 'none' });
     };
+
+    var applyAndSyncPreset = function(preset) {
+      _this._applyPreset(preset);
+      modeSelect.value = _this._mode;
+      genotypeSelect.value = _this._indexGenotype;
+      freqInput.value = _this._carrierFreqN;
+      onsetMode = parsePenetranceCurve(_this._getModel().curve) ? 'curve' : 'range';
+      refreshConditions();
+      syncGenotypeField();
+      syncModelFields();
+      recompute(false);
+    };
+
+    var renderPresetBanner = function() {
+      var matches = _this._matchingPresets();
+      presetBanner.update('');
+      if (_this._presetName) {
+        presetBanner.className = 'cascade-preset-banner is-active';
+        presetBanner.setStyle({ display: '' });
+        var info = new Element('div', { 'class': 'cascade-preset-banner-text' });
+        info.insert(new Element('span', { 'class': 'cascade-preset-badge' }).update(translate('Parameters:')));
+        info.insert(' ');
+        info.insert(new Element('strong').update(_this._presetName.escapeHTML()));
+        if (_this._presetNotes) {
+          info.insert(' ');
+          info.insert(new Element('span', { 'class': 'cascade-preset-ref' }).update('(' + _this._presetNotes.escapeHTML() + ')'));
+        }
+        presetBanner.insert(info);
+        if (matches.length && matches[0].preset.name !== _this._presetName && matches[0].score >= 85) {
+          var switchBtn = new Element('button', { 'type': 'button', 'class': 'cascade-fit-use' })
+            .update(translate('Apply parameters') + ': ' + (matches[0].preset.genes && matches[0].preset.genes[0] ? matches[0].preset.genes[0] : matches[0].preset.name));
+          switchBtn.observe('click', function() { applyAndSyncPreset(matches[0].preset); });
+          presetBanner.insert(switchBtn);
+        }
+        return;
+      }
+      if (!matches.length) {
+        presetBanner.setStyle({ display: 'none' });
+        return;
+      }
+      var top = matches[0].preset;
+      presetBanner.className = 'cascade-preset-banner';
+      presetBanner.setStyle({ display: '' });
+      var textWrap = new Element('div', { 'class': 'cascade-preset-banner-text' });
+      textWrap.insert(new Element('span', { 'class': 'cascade-preset-badge' }).update(translate('Suggested parameters:')));
+      textWrap.insert(' ');
+      textWrap.insert(new Element('strong').update(top.name.escapeHTML()));
+      var summaryParts = [top.mode];
+      if (top.mode !== 'AR' && top.model && top.model.deNovo !== undefined) {
+        summaryParts.push(translate('de novo') + ' ' + top.model.deNovo + '%');
+      }
+      if (top.model && top.model.curve) {
+        var c = parsePenetranceCurve(top.model.curve);
+        if (c) summaryParts.push(translate('penetrance') + ' ' + curveLifetime(c) + '% (' + translate('curve') + ')');
+      } else if (top.model && top.model.penetrance !== undefined && top.mode !== 'AR') {
+        summaryParts.push(translate('penetrance') + ' ' + top.model.penetrance + '%');
+      }
+      if (top.mode === 'AR' && top.carrierFreqN) {
+        summaryParts.push(translate('1 in') + ' ' + top.carrierFreqN);
+      }
+      textWrap.insert(' ');
+      textWrap.insert(new Element('span', { 'class': 'cascade-preset-ref' }).update('(' + summaryParts.join(' · ').escapeHTML() + (top.notes ? ' — ' + top.notes.escapeHTML() : '') + ')'));
+      presetBanner.insert(textWrap);
+      var applyBtn = new Element('button', { 'type': 'button', 'class': 'cascade-fit-use' }).update(translate('Apply parameters'));
+      applyBtn.observe('click', function() { applyAndSyncPreset(top); });
+      presetBanner.insert(applyBtn);
+    };
+
+    presetSelect.observe('change', function() {
+      var id = presetSelect.value;
+      if (!id) {
+        _this._presetName = null;
+        _this._presetNotes = '';
+        _this._saveSettings();
+        syncModelFields();
+        renderTable();
+        return;
+      }
+      var p = getBuiltInPreset(id);
+      if (p) applyAndSyncPreset(p);
+    });
+
     syncModelFields();
 
     // number fields update the results while typing (after a short pause) and are tidied on change
@@ -1592,6 +1813,7 @@ var CascadeTestingDialog = Class.create({
       var testedCount = rows.filter(function(r) { return r.tested; }).length;
       var biallelic = _this._isBiallelic();
       renderFit();
+      renderPresetBanner();
       warningBox.update(_this._warning ? _this._warning.escapeHTML() : '');
       warningBox.setStyle({ display: _this._warning ? '' : 'none' });
       haldaneFlag.setStyle({ display: _this._haldaneFlag ? '' : 'none' });
@@ -1864,6 +2086,9 @@ var CascadeTestingDialog = Class.create({
       [translate('Index person'), this._personLabel(this._indexId)],
       [translate('Inheritance'), mode]
     ];
+    if (this._presetName) {
+      lines.push([translate('Disease / gene preset'), this._presetName + (this._presetNotes ? ' (' + this._presetNotes + ')' : '')]);
+    }
     if (this._isBiallelic()) {
       lines.push([translate('Population carrier frequency'), translate('1 in') + ' ' + this._carrierFreqN]);
     }

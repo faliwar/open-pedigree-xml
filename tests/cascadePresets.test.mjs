@@ -1,7 +1,11 @@
 // Model files: settings of a disease exported and imported across pedigrees.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPreset, validatePreset, parsePreset, resolvePreset } from '../src/script/model/cascadePresets.js';
+import {
+  buildPreset, validatePreset, parsePreset, resolvePreset,
+  BUILTIN_PRESETS, CATALOG_CATEGORIES, getBuiltInPreset, findMatchingPresets,
+  carrierFreqFromPrevalence, maxCredibleAlleleFreq
+} from '../src/script/model/cascadePresets.js';
 
 const hboc = buildPreset({
   name: 'HBOC - BRCA1', notes: 'Kuchenbaecker 2017', mode: 'AD', indexGenotype: 'het', carrierFreqN: 400,
@@ -53,3 +57,59 @@ test('invalid files are rejected', () => {
   assert.ok(validatePreset({ format: 'open-pedigree-x/cascade-model', name: 'x', mode: 'ZZ' }).length > 0);
   assert.ok(validatePreset(null).length > 0);
 });
+
+test('all built-in disease/gene presets are valid cascade models', () => {
+  assert.ok(BUILTIN_PRESETS.length >= 40);
+  assert.ok(CATALOG_CATEGORIES.length >= 7);
+  for (const preset of BUILTIN_PRESETS) {
+    assert.deepEqual(validatePreset(preset), [], `Preset ${preset.id} failed validation`);
+    assert.equal(getBuiltInPreset(preset.id), preset);
+  }
+});
+
+test('findMatchingPresets matches genes, variants, and English/Portuguese disorder names', () => {
+  // Match by gene in familial variant text
+  const m1 = findMatchingPresets({ finding: 'BRCA2 c.5946delT' });
+  assert.ok(m1.length > 0);
+  assert.equal(m1[0].preset.id, 'brca2');
+
+  // Match by gene list
+  const m2 = findMatchingPresets({ genes: ['FGFR3'] });
+  assert.ok(m2.length > 0);
+  assert.equal(m2[0].preset.id, 'fgfr3');
+  assert.equal(m2[0].preset.model.deNovo, 80);
+
+  // Match by Portuguese disorder name (accent-insensitive)
+  const m3 = findMatchingPresets({ disorders: [{ id: 'd1', name: 'Síndrome de Marfan' }] });
+  assert.ok(m3.length > 0);
+  assert.equal(m3[0].preset.id, 'fbn1');
+  assert.equal(m3[0].preset.model.deNovo, 25);
+
+  // Match by MONDO code
+  const m4 = findMatchingPresets({ disorders: [{ id: 'MONDO:0009061', name: 'CF' }] });
+  assert.ok(m4.length > 0);
+  assert.equal(m4[0].preset.id, 'cftr');
+  assert.equal(m4[0].preset.mode, 'AR');
+
+  // Resolve multi-condition BRCA1 preset against Portuguese disorder names
+  const brca1 = getBuiltInPreset('brca1');
+  const resolved = resolvePreset(brca1, [{ id: 'c_mama', name: 'Câncer de mama' }]);
+  assert.deepEqual(resolved.condition, ['c_mama']);
+  assert.equal(resolved.model.penetrance, 72);
+  assert.ok(resolved.model.curve.includes('80:72'));
+});
+
+test('ACMG v4 / Hardy-Weinberg population carrier frequency and max credible AF calculators', () => {
+  // Disease prevalence 1 in 2,500 (e.g. Cystic Fibrosis in Europeans) -> q = 1/50 -> carrier freq ~ 1 in 26
+  const nCarrier = carrierFreqFromPrevalence(2500, 100);
+  assert.ok(nCarrier >= 25 && nCarrier <= 26);
+
+  // Ultra-rare AR disease 1 in 1,000,000 -> q = 1/1000 -> carrier freq ~ 1 in 500
+  const nUltraRare = carrierFreqFromPrevalence(1000000, 100);
+  assert.ok(nUltraRare >= 500 && nUltraRare <= 501);
+
+  // Whiffin/Ware max credible AF for AD disorder with prevalence 1 in 10,000, heterogeneity 0.5, penetrance 50%
+  const af = maxCredibleAlleleFreq('AD', 10000, 0.5, 50);
+  assert.ok(Math.abs(af - 0.00005) < 1e-9);
+});
+
