@@ -1,11 +1,14 @@
 import Disorder from 'pedigree/disorder';
-import { translate } from 'pedigree/i18n';
+import { translate, getLanguage } from 'pedigree/i18n';
 import { attachGeneSearch } from 'pedigree/view/geneSearch';
 import {
   CLASSIFICATIONS, ZYGOSITIES, TEST_TYPES, CONTRALATERAL_FIELD, DIAGNOSIS_TYPES, normalizeTests, normalizeDetail, normalizeDetails,
-  suggestedFields, isCancer, clone
+  suggestedFields, isCancer, clone, classificationInfo
 } from 'pedigree/model/clinicalData';
+import { describeKinship, relationshipName, isRealPerson } from 'pedigree/model/kinship';
+import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import { showVariantInfoCard, closeVariantInfoCard } from 'pedigree/view/variantInfoCard';
+import { parseGeneticText } from 'pedigree/model/geneticTextParser';
 
 /**
  * Editor for a person's genetic test results and diagnosis details (including cancer details
@@ -46,8 +49,51 @@ var ClinicalDetailsDialog = Class.create({
     var testsList = new Element('div', { 'class': 'clinical-tests' });
     testsSection.insert(testsList);
     var addTestBtn = new Element('button', { 'type': 'button', 'class': 'clinical-add' }).update('+ ' + translate('Add test result'));
-    testsSection.insert(addTestBtn);
+    // results written as text (lab report, medical record): split into the fields
+    var pasteBtn = new Element('button', { 'type': 'button', 'class': 'clinical-add clinical-paste-toggle',
+      'title': translate('Paste the result as written in the report or medical record: gene, variant, zygosity and classification are filled in') })
+      .update('&#128203; ' + translate('From text'));
+    var addRow = new Element('div', { 'class': 'clinical-add-row' }).insert(addTestBtn).insert(pasteBtn);
+    var pasteBox = new Element('div', { 'class': 'clinical-paste' });
+    var pasteText = new Element('textarea', { 'class': 'clinical-input clinical-paste-text', 'rows': 3,
+      'placeholder': translate('e.g. BRCA2 NM_000059.4:c.5946del p.(Ser1982Argfs*22), heterozygous, pathogenic. Fleury, 12/03/2023') });
+    var pasteGo = new Element('button', { 'type': 'button', 'class': 'clinical-add clinical-paste-go' }).update(translate('Extract'));
+    var pasteStatus = new Element('span', { 'class': 'clinical-paste-status', 'role': 'status' });
+    pasteBox.insert(pasteText).insert(new Element('div', { 'class': 'clinical-paste-actions' }).insert(pasteGo).insert(pasteStatus));
+    pasteBox.hide();
+    testsSection.insert(addRow);
+    testsSection.insert(pasteBox);
     content.insert(testsSection);
+    pasteBtn.observe('click', function() {
+      if (pasteBox.visible()) {
+        pasteBox.hide();
+        return;
+      }
+      pasteBox.show();
+      pasteStatus.update('');
+      pasteText.focus();
+    });
+    pasteGo.observe('click', function() {
+      var found = parseGeneticText(pasteText.value);
+      if (!found.length) {
+        pasteStatus.update(translate('No gene or variant recognised. Check the text (e.g. BRCA1 c.68_69del).'));
+        pasteStatus.addClassName('is-warning');
+        return;
+      }
+      pasteStatus.removeClassName('is-warning');
+      // a blank result (just added) is replaced rather than kept empty
+      _this._tests = _this._tests.filter(function(t) { return (t.gene || '').trim() || (t.variant || '').trim(); });
+      var first = _this._tests.length;
+      found.forEach(function(t) { _this._tests.push(t); });
+      renderTests();
+      var rows = testsList.select('.clinical-test');
+      rows.slice(first).forEach(function(r) { r.addClassName('is-new'); });
+      rows[first] && rows[first].scrollIntoView({ block: 'nearest' });
+      var missingGene = found.some(function(t) { return !t.gene; });
+      pasteStatus.update((found.length === 1 ? translate('1 result filled in') : found.length + ' ' + translate('results filled in')) +
+        ' — ' + translate(missingGene ? 'add the missing gene and check the fields before saving.' : 'check the fields before saving.'));
+      pasteText.value = '';
+    });
 
     // Candidate genes from older files (the former "Genes" field): kept, and convertible
     this._candidateGenes = (node.getGenes() || []).slice(0);
@@ -103,6 +149,66 @@ var ClinicalDetailsDialog = Class.create({
     renderTests();
     renderLegacy();
 
+    // Variants already recorded for other people of the pedigree: one choice adds it here as a test
+    // for the familial variant (gene, variant, protein, transcript), then one click gives the result
+    var familyVariants = this._familyVariants(node.getID());
+    if (familyVariants.length) {
+      var copySelect = new Element('select', { 'class': 'clinical-input clinical-copy-select',
+        'title': translate('Add a variant already recorded for a relative, to record this person\'s result for it') });
+      copySelect.insert(new Element('option', { 'value': '' }).update('&#8615; ' + translate('Variant from a relative…')));
+      familyVariants.forEach(function(fv, i) {
+        copySelect.insert(new Element('option', { 'value': String(i) }).update(fv.label.escapeHTML()));
+      });
+      addRow.insert(copySelect);
+      var copyBar = new Element('div', { 'class': 'clinical-copy-bar', 'role': 'status' });
+      copyBar.hide();
+      addRow.insert({ after: copyBar });
+
+      copySelect.observe('change', function() {
+        var fv = familyVariants[parseInt(copySelect.value, 10)];
+        copySelect.value = '';
+        if (!fv) return;
+        var src = fv.test;
+        var sameVariant = function(t) {
+          return (t.gene || '').toUpperCase() === src.gene && (t.variant || '') === (src.variant || '') && (t.protein || '') === (src.protein || '');
+        };
+        _this._tests = _this._tests.filter(function(t) { return (t.gene || '').trim() || (t.variant || '').trim(); });
+        var idx = -1;
+        _this._tests.forEach(function(t, i) { if (sameVariant(t)) idx = i; });
+        if (idx < 0) {
+          // the result is this person's own: left to choose below (carrier or not)
+          _this._tests.push({ gene: src.gene, variant: src.variant || '', protein: src.protein || '', zygosity: '',
+            testType: 'targeted', classification: '', lab: '', date: '', comment: src.comment || '' });
+          idx = _this._tests.length - 1;
+        }
+        renderTests();
+        var row = testsList.select('.clinical-test')[idx];
+        row && row.addClassName('is-new');
+        row && row.scrollIntoView({ block: 'nearest' });
+
+        // quick result: carrier (with the variant's classification and zygosity) or not
+        copyBar.update('');
+        copyBar.insert(new Element('span', { 'class': 'clinical-copy-text' })
+          .update((src.gene + ' ' + (src.variant || src.protein)).escapeHTML() + ' — ' + translate('result for this person:')));
+        var setResult = function(carrier) {
+          var t = _this._tests[idx];
+          if (!t) return;
+          t.classification = carrier ? (src.classification || 'POS') : 'NEG';
+          t.zygosity = carrier ? (src.zygosity || 'het') : '';
+          renderTests();
+          var r = testsList.select('.clinical-test')[idx];
+          r && r.addClassName('is-new');
+          copyBar.hide();
+        };
+        var yes = new Element('button', { 'type': 'button', 'class': 'clinical-add clinical-copy-btn is-carrier' }).update(translate('Carrier'));
+        var no = new Element('button', { 'type': 'button', 'class': 'clinical-add clinical-copy-btn' }).update(translate('Not a carrier'));
+        yes.observe('click', function() { setResult(true); });
+        no.observe('click', function() { setResult(false); });
+        copyBar.insert(yes).insert(no);
+        copyBar.show();
+      });
+    }
+
     // ---------------------------------------------------------------- diagnosis details
     var dxSection = new Element('section', { 'class': 'clinical-section' });
     dxSection.insert(new Element('h3').update(translate('Diagnosis details')));
@@ -138,6 +244,51 @@ var ClinicalDetailsDialog = Class.create({
       removeOnClose: true
     });
     this.dialog.show();
+  },
+
+  /**
+   * Variants found in other people of the pedigree (positive or VUS results with a variant), each
+   * once, with who has it: [{ test, label }], blood relatives closest first.
+   */
+  _familyVariants: function(selfId) {
+    var graph = editor.getGraph();
+    var numbering = {};
+    try { numbering = computeStandardNumbering(editor).byId || {}; } catch (e) {}
+    var cache = {};
+    var lang = getLanguage();
+    var byKey = {};
+    var list = [];
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (id === selfId || !isRealPerson(graph, id)) continue;
+      var other = editor.getNode(id);
+      var tests = (other && other.getGeneticTests) ? other.getGeneticTests() : [];
+      if (!tests.length) continue;
+      var kin = null;
+      try { kin = describeKinship(graph, selfId, id, cache); } catch (e) {}
+      var who = (kin && kin.degree >= 1) ? relationshipName(kin, other.getGender ? other.getGender() : 'U', lang) : '';
+      var name = (other.getFirstName && other.getFirstName()) || '';
+      var std = numbering[id] && numbering[id].label;
+      var person = [who, name, std].filter(Boolean).join(' · ') || ('#' + id);
+      tests.forEach(function(t) {
+        var info = classificationInfo(t.classification);
+        if (!t.gene || !(t.variant || t.protein) || info.code === 'NEG' || info.code === 'DECLINED' || info.result === 'negative') return;
+        var key = [t.gene.toUpperCase(), t.variant || '', t.protein || ''].join('|');
+        if (!byKey[key]) {
+          byKey[key] = { test: { gene: t.gene.toUpperCase(), variant: t.variant || '', protein: t.protein || '',
+            classification: info.code, zygosity: t.zygosity || '', comment: /^NM_/.test(t.comment || '') ? t.comment : '' },
+          people: [], degree: 99 };
+          list.push(byKey[key]);
+        }
+        byKey[key].people.push(person);
+        if (kin && kin.degree >= 1) byKey[key].degree = Math.min(byKey[key].degree, kin.degree);
+      });
+    }
+    list.sort(function(a, b) { return a.degree - b.degree; });
+    return list.map(function(v) {
+      var t = v.test;
+      var who = v.people.slice(0, 2).join(', ') + (v.people.length > 2 ? ' +' + (v.people.length - 2) : '');
+      return { test: t, label: t.gene + ' ' + (t.variant || t.protein) + (t.classification ? ' (' + classificationInfo(t.classification).short + ')' : '') + ' — ' + who };
+    });
   },
 
   // One editable test result

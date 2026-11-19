@@ -123,6 +123,7 @@ Every person in the pedigree must be represented by a single `<indi>` block usin
   * Sex assigned at birth of a transgender or gender-diverse person (the `<gender>` is the gender the person identifies with): `<note id="2" note_id="2" value="AMAB" string_type="composite" string_title="Sex assigned at birth" string_value="AMAB"/>` — values `AMAB`, `AFAB` or `UAAB`.
   * Egg or sperm donor, or surrogate (gestational carrier): `string_title="Assisted reproduction"` with value `Gamete donor (D)` or `Surrogate (S)`.
   * Family history not available or not known for this person (e.g., adopted with no information, "does not know the father's family"): `string_title="Family history"` with value `Not available`.
+  * A phenotype explicitly stated as absent after being looked for ("no seizures", "sem convulsões", "normal echocardiogram" for cardiomyopathy): one note per phenotype, `string_title="Phenotype absent"` with the phenotype as value (e.g., `Seizures`). Do not use it for a person merely described as healthy (that is just no `<conditions>`).
   * Wrap them in one `<notes>…</notes>` element, with the same text in `value` and `string_value`.
 * **`<siblings>`:**
   * If an individual shares a `<fam><children>` block with other individuals, list every sibling inside `<siblings><sibling id="X" type="..."/></siblings>`.

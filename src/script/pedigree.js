@@ -938,6 +938,15 @@ var PedigreeEditor = Class.create({
         'function': 'setHPO'
       },
       {
+        // phenotypes looked for and not found ("no seizures"), as HPO terms or free text
+        'name': 'hpo_negative',
+        'label': 'Phenotypes absent (ruled out)',
+        'type': 'hpo-picker',
+        'placeholder': 'Add an absent phenotype…',
+        'tab': 'Clinical',
+        'function': 'setHPOAbsent'
+      },
+      {
         'name': 'clinical_details',
         'label': 'Genetic tests and diagnosis details',
         'type': 'clinical-summary',

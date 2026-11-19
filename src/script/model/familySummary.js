@@ -50,7 +50,7 @@ var W = {
       var sideText = side === 'paternal' ? ' (paternal side)' : (side === 'maternal' ? ' (maternal side)' : '');
       return joinList(parts, 'and') + sideText;
     },
-    carrier: 'carrier', presymptomatic: 'pre-symptomatic', features: 'features',
+    carrier: 'carrier', presymptomatic: 'pre-symptomatic', features: 'features', absent: 'no',
     unspecified: 'affected (condition not specified)', adopted: 'adopted',
     declined: 'declined {g} testing', pending: 'result pending', causeOfDeath: 'Cause of death:',
     laterality: { Left: 'left', Right: 'right', Bilateral: 'bilateral' },
@@ -92,7 +92,7 @@ var W = {
       var sideText = side === 'paternal' ? ' (lado paterno)' : (side === 'maternal' ? ' (lado materno)' : '');
       return joinList(parts, 'e') + sideText;
     },
-    carrier: 'portador(a)', presymptomatic: 'pré-sintomático(a)', features: 'achados',
+    carrier: 'portador(a)', presymptomatic: 'pré-sintomático(a)', features: 'achados', absent: 'sem',
     unspecified: 'afetado(a) (condição não especificada)', adopted: 'adotado(a)',
     declined: 'recusou teste de {g}', pending: 'resultado pendente', causeOfDeath: 'Causa do óbito:',
     laterality: { Left: 'esquerda', Right: 'direita', Bilateral: 'bilateral' },
@@ -210,6 +210,14 @@ var clinicalPhrases = function(node, w) {
   out = out.concat(tests);
   var hpo = (node.getHPO && node.getHPO()) || [];
   if (hpo.length) out.push(w.features + ': ' + hpo.map(hpoName).join(', '));
+  var absent = (node.getHPOAbsent && node.getHPOAbsent()) || [];
+  if (absent.length) {
+    // "no seizures, no hearing loss" / "sem convulsões, sem perda auditiva"
+    out.push(absent.map(function(id) {
+      var name = String(node.getHPOAbsentName ? node.getHPOAbsentName(id) : hpoName(id));
+      return w.absent + ' ' + name.charAt(0).toLowerCase() + name.slice(1);
+    }).join(', '));
+  }
   var cs = node.getCarrierStatus && node.getCarrierStatus();
   if (!tests.length && cs === 'carrier') out.push(w.carrier);
   if (cs === 'presymptomatic') out.push(w.presymptomatic);

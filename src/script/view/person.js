@@ -105,6 +105,8 @@ var Person = Class.create(AbstractPerson, {
     this._carrierStatus = '';
     this._disorders = [];
     this._hpo = [];
+    this._hpoAbsent = [];
+    this._hpoAbsentNames = {};
     this._candidateGenes = [];
     this._geneticTests = [];
     this._disorderDetails = {};
@@ -1078,6 +1080,10 @@ var Person = Class.create(AbstractPerson, {
       hpo = editor.getHPOLegend().getTerm(hpo);
     }
     if (!this.hasHPO(hpo.getID())) {
+      // present now: no longer recorded as absent
+      if (this._hpoAbsent && this._hpoAbsent.indexOf(hpo.getID()) != -1) {
+        this._hpoAbsent = this._hpoAbsent.without(hpo.getID());
+      }
       editor.getHPOLegend().addCase(hpo.getID(), hpo.getName(), this.getID());
       this.getHPO().push(hpo.getID());
       this.getGraphics().updateHPOLabel && this.getGraphics().updateHPOLabel();
@@ -1124,6 +1130,70 @@ var Person = Class.create(AbstractPerson, {
      */
   hasHPO: function (id) {
     return (this.getHPO().indexOf(id) != -1);
+  },
+
+  /**
+     * Phenotypes looked for and found to be absent in this person ("no seizures"): HPO terms or
+     * free text, kept apart from the phenotypes present (they are not coloured or counted in the
+     * legend).
+     *
+     * @method getHPOAbsent
+     * @return {Array} term IDs (as for getHPO)
+     */
+  getHPOAbsent: function () {
+    return this._hpoAbsent.slice(0);
+  },
+
+  /** Name of an absent phenotype (the term's name, or the free text) */
+  getHPOAbsentName: function (id) {
+    if (this._hpoAbsentNames[id]) {
+      return this._hpoAbsentNames[id];
+    }
+    var term = editor.getHPOLegend ? editor.getHPOLegend().getTerm(id) : null;
+    var name = term && term.getName && term.getName();
+    return (name && name !== 'loading...') ? name : HPOTerm.desanitizeID(id);
+  },
+
+  /**
+     * @method setHPOAbsent
+     * @param {Array} terms HPOTerm objects, term IDs or free-text names
+     */
+  setHPOAbsent: function (terms) {
+    var _this = this;
+    this._hpoAbsent = [];
+    this._hpoAbsentNames = {};
+    (terms || []).forEach(function (t) {
+      var id, name = null;
+      if (t && typeof t == 'object' && t.getID) {
+        id = t.getID();
+        name = t.getName && t.getName();
+      } else if (t !== null && t !== undefined && String(t).trim() !== '') {
+        id = HPOTerm.sanitizeID(String(t).trim());
+      } else {
+        return;
+      }
+      if (_this._hpoAbsent.indexOf(id) != -1) {
+        return;
+      }
+      _this._hpoAbsent.push(id);
+      // the shared term cache gives the name to the XML export and the family summary
+      var cached = editor.getHPOLegend ? editor.getHPOLegend().getTerm(id) : null;
+      if (name && name !== 'loading...') {
+        _this._hpoAbsentNames[id] = name;
+        if (cached && cached.getName && cached.getName() === 'loading...') {
+          cached._name = name;
+        }
+      }
+      // a phenotype cannot be present and absent: the last answer wins
+      if (_this.hasHPO(id)) {
+        _this.removeHPO(id);
+      }
+    });
+    this.getGraphics().updateHPOLabel && this.getGraphics().updateHPOLabel();
+  },
+
+  getHPOAbsentForExport: function () {
+    return this._hpoAbsent.map(function (id) { return HPOTerm.desanitizeID(id); });
   },
 
   /**
@@ -1343,6 +1413,10 @@ var Person = Class.create(AbstractPerson, {
       var termName = editor.getHPOLegend().getTerm(hpo).getName();
       hpoTerms.push({ id: hpo, value: termName });
     });
+    var _this = this;
+    var hpoAbsent = this._hpoAbsent.map(function (id) {
+      return { id: id, value: _this.getHPOAbsentName(id) };
+    });
 
     var cantChangeAdopted = editor.getGraph().hasToBeAdopted(this.getID());
 
@@ -1400,6 +1474,7 @@ var Person = Class.create(AbstractPerson, {
       consultand: { value: this.isConsultand(), inactive: this.isVirtual() || this.isFetus() },
       evaluated: { value: this.getEvaluated() },
       hpo_positive: { value: hpoTerms },
+      hpo_negative: { value: hpoAbsent },
       nocontact: { value: this.getLostContact(), inactive: inactiveLostContact },
       ancestry: { value: this.getAncestry() },
       age_at_death: { value: this.getAgeAtDeath(), inactive: this.getLifeStatus() !== 'deceased' },
@@ -1478,6 +1553,9 @@ var Person = Class.create(AbstractPerson, {
     }
     if (this.getHPO().length > 0) {
       info['hpoTerms'] = this.getHPOForExport();
+    }
+    if (this._hpoAbsent.length > 0) {
+      info['hpoAbsent'] = this.getHPOAbsentForExport();
     }
     if (this.getGenes().length > 0) {
       info['candidateGenes'] = this.getGenes();
@@ -1584,6 +1662,9 @@ var Person = Class.create(AbstractPerson, {
       }
       if (info.hpoTerms) {
         this.setHPO(info.hpoTerms);
+      }
+      if (info.hpoAbsent) {
+        this.setHPOAbsent(info.hpoAbsent);
       }
       if (info.candidateGenes) {
         this.setGenes(info.candidateGenes);

@@ -3920,6 +3920,101 @@ div.suggestItems .hide-button-wrapper {
   border-color: #0066CC;
 }
 
+/* results pasted as text (lab report, medical record) */
+.clinical-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clinical-paste-toggle {
+  border-style: solid;
+  border-color: #CBD5E1;
+  color: #334155;
+}
+
+.clinical-paste {
+  margin-top: 6px;
+}
+
+.clinical-paste-text {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 54px;
+  resize: vertical;
+  font-size: 12px;
+}
+
+.clinical-paste-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.clinical-paste-go {
+  height: 26px;
+  border-style: solid;
+  background: #0066CC;
+  border-color: #0066CC;
+  color: #FFF;
+}
+
+.clinical-paste-go:hover {
+  background: #0052A3;
+}
+
+.clinical-paste-status {
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.clinical-paste-status.is-warning {
+  color: #B45309;
+}
+
+/* variant copied from a relative */
+.clinical-copy-select {
+  height: 30px;
+  max-width: 100%;
+  flex: 0 1 260px;
+  min-width: 0;
+  color: #334155;
+}
+
+.clinical-copy-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  font-size: 12px;
+}
+
+.clinical-copy-text {
+  flex: 1 1 200px;
+  color: #1E3A8A;
+}
+
+.clinical-copy-btn {
+  height: 26px;
+  border-style: solid;
+}
+
+.clinical-copy-btn.is-carrier {
+  border-color: #B91C1C;
+  color: #B91C1C;
+}
+
+.clinical-test.is-new {
+  box-shadow: 0 0 0 2px #93C5FD;
+}
+
 .clinical-dx {
   margin-bottom: 10px;
   padding: 10px 12px;
@@ -4211,7 +4306,9 @@ div.suggestItems .hide-button-wrapper {
 
 .variant-info-card {
   position: fixed;
-  z-index: 12000;
+  /* above modal dialogs (100014 on desktop, 200000 on mobile) and the person menu: it is opened
+     from the "Genetic tests and diagnosis details" dialog */
+  z-index: 300100;
   width: 380px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
@@ -4234,6 +4331,7 @@ div.suggestItems .hide-button-wrapper {
   top: auto !important;
   width: auto !important;
   max-height: 75vh;
+  max-height: 75dvh;
 }
 
 .variant-card-header {

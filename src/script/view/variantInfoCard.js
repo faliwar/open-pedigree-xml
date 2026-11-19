@@ -8,7 +8,7 @@ import { ZYGOSITIES, classificationInfo } from 'pedigree/model/clinicalData';
 /**
  * Floating card showing genetic variant classification and annotations fetched live from
  * NCBI ClinVar and MyVariant.info (gnomAD, dbSNP, CADD, REVEL, AlphaMissense), plus direct
- * links to ClinVar, gnomAD and VarSome.
+ * links to ClinVar, gnomAD and Franklin.
  */
 
 var _activeCard = null;
@@ -53,7 +53,13 @@ var _badgeTone = function(code, raw) {
 
 var _positionCard = function(card, anchorEl) {
   if (window.innerWidth <= 640) {
+    // phones: a sheet at the bottom of the screen. The on-screen keyboard (open while the variant
+    // was being typed) would cover it, so it is closed first.
     card.addClassName('is-mobile');
+    var active = document.activeElement;
+    if (active && active !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) && active.blur) {
+      active.blur();
+    }
     return;
   }
   var rect = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
@@ -169,7 +175,7 @@ var showVariantInfoCard = function(test, anchorEl, options) {
     var linkList = [
       { label: 'ClinVar', url: links.clinvar },
       { label: 'gnomAD', url: links.gnomad },
-      { label: 'VarSome', url: links.varsome }
+      { label: 'Franklin', url: links.franklin }
     ];
     linkList.forEach(function(item) {
       var a = new Element('a', {

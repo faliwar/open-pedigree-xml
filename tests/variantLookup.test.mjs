@@ -119,7 +119,12 @@ test('mergeMyVariantData enriches ClinVar record with gnomAD AF and in-silico sc
   const links = buildExternalLinks(merged, { gene: 'BRCA1', variant: 'c.68_69del' });
   assert.equal(links.clinvar, 'https://www.ncbi.nlm.nih.gov/clinvar/variation/17661/');
   assert.match(links.gnomad, /17-43124027-ACT-A/);
-  assert.match(links.varsome, /rs80357914/);
+  assert.equal(links.franklin, 'https://franklin.genoox.com/clinical-db/variant/snp/chr17-43124027-ACT-A-hg38');
+  assert.equal(links.varsome, undefined);
+
+  // without coordinates: the gene page
+  const plain = buildExternalLinks(null, { gene: 'brca2', variant: 'c.5946del' });
+  assert.equal(plain.franklin, 'https://franklin.genoox.com/clinical-db/gene/BRCA2');
 
   // Regression: partial MyVariant hit without revel/cadd/gnomad must keep null (never undefined)
   const sparse = mergeMyVariantData(null, { dbnsfp: {}, clinvar: { variant_id: 99 } }, 'BRCA1');

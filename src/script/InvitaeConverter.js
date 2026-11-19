@@ -40,6 +40,9 @@ var STANDARD_NOTES = {
   lostContact: 'Contact with proband'
 };
 
+// a phenotype looked for and not found, one note per phenotype (as Progeny's "Phenotype" notes)
+var ABSENT_PHENOTYPE_NOTE = 'Phenotype absent';
+
 InvitaeConverter.prototype = {};
 
 /**
@@ -993,6 +996,8 @@ InvitaeConverter._parseIndividual = function (indiEl) {
             properties.hpoTerms = [];
           }
           properties.hpoTerms.push(noteValue);
+        } else if (noteType === ABSENT_PHENOTYPE_NOTE) {
+          (properties.hpoAbsent = properties.hpoAbsent || []).push(noteValue);
         } else if (noteType === 'Ethnicity') {
           // Progeny's ethnicity note -> ancestry (several groups may be separated by ";")
           if (!properties.ethnicities) {
@@ -1531,6 +1536,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
 
   // Notes (HPO terms as phenotype notes + approximate DOB note)
   var hasHpoNotes = props.hpoTerms && props.hpoTerms.length > 0;
+  var hasAbsentNotes = props.hpoAbsent && props.hpoAbsent.length > 0;
   var hasDobApproxNote = !!props.dobApprox;
   var ancestry = normalizeAncestry(props.ethnicities);
   if (props.ashkenazi && !hasAshkenaziAncestry(ancestry)) {
@@ -1549,7 +1555,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   if (typeof props.artKey === 'number') standardNotes.push([STANDARD_NOTES.artKey, String(props.artKey)]);
   if (props.artLinks && props.artLinks.length) standardNotes.push([STANDARD_NOTES.artLinks, props.artLinks.join('; ')]);
   if (props.lostContact) standardNotes.push([STANDARD_NOTES.lostContact, 'Not in contact']);
-  if (hasHpoNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {
+  if (hasHpoNotes || hasAbsentNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {
     xml += '<notes>';
     standardNotes.forEach(function(sn, idx) {
       var snId = 2 + idx;
@@ -1568,6 +1574,14 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
         xml += ' value="' + InvitaeConverter._escapeXml(hpoName) + '"';
         xml += ' string_type="composite" string_title="Phenotype"';
         xml += ' string_value="' + InvitaeConverter._escapeXml(hpoName) + '"/>';
+        noteIdx++;
+      }
+    }
+    if (hasAbsentNotes) {
+      for (var na = 0; na < props.hpoAbsent.length; na++) {
+        var absentName = InvitaeConverter._escapeXml(InvitaeConverter._resolveOntologyName(props.hpoAbsent[na], 'hpo'));
+        xml += '<note id="' + noteIdx + '" note_id="' + noteIdx + '" value="' + absentName + '"' +
+          ' string_type="composite" string_title="' + ABSENT_PHENOTYPE_NOTE + '" string_value="' + absentName + '"/>';
         noteIdx++;
       }
     }

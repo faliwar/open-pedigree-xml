@@ -60,7 +60,7 @@ var FIELDS = {
   setGender: ['sex', 'sexo'], setAdoptionStatus: ['adoption', 'adoção'], setName: ['name', 'nome'], setFirstName: ['name', 'nome'], setLastName: ['name', 'nome'],
   setExternalID: ['identifier', 'identificador'], setCarrierStatus: ['carrier status', 'status de portador'],
   setEvaluated: ['evaluation', 'avaliação'], setDisorders: ['disorders', 'condições'], setGenes: ['candidate genes', 'genes candidatos'],
-  setHPO: ['phenotypes', 'fenótipos'], setAgeInput: ['age', 'idade'], setBirthDate: ['date of birth', 'data de nascimento'],
+  setHPO: ['phenotypes', 'fenótipos'], setHPOAbsent: ['absent phenotypes', 'fenótipos ausentes'], setAgeInput: ['age', 'idade'], setBirthDate: ['date of birth', 'data de nascimento'],
   setDeathDate: ['date of death', 'data de óbito'], setLifeStatus: ['life status', 'status vital'],
   setGestationAge: ['gestation age', 'idade gestacional'], setChildlessStatus: ['heredity options', 'opções de hereditariedade'],
   setAdopted: ['adoption', 'adoção'], setMonozygotic: ['monozygotic twin', 'gêmeo monozigótico'],

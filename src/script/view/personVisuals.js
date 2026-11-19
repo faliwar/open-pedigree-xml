@@ -954,7 +954,8 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
 
     var person = this.getNode();
     var hpos = person.getHPO ? person.getHPO() : [];
-    if (hpos.length === 0) {
+    var absent = person.getHPOAbsent ? person.getHPOAbsent() : [];
+    if (hpos.length === 0 && absent.length === 0) {
       this.drawLabels();
       return;
     }
@@ -966,6 +967,13 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
       var name = (term && term.getName && term.getName() !== 'loading...') ? term.getName() : HPOTerm.desanitizeID(hId);
       if (name && names.indexOf(name) === -1) {
         names.push(name);
+      }
+    }
+    // phenotypes ruled out: "no seizures" / "sem convulsões"
+    for (var a = 0; a < absent.length; a++) {
+      var absentName = person.getHPOAbsentName(absent[a]);
+      if (absentName) {
+        names.push((getLanguage() === 'pt-BR' ? 'sem' : 'no') + ' ' + absentName.charAt(0).toLowerCase() + absentName.slice(1));
       }
     }
 

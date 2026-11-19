@@ -358,7 +358,7 @@ var mergeMyVariantData = function(record, hit, fallbackGene) {
 };
 
 /**
- * Builds direct external reference URLs (ClinVar, gnomAD, VarSome) for a variant.
+ * Builds direct external reference URLs (ClinVar, gnomAD, Franklin) for a variant.
  */
 var buildExternalLinks = function(record, query) {
   var gene = str((record && record.gene) || (query && query.gene)).toUpperCase();
@@ -381,23 +381,29 @@ var buildExternalLinks = function(record, query) {
     gnomadUrl = 'https://gnomad.broadinstitute.org/awesome?query=' + encodeURIComponent(term || gene);
   }
 
-  var varsomeQuery;
-  if (record && record.rsid) {
-    varsomeQuery = record.rsid;
-  } else if (record && record.transcript && record.hgvsC) {
-    varsomeQuery = record.transcript + ':' + record.hgvsC;
-  } else if (gene && (variant || protein)) {
-    varsomeQuery = gene + ':' + (variant || protein);
+  // Franklin (Genoox / QIAGEN) opens a variant from its hg38 coordinates
+  // (franklin.genoox.com/clinical-db/variant/snp/chr13-32340300-GT-G-hg38); without them, the gene
+  // page, from which the variant can be searched
+  var franklinUrl;
+  if (record && record.vcf) {
+    franklinUrl = 'https://franklin.genoox.com/clinical-db/variant/snp/' +
+      _pathSegment('chr' + record.vcf.chr + '-' + record.vcf.pos + '-' + record.vcf.ref + '-' + record.vcf.alt + '-hg38');
+  } else if (gene) {
+    franklinUrl = 'https://franklin.genoox.com/clinical-db/gene/' + _pathSegment(gene);
   } else {
-    varsomeQuery = term || gene;
+    franklinUrl = 'https://franklin.genoox.com/clinical-db/home';
   }
-  var varsomeUrl = 'https://varsome.com/variant/hg38/' + encodeURIComponent(varsomeQuery);
 
   return {
     clinvar: clinvarUrl,
     gnomad: gnomadUrl,
-    varsome: varsomeUrl
+    franklin: franklinUrl
   };
+};
+
+// Encodes a URL path segment but keeps the characters of variant notation (":", ">", "_", "+")
+var _pathSegment = function(text) {
+  return encodeURIComponent(text).replace(/%3A/gi, ':').replace(/%3E/gi, '>').replace(/%2B/gi, '+');
 };
 
 var _fetchJson = function(fetchImpl, url, timeoutMs) {

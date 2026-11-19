@@ -258,6 +258,15 @@ var Controller = Class.create({
 
         undoEvent.memo.properties[propertySetFunction] = oldValue;
 
+        // a phenotype is either present or absent: setting one list can change the other, so
+        // undo restores both
+        if (propertySetFunction == 'setHPOAbsent' && !properties.hasOwnProperty('setHPO')) {
+          undoEvent.memo.properties['setHPO'] = node.getHPO().slice(0);
+        }
+        if (propertySetFunction == 'setHPO' && node.getHPOAbsent && !properties.hasOwnProperty('setHPOAbsent')) {
+          undoEvent.memo.properties['setHPOAbsent'] = node.getHPOAbsent();
+        }
+
         // monozygotic and "zygosity unknown" exclude each other: undo restores both
         if (propertySetFunction == 'setMonozygotic' && node.getZygosityUnknown) {
           undoEvent.memo.properties['setZygosityUnknown'] = node.getZygosityUnknown();

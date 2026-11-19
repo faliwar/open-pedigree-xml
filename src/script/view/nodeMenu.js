@@ -856,7 +856,7 @@ var NodeMenu = Class.create({
     },
     'hpo-picker' : function (data) {
       var result = this._generateEmptyField(data);
-      var hpoPicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-hpo', name: data.name, placeholder: translate('Add a phenotype…')});
+      var hpoPicker = new Element('input', {type: 'text', 'class': 'suggest multi suggest-hpo', name: data.name, placeholder: translate(data.placeholder || 'Add a phenotype…')});
       result.insert(hpoPicker);
       hpoPicker._getValue = function() {
         var results = [];
