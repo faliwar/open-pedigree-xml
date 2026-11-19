@@ -267,15 +267,15 @@ var showVariantInfoCard = function(test, anchorEl, options) {
 
     // In-silico predictors
     var scores = [];
-    if (rec.revelScore !== null) {
+    if (typeof rec.revelScore === 'number' && isFinite(rec.revelScore)) {
       var revCls = rec.revelScore >= 0.773 ? 'is-high' : (rec.revelScore <= 0.29 ? 'is-low' : 'is-mid');
       scores.push('<span class="variant-score ' + revCls + '">REVEL ' + rec.revelScore.toFixed(2) + '</span>');
     }
-    if (rec.caddPhred !== null) {
+    if (typeof rec.caddPhred === 'number' && isFinite(rec.caddPhred)) {
       var caddCls = rec.caddPhred >= 25 ? 'is-high' : (rec.caddPhred < 15 ? 'is-low' : 'is-mid');
       scores.push('<span class="variant-score ' + caddCls + '">CADD ' + rec.caddPhred.toFixed(1) + '</span>');
     }
-    if (rec.alphaMissenseScore !== null) {
+    if (typeof rec.alphaMissenseScore === 'number' && isFinite(rec.alphaMissenseScore)) {
       var amCls = rec.alphaMissenseScore >= 0.564 ? 'is-high' : (rec.alphaMissenseScore <= 0.34 ? 'is-low' : 'is-mid');
       scores.push('<span class="variant-score ' + amCls + '">AlphaMissense ' + rec.alphaMissenseScore.toFixed(2) + '</span>');
     }

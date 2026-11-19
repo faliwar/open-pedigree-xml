@@ -120,6 +120,13 @@ test('mergeMyVariantData enriches ClinVar record with gnomAD AF and in-silico sc
   assert.equal(links.clinvar, 'https://www.ncbi.nlm.nih.gov/clinvar/variation/17661/');
   assert.match(links.gnomad, /17-43124027-ACT-A/);
   assert.match(links.varsome, /rs80357914/);
+
+  // Regression: partial MyVariant hit without revel/cadd/gnomad must keep null (never undefined)
+  const sparse = mergeMyVariantData(null, { dbnsfp: {}, clinvar: { variant_id: 99 } }, 'BRCA1');
+  assert.equal(sparse.revelScore, null);
+  assert.equal(sparse.caddPhred, null);
+  assert.equal(sparse.alphaMissenseScore, null);
+  assert.equal(sparse.gnomadAf, null);
 });
 
 test('lookupVariant combines ClinVar E-utilities and MyVariant.info and falls back cleanly', async () => {

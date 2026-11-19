@@ -312,26 +312,26 @@ var mergeMyVariantData = function(record, hit, fallbackGene) {
     out.rsid = str(hit.dbsnp.rsid);
   }
 
-  var exomeAf = hit.gnomad_exome && hit.gnomad_exome.af && _firstNum(hit.gnomad_exome.af.af);
-  var genomeAf = hit.gnomad_genome && hit.gnomad_genome.af && _firstNum(hit.gnomad_genome.af.af);
-  if (exomeAf !== null) {
+  var exomeAf = hit.gnomad_exome && hit.gnomad_exome.af ? _firstNum(hit.gnomad_exome.af.af) : null;
+  var genomeAf = hit.gnomad_genome && hit.gnomad_genome.af ? _firstNum(hit.gnomad_genome.af.af) : null;
+  if (typeof exomeAf === 'number' && isFinite(exomeAf)) {
     out.gnomadAf = exomeAf;
     out.gnomadSource = 'gnomAD exomes';
-  } else if (genomeAf !== null) {
+  } else if (typeof genomeAf === 'number' && isFinite(genomeAf)) {
     out.gnomadAf = genomeAf;
     out.gnomadSource = 'gnomAD genomes';
   }
 
-  var cadd = hit.cadd && _firstNum(hit.cadd.phred);
-  if (cadd !== null) out.caddPhred = cadd;
+  var cadd = hit.cadd ? _firstNum(hit.cadd.phred) : null;
+  if (typeof cadd === 'number' && isFinite(cadd)) out.caddPhred = cadd;
 
   if (hit.dbnsfp) {
-    var revel = hit.dbnsfp.revel && _firstNum(hit.dbnsfp.revel.score);
-    if (revel !== null) out.revelScore = revel;
+    var revel = hit.dbnsfp.revel ? _firstNum(hit.dbnsfp.revel.score) : null;
+    if (typeof revel === 'number' && isFinite(revel)) out.revelScore = revel;
     if (hit.dbnsfp.alphamissense) {
       var am = hit.dbnsfp.alphamissense;
       var amScore = _firstNum(am.am_pathogenicity !== undefined ? am.am_pathogenicity : am.score);
-      if (amScore !== null) out.alphaMissenseScore = amScore;
+      if (typeof amScore === 'number' && isFinite(amScore)) out.alphaMissenseScore = amScore;
       var amCls = Array.isArray(am.am_class) ? am.am_class[0] : am.am_class;
       if (str(amCls)) out.alphaMissenseClass = str(amCls);
     }
