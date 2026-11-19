@@ -358,7 +358,7 @@ var mergeMyVariantData = function(record, hit, fallbackGene) {
 };
 
 /**
- * Builds direct external reference URLs (ClinVar, gnomAD, Franklin) for a variant.
+ * Builds direct external reference URLs (ClinVar, gnomAD, UCSC, Franklin) for a variant.
  */
 var buildExternalLinks = function(record, query) {
   var gene = str((record && record.gene) || (query && query.gene)).toUpperCase();
@@ -394,9 +394,28 @@ var buildExternalLinks = function(record, query) {
     franklinUrl = 'https://franklin.genoox.com/clinical-db/home';
   }
 
+  // UCSC Genome Browser (hg38): the variant with some bases on each side, the variant highlighted;
+  // without coordinates, the transcript HGVS or the gene, which UCSC's position search accepts
+  var ucscBase = 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=';
+  var ucscUrl;
+  if (record && record.vcf && /^\d+$/.test(String(record.vcf.pos))) {
+    var chr = 'chr' + record.vcf.chr;
+    var start = parseInt(record.vcf.pos, 10);
+    var stop = start + Math.max(1, String(record.vcf.ref || '').length) - 1;
+    ucscUrl = ucscBase + encodeURIComponent(chr + ':' + Math.max(1, start - 25) + '-' + (stop + 25)) +
+      '&highlight=' + encodeURIComponent('hg38.' + chr + ':' + start + '-' + stop + '#FFCC00');
+  } else if (record && record.transcript && record.hgvsC) {
+    ucscUrl = ucscBase + encodeURIComponent(record.transcript + ':' + record.hgvsC);
+  } else if (gene) {
+    ucscUrl = ucscBase + encodeURIComponent(gene);
+  } else {
+    ucscUrl = 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38';
+  }
+
   return {
     clinvar: clinvarUrl,
     gnomad: gnomadUrl,
+    ucsc: ucscUrl,
     franklin: franklinUrl
   };
 };

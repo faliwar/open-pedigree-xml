@@ -121,6 +121,10 @@ test('mergeMyVariantData enriches ClinVar record with gnomAD AF and in-silico sc
   assert.match(links.gnomad, /17-43124027-ACT-A/);
   assert.equal(links.franklin, 'https://franklin.genoox.com/clinical-db/variant/snp/chr17-43124027-ACT-A-hg38');
   assert.equal(links.varsome, undefined);
+  assert.equal(links.ucsc, 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=chr17%3A43124002-43124054' +
+    '&highlight=hg38.chr17%3A43124027-43124029%23FFCC00');
+  assert.equal(buildExternalLinks(null, { gene: 'brca2', variant: 'c.5946del' }).ucsc,
+    'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=BRCA2');
 
   // without coordinates: the gene page
   const plain = buildExternalLinks(null, { gene: 'brca2', variant: 'c.5946del' });

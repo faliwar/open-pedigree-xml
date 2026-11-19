@@ -175,6 +175,7 @@ var showVariantInfoCard = function(test, anchorEl, options) {
     var linkList = [
       { label: 'ClinVar', url: links.clinvar },
       { label: 'gnomAD', url: links.gnomad },
+      { label: 'UCSC', url: links.ucsc },
       { label: 'Franklin', url: links.franklin }
     ];
     linkList.forEach(function(item) {
