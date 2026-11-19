@@ -4,7 +4,8 @@ import Helpers from 'pedigree/model/helpers';
 import GraphicHelpers from 'pedigree/view/graphicHelpers';
 import AgeCalc from 'pedigree/view/ageCalc';
 import { translate } from 'pedigree/i18n';
-import { testLabel as clinicalTestLabel, compactAge, ANCESTRY_OPTIONS } from 'pedigree/model/clinicalData';
+import { testLabel as clinicalTestLabel, classificationInfo, compactAge, ANCESTRY_OPTIONS } from 'pedigree/model/clinicalData';
+import { showVariantInfoCard, closeVariantInfoCard } from 'pedigree/view/variantInfoCard';
 
 /**
  * NodeMenu is a UI Element containing options for AbstractNode elements
@@ -177,8 +178,8 @@ var NodeMenu = Class.create({
       }
     });
 
-    // Pre-warm DNS/TCP/TLS connections to remote ontology APIs to eliminate cold-start latency
-    ['https://www.ebi.ac.uk', 'https://mygene.info'].forEach(function(origin) {
+    // Pre-warm DNS/TCP/TLS connections to remote ontology and variant APIs to eliminate cold-start latency
+    ['https://www.ebi.ac.uk', 'https://mygene.info', 'https://eutils.ncbi.nlm.nih.gov', 'https://myvariant.info'].forEach(function(origin) {
       if (document.head && !document.head.querySelector('link[rel="preconnect"][href="' + origin + '"]')) {
         var link = document.createElement('link');
         link.rel = 'preconnect';
@@ -1043,6 +1044,7 @@ var NodeMenu = Class.create({
   },
 
   hide : function() {
+    closeVariantInfoCard();
     try {
       this._commitPendingInputs();
       this.hideSuggestPicker();
@@ -1086,7 +1088,7 @@ var NodeMenu = Class.create({
     if (target && target.nodeType === 1 && !document.documentElement.contains(target)) {
       return;
     }
-    if (!event.findElement('.menu-box') && !event.findElement('.calendar_date_select') && !event.findElement('.suggestItems')) {
+    if (!event.findElement('.menu-box') && !event.findElement('.calendar_date_select') && !event.findElement('.suggestItems') && !event.findElement('.variant-info-card')) {
       this.hide();
     }
   },
@@ -1365,8 +1367,49 @@ var NodeMenu = Class.create({
       box.update('');
       var tests = (value && value.tests) || [];
       var details = (value && value.details) || {};
-      var lines = tests.map(function(t) { return clinicalTestLabel(t); });
       var candidates = (value && value.candidateGenes) || [];
+      var hasContent = false;
+
+      tests.forEach(function(t) {
+        hasContent = true;
+        var cInfo = classificationInfo(t.classification);
+        var tone = cInfo.result || 'neutral';
+        var badgeText = cInfo.code === 'DECLINED' ? translate(cInfo.short) : cInfo.short;
+        var hasVariant = !!(t.variant || t.protein) && cInfo.code !== 'NEG' && cInfo.code !== 'DECLINED';
+
+        var item = new Element('div', { 'class': 'clinical-variant-item' + (hasVariant ? ' is-clickable' : '') });
+        item.insert(new Element('span', {
+          'class': 'variant-badge is-' + tone,
+          'title': translate(cInfo.label)
+        }).update(badgeText.escapeHTML()));
+
+        var textWrap = new Element('span', { 'class': 'clinical-variant-text' });
+        textWrap.insert(new Element('strong').update((t.gene || '').escapeHTML()));
+        if (hasVariant) {
+          var vText = [t.variant, t.protein].filter(Boolean).join(' ');
+          textWrap.insert(new Element('span', { 'class': 'clinical-variant-hgvs' }).update(' ' + vText.escapeHTML()));
+        }
+        item.insert(textWrap);
+
+        if (hasVariant) {
+          var infoTag = new Element('button', {
+            'type': 'button',
+            'class': 'clinical-variant-info-btn',
+            'title': translate('Look up variant classification in ClinVar / MyVariant.info'),
+            'aria-label': translate('Look up variant classification in ClinVar / MyVariant.info')
+          }).update('&#9432;');
+          var openCard = function(e) {
+            e.stop();
+            showVariantInfoCard(t, item);
+          };
+          item.observe('click', openCard);
+          infoTag.observe('click', openCard);
+          item.insert(infoTag);
+        }
+        box.insert(item);
+      });
+
+      var lines = [];
       if (candidates.length) {
         lines.push(translate('Candidate genes (older files):') + ' ' + candidates.join(', '));
       }
@@ -1382,10 +1425,12 @@ var NodeMenu = Class.create({
         });
         if (bits.length) lines.push(name + ': ' + bits.join(', '));
       });
-      if (!lines.length) {
-        box.insert(new Element('span', {'class' : 'clinical-summary-empty'}).update(translate('None recorded')));
-      } else {
-        lines.forEach(function(l) { box.insert(new Element('div').update(l.escapeHTML())); });
+      lines.forEach(function(l) {
+        hasContent = true;
+        box.insert(new Element('div').update(l.escapeHTML()));
+      });
+      if (!hasContent) {
+        box.insert(new Element('span', { 'class': 'clinical-summary-empty' }).update(translate('None recorded')));
       }
     }
   },

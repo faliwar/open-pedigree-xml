@@ -4101,6 +4101,370 @@ div.suggestItems .hide-button-wrapper {
   background: #F0F9FF;
 }
 
+/* ===== Genetic variant visualization & ClinVar / MyVariant info card ===== */
+.clinical-variant-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+}
+
+.clinical-variant-item.is-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.clinical-variant-item.is-clickable:hover {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+}
+
+.clinical-variant-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.clinical-variant-hgvs {
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.variant-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.variant-badge.is-positive {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FCA5A5;
+}
+
+.variant-badge.is-vus {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FCD34D;
+}
+
+.variant-badge.is-negative {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+}
+
+.variant-badge.is-declined,
+.variant-badge.is-neutral {
+  background: #E2E8F0;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+}
+
+.clinical-variant-info-btn {
+  border: none;
+  background: transparent;
+  color: #1D4ED8;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.clinical-variant-info-btn:hover {
+  background: #DBEAFE;
+}
+
+.clinical-variant-lookup {
+  align-self: end;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #93C5FD;
+  border-radius: 6px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clinical-variant-lookup:hover {
+  background: #DBEAFE;
+  border-color: #60A5FA;
+}
+
+.variant-info-card {
+  position: fixed;
+  z-index: 12000;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #0F172A;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12.5px;
+  overflow: hidden;
+}
+
+.variant-info-card.is-mobile {
+  left: 12px !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  top: auto !important;
+  width: auto !important;
+  max-height: 75vh;
+}
+
+.variant-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.variant-card-title-wrap {
+  min-width: 0;
+}
+
+.variant-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+  word-break: break-word;
+}
+
+.variant-card-subtitle {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.variant-card-close {
+  border: none;
+  background: transparent;
+  color: #64748B;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.variant-card-close:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.variant-card-body {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.variant-card-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  padding: 12px 4px;
+}
+
+.variant-card-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #CBD5E1;
+  border-top-color: #1D4ED8;
+  border-radius: 50%;
+  animation: opx-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes opx-spin {
+  to { transform: rotate(360deg); }
+}
+
+.variant-card-banner {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #CBD5E1;
+  background: #F8FAFC;
+}
+
+.variant-card-banner.is-positive {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+}
+
+.variant-card-banner.is-vus {
+  background: #FFFBEB;
+  border-color: #FCD34D;
+  color: #92400E;
+}
+
+.variant-card-banner.is-negative {
+  background: #F0FDF4;
+  border-color: #86EFAC;
+  color: #166534;
+}
+
+.variant-card-banner-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.variant-card-class {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.variant-card-stars {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #D97706;
+  flex-shrink: 0;
+}
+
+.variant-card-review {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-top: 3px;
+}
+
+.variant-card-grid {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.variant-card-grid dt {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  margin: 0;
+}
+
+.variant-card-grid dd {
+  font-size: 12px;
+  color: #1E293B;
+  margin: 0;
+  word-break: break-word;
+}
+
+.variant-score {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.variant-score.is-high {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+.variant-score.is-mid {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.variant-score.is-low {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.variant-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.variant-card-apply {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #1D4ED8;
+  background: #1D4ED8;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.variant-card-apply:hover {
+  background: #1E40AF;
+}
+
+.variant-card-local {
+  font-size: 11px;
+  color: #64748B;
+  padding-top: 6px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.variant-card-empty {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.variant-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+}
+
+.variant-card-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  color: #1D4ED8;
+  text-decoration: none;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.variant-card-link:hover {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+}
+
 @media (max-width: 760px) {
   .clinical-test {
     grid-template-columns: 1fr 1fr;

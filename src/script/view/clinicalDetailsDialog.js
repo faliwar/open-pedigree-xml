@@ -5,6 +5,7 @@ import {
   CLASSIFICATIONS, ZYGOSITIES, TEST_TYPES, CONTRALATERAL_FIELD, DIAGNOSIS_TYPES, normalizeTests, normalizeDetail, normalizeDetails,
   suggestedFields, isCancer, clone
 } from 'pedigree/model/clinicalData';
+import { showVariantInfoCard, closeVariantInfoCard } from 'pedigree/view/variantInfoCard';
 
 /**
  * Editor for a person's genetic test results and diagnosis details (including cancer details
@@ -179,16 +180,52 @@ var ClinicalDetailsDialog = Class.create({
       date.observe('change', function() { test.date = date.value; });
     }
 
+    var resultSelect = select('classification', CLASSIFICATIONS);
+    var variantInput = text('variant', 'e.g. c.68_69del');
+    var proteinInput = text('protein', 'e.g. p.Glu23fs');
+
     row.insert(field('Gene', gene, 'clinical-w-gene'));
     attachGeneSearch(gene, function(symbol) { test.gene = symbol.toUpperCase(); gene.value = test.gene; });
-    row.insert(field('Result', select('classification', CLASSIFICATIONS), 'clinical-w-result'));
-    row.insert(field('Variant (HGVS c.)', text('variant', 'e.g. c.68_69del'), 'clinical-w-variant'));
-    row.insert(field('Protein (HGVS p.)', text('protein', 'e.g. p.Glu23fs'), 'clinical-w-variant'));
+    row.insert(field('Result', resultSelect, 'clinical-w-result'));
+    row.insert(field('Variant (HGVS c.)', variantInput, 'clinical-w-variant'));
+    row.insert(field('Protein (HGVS p.)', proteinInput, 'clinical-w-variant'));
     row.insert(field('Zygosity', select('zygosity', ZYGOSITIES), 'clinical-w-zyg'));
     row.insert(field('Test type', select('testType', TEST_TYPES), 'clinical-w-type'));
     row.insert(field('Laboratory', text('lab'), 'clinical-w-lab'));
     row.insert(field('Report date', date, 'clinical-w-date'));
     row.insert(field('Comment', text('comment'), 'clinical-w-comment'));
+
+    var lookupBtn = new Element('button', {
+      'type': 'button',
+      'class': 'clinical-variant-lookup',
+      'title': translate('Look up variant classification in ClinVar / MyVariant.info')
+    }).update('&#128269; ClinVar');
+    lookupBtn.observe('click', function(e) {
+      e.stop();
+      if (!(test.variant || '').trim() && !(test.protein || '').trim()) {
+        variantInput.focus();
+        return;
+      }
+      showVariantInfoCard(test, lookupBtn, {
+        onApply: function(rec) {
+          if (rec.classificationCode) {
+            test.classification = rec.classificationCode;
+            resultSelect.value = rec.classificationCode;
+            row.writeAttribute('data-result', resultOf());
+          }
+          if (rec.hgvsC && !test.variant) {
+            test.variant = rec.hgvsC;
+            variantInput.value = rec.hgvsC;
+          }
+          if (rec.hgvsP && !test.protein) {
+            test.protein = rec.hgvsP;
+            proteinInput.value = rec.hgvsP;
+          }
+        }
+      });
+    });
+    row.insert(lookupBtn);
+
     var remove = new Element('button', { 'type': 'button', 'class': 'clinical-remove', 'title': translate('Remove'), 'aria-label': translate('Remove') }).update('&times;');
     remove.observe('click', onRemove);
     row.insert(remove);
@@ -330,6 +367,7 @@ var ClinicalDetailsDialog = Class.create({
   },
 
   hide: function() {
+    closeVariantInfoCard();
     if (this.dialog) {
       var d = this.dialog;
       this.dialog = null;
