@@ -41,7 +41,8 @@
         }
         if (this.dialogBox) {
           var closeBtn = this.dialogBox.down('.msdialog-close');
-          if (closeBtn) {
+          if (closeBtn && !closeBtn._opxTouchPatched) {
+            closeBtn._opxTouchPatched = true;
             var _this = this;
             var onTouchClose = function (ev) {
               if (ev) {
@@ -50,7 +51,6 @@
               _this.closeDialog(ev);
             };
             closeBtn.observe('touchend', onTouchClose);
-            closeBtn.observe('click', onTouchClose);
           }
         }
       };
@@ -60,12 +60,28 @@
         if (c && c.stop) {
           try { c.stop(); } catch (err) {}
         }
-        if (origPTClose) {
-          origPTClose.call(this, c);
+        if (this._opxClosing || (!this.active && (!this.dialog || !this.dialog.parentNode))) {
+          return;
         }
-        if (this.dialog) {
-          this.dialog.setStyle({ display: 'none' });
-          this.dialog.addClassName('hidden');
+        this._opxClosing = true;
+        try {
+          if (origPTClose) {
+            try {
+              origPTClose.call(this, c);
+            } catch (err) {
+              this.detachKeyListeners && this.detachKeyListeners();
+              this.active = false;
+            }
+          }
+          if (this.dialog) {
+            this.dialog.setStyle({ display: 'none' });
+            this.dialog.addClassName('hidden');
+            if (this.options && this.options.removeOnClose && this.dialog.parentNode) {
+              this.dialog.parentNode.removeChild(this.dialog);
+            }
+          }
+        } finally {
+          this._opxClosing = false;
         }
       };
 
@@ -117,7 +133,8 @@
         }
         if (this.dialogBox) {
           var closeBtn = this.dialogBox.down('.xdialog-close');
-          if (closeBtn) {
+          if (closeBtn && !closeBtn._opxTouchPatched) {
+            closeBtn._opxTouchPatched = true;
             var _this = this;
             var onTouchClose = function (ev) {
               if (ev) {
@@ -126,7 +143,6 @@
               _this.closeDialog(ev);
             };
             closeBtn.observe('touchend', onTouchClose);
-            closeBtn.observe('click', onTouchClose);
           }
         }
       };
@@ -136,12 +152,28 @@
         if (c && c.stop) {
           try { c.stop(); } catch (err) {}
         }
-        if (origXWClose) {
-          origXWClose.call(this, c);
+        if (this._opxClosing || (!this.active && (!this.dialog || !this.dialog.parentNode))) {
+          return;
         }
-        if (this.dialog) {
-          this.dialog.setStyle({ display: 'none' });
-          this.dialog.addClassName('hidden');
+        this._opxClosing = true;
+        try {
+          if (origXWClose) {
+            try {
+              origXWClose.call(this, c);
+            } catch (err) {
+              this.detachKeyListeners && this.detachKeyListeners();
+              this.active = false;
+            }
+          }
+          if (this.dialog) {
+            this.dialog.setStyle({ display: 'none' });
+            this.dialog.addClassName('hidden');
+            if (this.options && this.options.removeOnClose && this.dialog.parentNode) {
+              this.dialog.parentNode.removeChild(this.dialog);
+            }
+          }
+        } finally {
+          this._opxClosing = false;
         }
       };
 
