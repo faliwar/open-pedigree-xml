@@ -1,0 +1,54 @@
+name: Deploy to Hostinger (FTP)
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+concurrency:
+  group: "hostinger-deploy"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Hostinger FTP secrets
+        id: check
+        env:
+          FTP_HOST: ${{ secrets.HOSTINGER_FTP_HOST }}
+          FTP_USER: ${{ secrets.HOSTINGER_FTP_USER }}
+          FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+        run: |
+          if [ -n "$FTP_HOST" ] && [ -n "$FTP_USER" ] && [ -n "$FTP_PASS" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Hostinger FTP secrets not configured yet; skipping deploy."
+          fi
+
+      - name: Checkout repository
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Stage production files
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          mkdir -p _deploy
+          for item in index.html pedigree.min.js version.json manifest.webmanifest sw.js favicon.ico favicon.png LLMInstructions.md sample.xml assets public; do
+            if [ -e "$item" ]; then
+              cp -r "$item" _deploy/
+            fi
+          done
+
+      - name: Sync files to Hostinger via FTPS
+        if: steps.check.outputs.configured == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./_deploy/
+          server-dir: ${{ secrets.HOSTINGER_FTP_DIR || './public_html/opx/' }}
+          dangerous-clean-slate: false
