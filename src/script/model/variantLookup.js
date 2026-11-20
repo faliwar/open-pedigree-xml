@@ -79,12 +79,18 @@ var _normVar = function(v) {
   return str(v).replace(/\s+/g, '').toLowerCase();
 };
 
+// Modern HGVS omits deleted/duplicated bases after del/dup (e.g. c.32delG -> c.32del, c.68_69delAG -> c.68_69del)
+var _stripDelDupBases = function(v) {
+  return str(v).replace(/((?:del|dup))[ACGTNacgtn]+$/i, '$1');
+};
+
 var _scoreSummaryMatch = function(summary, gene, variant, protein) {
   if (!summary) return -1;
   var score = 0;
   var title = str(summary.title).toLowerCase();
   var g = str(gene).toUpperCase();
   var v = _normVar(variant);
+  var vStripped = _normVar(_stripDelDupBases(variant));
   var p = _normVar(protein);
 
   var genes = Array.isArray(summary.genes) ? summary.genes : [];
@@ -101,9 +107,11 @@ var _scoreSummaryMatch = function(summary, gene, variant, protein) {
   if (v) {
     if (titleC && titleC === v) {
       score += 100;
+    } else if (vStripped && vStripped !== v && titleC && titleC === vStripped) {
+      score += 95;
     } else if (titleC && titleC.indexOf(v) === 0) {
       score += 60 - Math.min(20, titleC.length - v.length);
-    } else if (title.indexOf(v) !== -1) {
+    } else if (title.indexOf(v) !== -1 || (vStripped && vStripped !== v && title.indexOf(vStripped) !== -1)) {
       score += 40;
     }
   }
@@ -554,14 +562,21 @@ var _searchClinVar = function(fetchImpl, gene, variant, protein) {
   if (/^rs\d+$/i.test(v)) {
     terms.push(v + '[variant name]');
   } else {
+    var vStripped = _stripDelDupBases(v);
     if (g && v) {
       terms.push(g + '[gene] AND "' + v.replace(/"/g, '') + '"');
+      if (vStripped && vStripped !== v) {
+        terms.push(g + '[gene] AND "' + vStripped.replace(/"/g, '') + '"');
+      }
     }
     if (g && p && p !== v) {
       terms.push(g + '[gene] AND "' + p.replace(/"/g, '') + '"');
     }
     if (!g && v) {
       terms.push('"' + v.replace(/"/g, '') + '"');
+      if (vStripped && vStripped !== v) {
+        terms.push('"' + vStripped.replace(/"/g, '') + '"');
+      }
     }
   }
   if (!terms.length) return Promise.resolve(null);

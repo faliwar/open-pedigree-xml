@@ -236,3 +236,49 @@ test('lookupVariant combines ClinVar E-utilities and MyVariant.info and falls ba
   assert.equal(res2.record.classificationCode, 'P');
   assert.equal(res2.record.revelScore, 0.95);
 });
+
+test('lookupVariant falls back to modern HGVS without trailing del/dup bases (e.g. GLA c.32delG -> c.32del)', async () => {
+  clearVariantLookupCache();
+  const seenTerms = [];
+  const mockFetch = async (url) => {
+    if (url.includes('esearch.fcgi')) {
+      const term = new URL(url).searchParams.get('term');
+      seenTerms.push(term);
+      if (term.includes('"c.32delG"')) {
+        return { ok: true, json: async () => ({ esearchresult: { idlist: [] } }) };
+      }
+      if (term.includes('"c.32del"')) {
+        return { ok: true, json: async () => ({ esearchresult: { idlist: ['2138675'] } }) };
+      }
+      return { ok: true, json: async () => ({ esearchresult: { idlist: [] } }) };
+    }
+    if (url.includes('esummary.fcgi')) {
+      return {
+        ok: true,
+        json: async () => ({
+          result: {
+            '2138675': {
+              uid: '2138675',
+              accession: 'VCV002138675',
+              title: 'NM_000169.3(GLA):c.32del (p.Gly11fs)',
+              genes: [{ symbol: 'GLA' }],
+              germline_classification: {
+                description: 'Pathogenic',
+                review_status: 'criteria provided, single submitter'
+              }
+            }
+          }
+        })
+      };
+    }
+    return { ok: true, json: async () => ({ hits: [] }) };
+  };
+
+  const res = await lookupVariant({ gene: 'GLA', variant: 'c.32delG' }, mockFetch);
+  assert.equal(res.found, true);
+  assert.equal(res.record.variationId, '2138675');
+  assert.equal(res.record.hgvsC, 'c.32del');
+  assert.equal(res.record.classificationCode, 'P');
+  assert.equal(seenTerms.length, 2);
+});
+
