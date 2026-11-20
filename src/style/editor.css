@@ -29,8 +29,10 @@
  * GENERAL
  */
 html,
+body,
 #body {
   width: 100%;
+  min-width: 0 !important;
   max-width: 100vw;
   overflow: hidden;
   margin: 0;
