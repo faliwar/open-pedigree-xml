@@ -17,12 +17,12 @@ var store = {
 
 // What's new in this version: [title, description, action]. Update it for each minor release.
 var NEWS = [
-  ['Hide and show branches', 'Collapse distant or secondary family branches to focus on core relatives, with counter badge (+N) and one-click expand all.', function() { Controller.expandAll(); }],
-  ['Consultand indicator (C)', 'Designate the consultand (person seeking genetic counselling) with a dedicated arrow, distinct from the affected proband (P).', null],
-  ['Unknown twin zygosity (?)', 'Bennett et al. nomenclature symbol for twins of unknown zygosity.', null],
-  ['High-performance rendering', 'Cached text metrics and smart node preservation make large pedigrees up to 5× faster to edit, undo, and redo.', null],
-  ['Pixel-perfect PDF & image export', 'Transform-aware bounding box framed tightly to visible relatives without blank whitespace, badge artifacts, or cropped nodes.', function() { editor.getExportSelector().show(); }],
-  ['Compact person menu', 'Space-optimized person editor with conditional sections for sex assigned at birth and reproductive history.', null]
+  ['Live variant lookup card', 'Click any genetic variant to fetch ClinVar classification, gold stars, gnomAD allele frequency, REVEL, CADD and AlphaMissense scores, with direct links to ClinVar, gnomAD, Franklin and UCSC.', null],
+  ['Extract results from report text & copy familial variants', 'Paste lab report text to auto-fill gene, variant, zygosity and classification, or copy a variant from any relative in one click.', null],
+  ['Absent (ruled-out) phenotypes', 'Record both present and explicitly excluded HPO phenotypes ("no seizures"), preserved across XML, JSON, FHIR, search and the family summary.', null],
+  ['Cascade testing disease catalog & ACMG v4 calculator', 'Built-in clinical disease/gene presets auto-fill penetrance, inheritance mode and de novo rate, plus a Hardy–Weinberg prevalence-to-carrier-frequency converter.', function() { editor.getCascadeDialog && editor.getCascadeDialog().show(); }],
+  ['Installable mobile app (PWA)', 'Install OPX directly on Android, iOS or desktop for full-screen offline access.', null],
+  ['Descendants on grouped symbols', 'Numbered and "n" sibling group symbols can now have partners, parents and descendants.', null]
 ];
 
 var timeAgo = function(savedAt) {

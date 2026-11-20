@@ -1,5 +1,5 @@
 /* Service Worker for OPX Pedigree Editor PWA */
-var CACHE_NAME = 'opx-pwa-v1';
+var CACHE_NAME = 'opx-pwa-v2';
 
 var PRECACHE_URLS = [
   './',

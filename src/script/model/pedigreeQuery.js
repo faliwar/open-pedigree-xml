@@ -205,8 +205,13 @@ var Query = Class.create({
         hit = f.value ? ds.indexOf(f.value) !== -1 : ds.length > 0;
         break;
       case 'phenotype':
-        var hpo = (node.getHPO && node.getHPO()) || [];
-        hit = f.value ? hpo.indexOf(f.value) !== -1 : hpo.length > 0;
+        if (f.op === 'absent') {
+          var absHpo = (node.getHPOAbsent && node.getHPOAbsent()) || [];
+          hit = f.value ? absHpo.indexOf(f.value) !== -1 : absHpo.length > 0;
+        } else {
+          var hpo = (node.getHPO && node.getHPO()) || [];
+          hit = f.value ? hpo.indexOf(f.value) !== -1 : hpo.length > 0;
+        }
         break;
       case 'age':
         var age = personAge(node);
@@ -282,6 +287,7 @@ var collectValues = function(graph) {
     if (!node) return;
     disordersOf(node).forEach(function(d) { out.disorders[d] = true; });
     ((node.getHPO && node.getHPO()) || []).forEach(function(h) { out.hpo[h] = true; });
+    ((node.getHPOAbsent && node.getHPOAbsent()) || []).forEach(function(h) { out.hpo[h] = true; });
     ((node.getGeneticTests && node.getGeneticTests()) || []).forEach(function(t) { if (t.gene) out.genes[t.gene] = true; });
     normalizeAncestry(node.getAncestry ? node.getAncestry() : []).forEach(function(a) { out.ancestry[a] = true; });
   });

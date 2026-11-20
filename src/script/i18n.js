@@ -589,6 +589,19 @@ const translations = {
   , 'Autosomal recessive & metabolic': 'Autossômicas recessivas e metabólicas'
   , 'X-linked & mitochondrial': 'Ligadas ao X e mitocondriais'
   , 'ACMG v4 / Rare disease archetypes': 'Arquétipos ACMG v4 / Doenças raras'
+  , 'recorded as absent': 'registrado como ausente'
+  , 'Live variant lookup card': 'Cartão de consulta de variantes ao vivo'
+  , 'Click any genetic variant to fetch ClinVar classification, gold stars, gnomAD allele frequency, REVEL, CADD and AlphaMissense scores, with direct links to ClinVar, gnomAD, Franklin and UCSC.': 'Clique em qualquer variante genética para consultar classificação ClinVar, estrelas, frequência no gnomAD e escores REVEL, CADD e AlphaMissense, com links diretos para ClinVar, gnomAD, Franklin e UCSC.'
+  , 'Extract results from report text & copy familial variants': 'Extrair resultados de laudos e copiar variantes familiares'
+  , 'Paste lab report text to auto-fill gene, variant, zygosity and classification, or copy a variant from any relative in one click.': 'Cole o texto do laudo para preencher automaticamente gene, variante, zigosidade e classificação, ou copie uma variante de qualquer familiar em um clique.'
+  , 'Absent (ruled-out) phenotypes': 'Fenótipos ausentes (descartados)'
+  , 'Record both present and explicitly excluded HPO phenotypes ("no seizures"), preserved across XML, JSON, FHIR, search and the family summary.': 'Registre fenótipos HPO presentes e explicitamente ausentes ("sem convulsões"), preservados em XML, JSON, FHIR, busca e resumo familiar.'
+  , 'Cascade testing disease catalog & ACMG v4 calculator': 'Catálogo de doenças no teste em cascata e calculadora ACMG v4'
+  , 'Built-in clinical disease/gene presets auto-fill penetrance, inheritance mode and de novo rate, plus a Hardy–Weinberg prevalence-to-carrier-frequency converter.': 'Predefinições clínicas de doenças/genes preenchem penetrância, modo de herança e taxa de novo automaticamente, além da calculadora de frequência de portadores por Hardy-Weinberg.'
+  , 'Installable mobile app (PWA)': 'Aplicativo instalável no celular (PWA)'
+  , 'Install OPX directly on Android, iOS or desktop for full-screen offline access.': 'Instale o OPX diretamente no Android, iOS ou computador para acesso offline em tela cheia.'
+  , 'Descendants on grouped symbols': 'Descendentes em símbolos agrupados'
+  , 'Numbered and "n" sibling group symbols can now have partners, parents and descendants.': 'Símbolos de grupo numerados e com "n" agora podem ter parceiros, pais e descendentes.'
 };
 
 export function getLanguage() {

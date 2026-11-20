@@ -157,9 +157,13 @@ var parseClinVarSummary = function(summary, fallbackGene) {
   var grch38 = null;
   var grch37 = null;
   var rsid = '';
+  var spdiVcf = null;
   var vset = Array.isArray(summary.variation_set) ? summary.variation_set : [];
   vset.forEach(function(vs) {
     if (!vs) return;
+    if (!spdiVcf && vs.canonical_spdi) {
+      spdiVcf = spdiToVcf38(vs.canonical_spdi);
+    }
     var locs = Array.isArray(vs.variation_loc) ? vs.variation_loc : [];
     locs.forEach(function(loc) {
       if (!loc || !loc.chr) return;
@@ -212,7 +216,40 @@ var parseClinVarSummary = function(summary, fallbackGene) {
     revelScore: null,
     alphaMissenseScore: null,
     alphaMissenseClass: '',
-    vcf: null
+    vcf: spdiVcf
+  };
+};
+
+var _NC_TO_CHR = {
+  'NC_000001': '1', 'NC_000002': '2', 'NC_000003': '3', 'NC_000004': '4',
+  'NC_000005': '5', 'NC_000006': '6', 'NC_000007': '7', 'NC_000008': '8',
+  'NC_000009': '9', 'NC_000010': '10', 'NC_000011': '11', 'NC_000012': '12',
+  'NC_000013': '13', 'NC_000014': '14', 'NC_000015': '15', 'NC_000016': '16',
+  'NC_000017': '17', 'NC_000018': '18', 'NC_000019': '19', 'NC_000020': '20',
+  'NC_000021': '21', 'NC_000022': '22', 'NC_000023': 'X', 'NC_000024': 'Y',
+  'NC_012920': 'M'
+};
+
+/**
+ * Converts a ClinVar GRCh38 canonical SPDI string (0-based interbase) to 1-based VCF
+ * when both deleted and inserted sequences are non-empty (SNVs, MNVs, delins).
+ */
+var spdiToVcf38 = function(spdi) {
+  var parts = str(spdi).split(':');
+  if (parts.length !== 4) return null;
+  var accBase = parts[0].split('.')[0].toUpperCase();
+  var chr = _NC_TO_CHR[accBase];
+  var pos0 = parseInt(parts[1], 10);
+  var ref = parts[2].toUpperCase();
+  var alt = parts[3].toUpperCase();
+  if (!chr || !isFinite(pos0) || !ref || !alt) return null;
+  if (!/^[ACGT]+$/.test(ref) || !/^[ACGT]+$/.test(alt)) return null;
+  return {
+    chr: chr,
+    pos: String(pos0 + 1),
+    ref: ref,
+    alt: alt,
+    assembly: 'GRCh38'
   };
 };
 
@@ -338,13 +375,63 @@ var mergeMyVariantData = function(record, hit, fallbackGene) {
   }
 
   if (hit.vcf && hit.vcf.position && hit.vcf.ref && hit.vcf.alt && hit.chrom) {
-    out.vcf = {
-      chr: String(hit.chrom).replace(/^chr/i, ''),
-      pos: String(hit.vcf.position),
-      ref: String(hit.vcf.ref),
-      alt: String(hit.vcf.alt)
-    };
-    if (!out.grch38) {
+    var vcfChr = String(hit.chrom).replace(/^chr/i, '');
+    var vcfPos = String(hit.vcf.position);
+    var vcfRef = String(hit.vcf.ref);
+    var vcfAlt = String(hit.vcf.alt);
+    var vcfAssembly = '';
+
+    var hg38Start = (hit.hg38 && hit.hg38.start) ? String(hit.hg38.start) : (out.grch38 && out.grch38.start ? String(out.grch38.start) : '');
+    var hg19Start = (hit.hg19 && hit.hg19.start) ? String(hit.hg19.start) : (out.grch37 && out.grch37.start ? String(out.grch37.start) : '');
+
+    if (hg38Start && vcfPos === hg38Start) {
+      vcfAssembly = 'GRCh38';
+    } else if (hg19Start && vcfPos === hg19Start) {
+      if (hg38Start) {
+        // Project GRCh37 VCF position to GRCh38 using ClinVar/MyVariant start delta
+        var pos38 = parseInt(vcfPos, 10) + (parseInt(hg38Start, 10) - parseInt(hg19Start, 10));
+        if (isFinite(pos38) && pos38 > 0) {
+          vcfPos = String(pos38);
+          vcfAssembly = 'GRCh38';
+        } else {
+          vcfAssembly = 'GRCh37';
+        }
+      } else {
+        vcfAssembly = 'GRCh37';
+      }
+    } else if (hg38Start && hg19Start) {
+      // Indel anchor base (1 bp before hg19/hg38 start): check distance to each assembly
+      var pNum = parseInt(vcfPos, 10);
+      var d38 = Math.abs(pNum - parseInt(hg38Start, 10));
+      var d19 = Math.abs(pNum - parseInt(hg19Start, 10));
+      if (d38 <= 2 && d38 < d19) {
+        vcfAssembly = 'GRCh38';
+      } else if (d19 <= 2) {
+        var proj = pNum + (parseInt(hg38Start, 10) - parseInt(hg19Start, 10));
+        if (isFinite(proj) && proj > 0) {
+          vcfPos = String(proj);
+          vcfAssembly = 'GRCh38';
+        } else {
+          vcfAssembly = 'GRCh37';
+        }
+      } else {
+        vcfAssembly = 'GRCh37';
+      }
+    } else {
+      // MyVariant.info default query endpoint returns hg19 coordinates
+      vcfAssembly = 'GRCh37';
+    }
+
+    if (!out.vcf || out.vcf.assembly !== 'GRCh38' || vcfAssembly === 'GRCh38') {
+      out.vcf = {
+        chr: vcfChr,
+        pos: vcfPos,
+        ref: vcfRef,
+        alt: vcfAlt,
+        assembly: vcfAssembly
+      };
+    }
+    if (!out.grch38 && vcfAssembly === 'GRCh38') {
       out.grch38 = {
         chr: out.vcf.chr,
         start: out.vcf.pos,
@@ -373,37 +460,51 @@ var buildExternalLinks = function(record, query) {
   var gnomadUrl;
   if (record && record.vcf) {
     var v = record.vcf;
+    var gnomadDataset = (v.assembly === 'GRCh37') ? 'gnomad_r2_1' : 'gnomad_r4';
     gnomadUrl = 'https://gnomad.broadinstitute.org/variant/' +
-      encodeURIComponent(v.chr + '-' + v.pos + '-' + v.ref + '-' + v.alt) + '?dataset=gnomad_r4';
+      encodeURIComponent(v.chr + '-' + v.pos + '-' + v.ref + '-' + v.alt) + '?dataset=' + gnomadDataset;
+  } else if (record && record.grch38 && record.grch38.chr && record.grch38.start) {
+    var gChr = String(record.grch38.chr).replace(/^chr/i, '');
+    var gStop = record.grch38.stop || record.grch38.start;
+    gnomadUrl = 'https://gnomad.broadinstitute.org/region/' +
+      encodeURIComponent(gChr + '-' + record.grch38.start + '-' + gStop) + '?dataset=gnomad_r4';
   } else if (record && record.rsid) {
     gnomadUrl = 'https://gnomad.broadinstitute.org/awesome?query=' + encodeURIComponent(record.rsid);
   } else {
     gnomadUrl = 'https://gnomad.broadinstitute.org/awesome?query=' + encodeURIComponent(term || gene);
   }
 
-  // Franklin (Genoox / QIAGEN) opens a variant from its hg38 coordinates
+  // Franklin (Genoox / QIAGEN) opens a variant from its hg38/hg19 coordinates
   // (franklin.genoox.com/clinical-db/variant/snp/chr13-32340300-GT-G-hg38); without them, the gene
   // page, from which the variant can be searched
   var franklinUrl;
   if (record && record.vcf) {
+    var fAsm = (record.vcf.assembly === 'GRCh37') ? 'hg19' : 'hg38';
     franklinUrl = 'https://franklin.genoox.com/clinical-db/variant/snp/' +
-      _pathSegment('chr' + record.vcf.chr + '-' + record.vcf.pos + '-' + record.vcf.ref + '-' + record.vcf.alt + '-hg38');
+      _pathSegment('chr' + record.vcf.chr + '-' + record.vcf.pos + '-' + record.vcf.ref + '-' + record.vcf.alt + '-' + fAsm);
   } else if (gene) {
     franklinUrl = 'https://franklin.genoox.com/clinical-db/gene/' + _pathSegment(gene);
   } else {
     franklinUrl = 'https://franklin.genoox.com/clinical-db/home';
   }
 
-  // UCSC Genome Browser (hg38): the variant with some bases on each side, the variant highlighted;
+  // UCSC Genome Browser (hg38/hg19): the variant with some bases on each side, the variant highlighted;
   // without coordinates, the transcript HGVS or the gene, which UCSC's position search accepts
-  var ucscBase = 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=';
+  var ucscDb = (record && record.vcf && record.vcf.assembly === 'GRCh37') ? 'hg19' : 'hg38';
+  var ucscBase = 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=' + ucscDb + '&position=';
   var ucscUrl;
   if (record && record.vcf && /^\d+$/.test(String(record.vcf.pos))) {
     var chr = 'chr' + record.vcf.chr;
     var start = parseInt(record.vcf.pos, 10);
     var stop = start + Math.max(1, String(record.vcf.ref || '').length) - 1;
     ucscUrl = ucscBase + encodeURIComponent(chr + ':' + Math.max(1, start - 25) + '-' + (stop + 25)) +
-      '&highlight=' + encodeURIComponent('hg38.' + chr + ':' + start + '-' + stop + '#FFCC00');
+      '&highlight=' + encodeURIComponent(ucscDb + '.' + chr + ':' + start + '-' + stop + '#FFCC00');
+  } else if (record && record.grch38 && record.grch38.chr && /^\d+$/.test(String(record.grch38.start))) {
+    var rChr = 'chr' + String(record.grch38.chr).replace(/^chr/i, '');
+    var rStart = parseInt(record.grch38.start, 10);
+    var rStop = /^\d+$/.test(String(record.grch38.stop)) ? parseInt(record.grch38.stop, 10) : rStart;
+    ucscUrl = ucscBase + encodeURIComponent(rChr + ':' + Math.max(1, rStart - 25) + '-' + (rStop + 25)) +
+      '&highlight=' + encodeURIComponent('hg38.' + rChr + ':' + rStart + '-' + rStop + '#FFCC00');
   } else if (record && record.transcript && record.hgvsC) {
     ucscUrl = ucscBase + encodeURIComponent(record.transcript + ':' + record.hgvsC);
   } else if (gene) {
@@ -510,8 +611,8 @@ var _queryMyVariant = function(fetchImpl, record, gene, variant) {
     return Promise.resolve(null);
   }
 
-  var fields = 'chrom,vcf,clinvar,gnomad_exome.af.af,gnomad_genome.af.af,dbsnp.rsid,cadd.phred,dbnsfp.revel,dbnsfp.alphamissense';
-  var url = 'https://myvariant.info/v1/query?assembly=hg38&size=5&fields=' + fields + '&q=' + q;
+  var fields = 'chrom,vcf,hg19,hg38,clinvar,gnomad_exome.af.af,gnomad_genome.af.af,dbsnp.rsid,cadd.phred,dbnsfp.revel,dbnsfp.alphamissense';
+  var url = 'https://myvariant.info/v1/query?size=5&fields=' + fields + '&q=' + q;
   return _fetchJson(fetchImpl, url, 8000).then(function(data) {
     var hits = (data && Array.isArray(data.hits)) ? data.hits : [];
     return hits.length ? hits[0] : null;
@@ -582,5 +683,6 @@ export {
   parseClinVarSummary,
   mergeMyVariantData,
   buildExternalLinks,
+  spdiToVcf38,
   clearVariantLookupCache
 };

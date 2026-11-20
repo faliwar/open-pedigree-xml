@@ -8,6 +8,7 @@ import {
   parseClinVarSummary,
   mergeMyVariantData,
   buildExternalLinks,
+  spdiToVcf38,
   clearVariantLookupCache
 } from '../src/script/model/variantLookup.js';
 
@@ -96,6 +97,7 @@ test('mergeMyVariantData enriches ClinVar record with gnomAD AF and in-silico sc
     classificationCode: 'P',
     reviewStatus: 'reviewed by expert panel',
     stars: 3,
+    grch38: { chr: '17', start: '43124027', stop: '43124029', label: 'chr17:43124027' },
     conditions: ['Hereditary breast and ovarian cancer syndrome']
   };
   const hit = {
@@ -115,16 +117,31 @@ test('mergeMyVariantData enriches ClinVar record with gnomAD AF and in-silico sc
   assert.equal(merged.revelScore, 0.91);
   assert.equal(merged.alphaMissenseScore, 0.96);
   assert.equal(merged.vcf.pos, '43124027');
+  assert.equal(merged.vcf.assembly, 'GRCh38');
 
   const links = buildExternalLinks(merged, { gene: 'BRCA1', variant: 'c.68_69del' });
   assert.equal(links.clinvar, 'https://www.ncbi.nlm.nih.gov/clinvar/variation/17661/');
-  assert.match(links.gnomad, /17-43124027-ACT-A/);
+  assert.equal(links.gnomad, 'https://gnomad.broadinstitute.org/variant/17-43124027-ACT-A?dataset=gnomad_r4');
   assert.equal(links.franklin, 'https://franklin.genoox.com/clinical-db/variant/snp/chr17-43124027-ACT-A-hg38');
   assert.equal(links.varsome, undefined);
   assert.equal(links.ucsc, 'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=chr17%3A43124002-43124054' +
     '&highlight=hg38.chr17%3A43124027-43124029%23FFCC00');
   assert.equal(buildExternalLinks(null, { gene: 'brca2', variant: 'c.5946del' }).ucsc,
     'https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=BRCA2');
+
+  // spdiToVcf38 converts 0-based GRCh38 SPDI to 1-based VCF
+  assert.deepEqual(spdiToVcf38('NC_000017.11:43094463:G:A'), {
+    chr: '17', pos: '43094464', ref: 'G', alt: 'A', assembly: 'GRCh38'
+  });
+  assert.equal(spdiToVcf38('NC_000017.11:43124026:AG:'), null);
+
+  // Pure GRCh37 VCF uses gnomad_r2_1, hg19 Franklin, and hg19 UCSC
+  const hg19Links = buildExternalLinks({
+    vcf: { chr: '17', pos: '41276044', ref: 'ACT', alt: 'A', assembly: 'GRCh37' }
+  }, { gene: 'BRCA1' });
+  assert.equal(hg19Links.gnomad, 'https://gnomad.broadinstitute.org/variant/17-41276044-ACT-A?dataset=gnomad_r2_1');
+  assert.equal(hg19Links.franklin, 'https://franklin.genoox.com/clinical-db/variant/snp/chr17-41276044-ACT-A-hg19');
+  assert.match(hg19Links.ucsc, /db=hg19/);
 
   // without coordinates: the gene page
   const plain = buildExternalLinks(null, { gene: 'brca2', variant: 'c.5946del' });

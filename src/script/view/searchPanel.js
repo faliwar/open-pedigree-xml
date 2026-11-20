@@ -41,7 +41,7 @@ var FIELDS = [
   value: 'person', value2: 'select', options2: function() {
     return [['1', '1st degree'], ['2', 'up to 2nd degree'], ['3', 'up to 3rd degree'], ['99', 'any degree']];
   } }],
-  ['phenotype', { label: 'Phenotype (HPO)', ops: HAS_OPS, value: 'select', options: function(v) {
+  ['phenotype', { label: 'Phenotype (HPO)', ops: HAS_OPS.concat([['absent', 'recorded as absent']]), value: 'select', options: function(v) {
     return [['', 'Any phenotype']].concat(v.hpo.map(function(h) { return [h, hpoName(h), true]; }));
   } }],
   ['ancestry', { label: 'Ancestry', ops: HAS_OPS, value: 'select', options: function(v) {

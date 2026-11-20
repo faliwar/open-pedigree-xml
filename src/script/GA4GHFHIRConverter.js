@@ -485,10 +485,16 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
       let phenotype = fhirTerminologyHelper.getPhenotypeFromCodeableConcept(observationResource.valueCodeableConcept, true);
       if (phenotype) {
         foundCode = true;
-        if ('hpoTerms' in nodeData.properties) {
-          nodeData.properties.hpoTerms.push(phenotype);
+        let isNeg = Array.isArray(observationResource.interpretation) && observationResource.interpretation.some(function(interp) {
+          return Array.isArray(interp.coding) && interp.coding.some(function(c) {
+            return c && (c.code === 'NEG' || c.code === 'IND-NEG');
+          });
+        });
+        let targetProp = isNeg ? 'hpoAbsent' : 'hpoTerms';
+        if (targetProp in nodeData.properties) {
+          nodeData.properties[targetProp].push(phenotype);
         } else {
-          nodeData.properties.hpoTerms = [phenotype];
+          nodeData.properties[targetProp] = [phenotype];
         }
       }
     }
@@ -541,9 +547,17 @@ GA4GHFHIRConverter.extractDataFromObservation = function (observationResource, n
   }
   if (!foundCode) {
     if (observationResource.valueString) {
+      const absentPhenotypePrefix = 'absent phenotype: ';
       const phenotypePrefix = 'phenotype: ';
       const genePrefix = 'gene: ';
-      if (observationResource.valueString.startsWith(phenotypePrefix)) {
+      if (observationResource.valueString.startsWith(absentPhenotypePrefix)) {
+        foundCode = true;
+        if ('hpoAbsent' in nodeData.properties) {
+          nodeData.properties.hpoAbsent.push(observationResource.valueString.substring(absentPhenotypePrefix.length));
+        } else {
+          nodeData.properties.hpoAbsent = [observationResource.valueString.substring(absentPhenotypePrefix.length)];
+        }
+      } else if (observationResource.valueString.startsWith(phenotypePrefix)) {
         foundCode = true;
         if ('hpoTerms' in nodeData.properties) {
           nodeData.properties.hpoTerms.push(observationResource.valueString.substring(phenotypePrefix.length));
@@ -1371,6 +1385,33 @@ GA4GHFHIRConverter.addObservations = function (nodeProperties, ref, observations
         fhirObservation['valueCodeableConcept'] = cc;
       } else {
         fhirObservation['valueString'] = phenotypePrefix + hpoTerms[j];
+      }
+      observationsForRef.push(fhirObservation);
+    }
+  }
+
+  if (nodeProperties['hpoAbsent']) {
+    let hpoAbsent = nodeProperties['hpoAbsent'];
+    const absentPhenotypePrefix = 'absent phenotype: ';
+    for (let j = 0; j < hpoAbsent.length; j++) {
+      let fhirObservation = {
+        'resourceType': 'Observation',
+        'id': generateUUID(),
+        'status': 'preliminary',
+        'subject': { 'reference': this.patRefAsRef(ref) },
+        'interpretation': [{
+          'coding': [{
+            'system': 'http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation',
+            'code': 'NEG',
+            'display': 'Negative'
+          }]
+        }]
+      };
+      let cc = fhirTerminologyHelper.getCodeableConceptFromPhenotype(hpoAbsent[j]);
+      if (cc.coding) {
+        fhirObservation['valueCodeableConcept'] = cc;
+      } else {
+        fhirObservation['valueString'] = absentPhenotypePrefix + hpoAbsent[j];
       }
       observationsForRef.push(fhirObservation);
     }

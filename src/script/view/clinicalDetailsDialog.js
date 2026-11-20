@@ -187,16 +187,17 @@ var ClinicalDetailsDialog = Class.create({
         row && row.scrollIntoView({ block: 'nearest' });
 
         // quick result: carrier (with the variant's classification and zygosity) or not
+        var targetTest = _this._tests[idx];
         copyBar.update('');
         copyBar.insert(new Element('span', { 'class': 'clinical-copy-text' })
           .update((src.gene + ' ' + (src.variant || src.protein)).escapeHTML() + ' — ' + translate('result for this person:')));
         var setResult = function(carrier) {
-          var t = _this._tests[idx];
-          if (!t) return;
-          t.classification = carrier ? (src.classification || 'POS') : 'NEG';
-          t.zygosity = carrier ? (src.zygosity || 'het') : '';
+          var curIdx = _this._tests.indexOf(targetTest);
+          if (curIdx < 0) return;
+          targetTest.classification = carrier ? (src.classification || 'POS') : 'NEG';
+          targetTest.zygosity = carrier ? (src.zygosity || 'het') : '';
           renderTests();
-          var r = testsList.select('.clinical-test')[idx];
+          var r = testsList.select('.clinical-test')[curIdx];
           r && r.addClassName('is-new');
           copyBar.hide();
         };
