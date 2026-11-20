@@ -53,5 +53,5 @@ jobs:
           protocol: ftps
           security: loose
           local-dir: ./_deploy/
-          server-dir: ${{ secrets.HOSTINGER_FTP_DIR || './public_html/opx/' }}
+          server-dir: ${{ secrets.HOSTINGER_FTP_DIR || './opx/' }}
           dangerous-clean-slate: false
