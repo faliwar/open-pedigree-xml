@@ -54,4 +54,5 @@ jobs:
           security: loose
           local-dir: ./_deploy/
           server-dir: ${{ secrets.HOSTINGER_FTP_DIR || './opx/' }}
+          state-name: .ftp-deploy-sync-state-v2.json
           dangerous-clean-slate: false
