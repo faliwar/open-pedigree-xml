@@ -21,7 +21,9 @@ jobs:
           FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
         run: |
           if [ -n "$FTP_HOST" ] && [ -n "$FTP_USER" ] && [ -n "$FTP_PASS" ]; then
+            CLEAN_HOST=$(printf '%s' "$FTP_HOST" | tr -d ' \t\r\n' | sed -E 's#^ftps?://##i; s#/.*$##; s#:[0-9]+$##')
             echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "host=$CLEAN_HOST" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "Hostinger FTP secrets not configured yet; skipping deploy."
@@ -45,10 +47,11 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          server: ${{ steps.check.outputs.host }}
           username: ${{ secrets.HOSTINGER_FTP_USER }}
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
           protocol: ftps
+          security: loose
           local-dir: ./_deploy/
           server-dir: ${{ secrets.HOSTINGER_FTP_DIR || './public_html/opx/' }}
           dangerous-clean-slate: false
