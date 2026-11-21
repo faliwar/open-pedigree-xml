@@ -109,8 +109,8 @@ PedigreeExport.exportAsGA4GH = function (pedigree, privacySetting = "all", fhirP
   return GA4GHFHIRConverter.exportAsFHIR(pedigree, privacySetting, fhirPatientReference, pedigreeImage);
 };
 
-PedigreeExport.exportAsInvitae = function (pedigree, privacySetting = 'all') {
-  return InvitaeConverter.exportAsInvitaeXML(pedigree, privacySetting);
+PedigreeExport.exportAsInvitae = function (pedigree, privacySetting = 'all', options) {
+  return InvitaeConverter.exportAsInvitaeXML(pedigree, privacySetting, options);
 };
 
 // ===============================================================================================

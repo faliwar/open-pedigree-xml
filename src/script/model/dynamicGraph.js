@@ -2153,6 +2153,30 @@ DynamicPositionedGraph.prototype = {
     return {'new': newNodes, 'removed': removedNodes};
   },
 
+  /**
+   * The graph without layout helpers (no virtual nodes), as used to split and merge pedigrees.
+   */
+  toCollapsedSerialization: function () {
+    this.stripUnusedProperties();
+    this.normalizeProband();
+    return JSON.parse(JSON.stringify(this.DG.GG.makeGWithCollapsedMultiRankEdges().serialize()));
+  },
+
+  /**
+   * Replaces the pedigree with a split or merged one (see model/pedigreeSplitMerge.js) and
+   * lays it out from scratch.
+   */
+  fromCollapsedSerialization: function (serializedGG) {
+    var removedNodes = this._getAllNodes();
+    var baseGraph = PedigreeImport.initFromPhenotipsInternal(serializedGG);
+    if (!this._recreateUsingBaseGraph(baseGraph)) {
+      throw 'unable to lay out the pedigree';
+    }
+    this.normalizeProband();
+    this.DG.invalidateHiddenNodes && this.DG.invalidateHiddenNodes();
+    return {'new': this._getAllNodes(), 'removed': removedNodes};
+  },
+
   getPathToParents: function(v) {
     // returns an array with two elements: path to parent1 (excluding v) and path to parent2 (excluding v):
     // [ [virtual_node_11, ..., virtual_node_1n, parent1], [virtual_node_21, ..., virtual_node_2n, parent21] ]

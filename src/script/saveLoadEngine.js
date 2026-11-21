@@ -257,6 +257,42 @@ var SaveLoadEngine = Class.create( {
     document.fire('pedigree:load:finish');
   },
 
+  /**
+   * Replaces the pedigree with the result of splitting or merging (an undoable step).
+   * Title, header and chart notes are kept.
+   *
+   * @return {Boolean} true when the new pedigree was loaded
+   */
+  createGraphFromSplitMerge: function(serializedGG) {
+    var backup = editor.getGraph().toJSON();
+    document.fire('pedigree:load:start');
+    try {
+      var changeSet = editor.getGraph().fromCollapsedSerialization(serializedGG);
+    } catch(err) {
+      console.log('ERROR splitting/merging the pedigree: ', err);
+      document.fire('pedigree:load:finish');
+      // the graph may be half-built: go back to the pedigree as it was
+      this.createGraphFromSerializedData(backup, true);
+      throw err;
+    }
+
+    var JSONString = editor.getGraph().toJSON();
+
+    if (editor.getView().applyChanges(changeSet, false)) {
+      editor.getWorkspace().adjustSizeToScreen();
+    }
+
+    // node ids changed: cascade choices made for the previous pedigree no longer apply
+    if (editor.getCascadeTestingDialog) {
+      editor.getCascadeTestingDialog().loadPedigreeState(null);
+    }
+
+    editor.getWorkspace().centerAroundNode(editor.getGraph().getProbandId(), true);
+    editor.getActionStack().addState(null, null, JSONString);
+    document.fire('pedigree:load:finish');
+    return true;
+  },
+
   setSaveInProgress: function(status) {
     this._saveInProgress = status;
   },

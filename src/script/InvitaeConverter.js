@@ -1081,7 +1081,8 @@ InvitaeConverter._getChildAttr = function (parentEl, childTagName, attrName) {
  * @param {String} privacySetting  'all', 'nopersonal', or 'minimal'
  * @returns {String}  XML string
  */
-InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
+// options.skipCascade: leave out the cascade testing choices (e.g. when saving only part of the pedigree)
+InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting, options) {
   delete pedigree._exportProbandId;  // worked out again for this export (see _buildIndiElement)
   var now = new Date();
   var dateStr = InvitaeConverter._formatDate(now);
@@ -1095,6 +1096,9 @@ InvitaeConverter.exportAsInvitaeXML = function (pedigree, privacySetting) {
   var pedigreeInfo = (typeof editor !== 'undefined' && editor && editor.getPedigreeInfo) ? editor.getPedigreeInfo().get() : null;
   // cascade testing settings and choices, so the work can continue after the file is loaded again
   var cascadeState = (typeof editor !== 'undefined' && editor && editor.getCascadeTestingDialog) ? editor.getCascadeTestingDialog().getPedigreeState() : null;
+  if (options && options.skipCascade) {
+    cascadeState = null;
+  }
   xml += infoToInvitaeNotes(pedigreeInfo, privacySetting, cascadeState);
 
   // --- Orders section (simplified) ---

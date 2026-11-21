@@ -31,6 +31,7 @@ import PedigreeHeader from 'pedigree/view/pedigreeHeader';
 import AnnotationLayer from 'pedigree/view/annotationLayer';
 import DraftStore from 'pedigree/view/draftStore';
 import FamilySummaryDialog from 'pedigree/view/familySummaryDialog';
+import SplitMergeDialog from 'pedigree/view/splitMergeDialog';
 import StartScreen from 'pedigree/view/startScreen';
 import DriveBackend from 'pedigree/DriveBackend';
 import { extractPedigreeXmlFromPdf } from 'pedigree/model/pdfEmbed';
@@ -98,6 +99,7 @@ var PedigreeEditor = Class.create({
     this._cascadeTestingDialog = new CascadeTestingDialog();
     this._searchPanel = new SearchPanel();
     this._familySummaryDialog = new FamilySummaryDialog();
+    this._splitMergeDialog = new SplitMergeDialog();
     this._clinicalDetailsDialog = new ClinicalDetailsDialog();
     this._templateSelector = new TemplateSelector();
     this._labelOptionsSelector = new LabelOptionsSelector();
@@ -181,6 +183,11 @@ var PedigreeEditor = Class.create({
     var summaryButton = $('action-family-summary');
     summaryButton && summaryButton.on('click', function (event) {
       editor.getFamilySummaryDialog().show();
+    });
+
+    var splitMergeButton = $('action-split-merge');
+    splitMergeButton && splitMergeButton.on('click', function (event) {
+      editor.getSplitMergeDialog().show();
     });
 
     var newsButton = $('action-whats-new');
@@ -743,6 +750,10 @@ var PedigreeEditor = Class.create({
 
   getFamilySummaryDialog: function () {
     return this._familySummaryDialog;
+  },
+
+  getSplitMergeDialog: function () {
+    return this._splitMergeDialog;
   },
 
   getStartScreen: function () {
