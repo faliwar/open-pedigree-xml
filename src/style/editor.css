@@ -6457,3 +6457,92 @@ textarea.pedigree-info-input {
 .splitmerge-partner {
   margin-left: 24px;
 }
+
+.splitmerge-combo {
+  position: relative;
+}
+
+.splitmerge-combo-wrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: #FFF;
+  overflow: hidden;
+}
+
+.splitmerge-combo-wrap:focus-within {
+  border-color: #0284C7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.splitmerge-combo-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: #0F172A;
+  outline: none;
+}
+
+.splitmerge-combo-toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 30px;
+  border: none;
+  border-left: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splitmerge-combo-toggle:hover {
+  background: #E2E8F0;
+}
+
+.splitmerge-combo-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 30;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #FFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
+}
+
+.splitmerge-combo-option {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.splitmerge-combo-option:hover,
+.splitmerge-combo-option.active {
+  background: #E0F2FE;
+  color: #0369A1;
+}
+
+.splitmerge-combo-option.selected {
+  font-weight: 600;
+}
+
+.splitmerge-combo-empty {
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: #64748B;
+  font-style: italic;
+}

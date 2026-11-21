@@ -5,6 +5,7 @@ import InvitaeConverter from 'pedigree/InvitaeConverter';
 import DynamicPositionedGraph from 'pedigree/model/dynamicGraph';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { extractPedigreeXmlFromPdf } from 'pedigree/model/pdfEmbed';
+import { computeStandardNumbering } from 'pedigree/model/nomenclature';
 import {
   listPeople, getPartners, selectPart, extractPart, mergePedigrees, countPeople
 } from 'pedigree/model/pedigreeSplitMerge';
@@ -62,9 +63,61 @@ export function parsePedigreeText(content) {
   return JSON.parse(JSON.stringify(G.makeGWithCollapsedMultiRankEdges().serialize()));
 }
 
+function normalizeSearch(str) {
+  var s = String(str || '').toLowerCase();
+  if (s.normalize) {
+    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+  return s;
+}
+
+function computeNumberingForGG(gg) {
+  try {
+    if (!gg) {
+      return computeStandardNumbering(editor);
+    }
+    var tmp = DynamicPositionedGraph.makeEmpty(
+      PedigreeEditorParameters.attributes.layoutRelativePersonWidth,
+      PedigreeEditorParameters.attributes.layoutRelativeOtherWidth
+    );
+    tmp.fromCollapsedSerialization(gg);
+    return computeStandardNumbering({
+      getGraph: function() { return tmp; },
+      getNode: function(id) {
+        return {
+          getX: function() { return tmp.DG.positions[id] || 0; },
+          getY: function() { return (tmp.DG.ranks[id] || 0) * 100; },
+          isVirtual: function() { return false; }
+        };
+      }
+    });
+  } catch (e) {
+    return { byId: {} };
+  }
+}
+
+function annotatePeople(people, ggOrNull) {
+  var numbering = computeNumberingForGG(ggOrNull);
+  var byId = (numbering && numbering.byId) || {};
+  var enriched = people.map(function(p) {
+    var info = byId[p.id];
+    var copy = Object.assign({}, p);
+    copy.pedigreeId = info ? info.label : '';
+    copy._gen = info ? info.generation : 9999;
+    copy._idx = info ? info.index : p.id;
+    return copy;
+  });
+  enriched.sort(function(a, b) {
+    return (a._gen - b._gen) || (a._idx - b._idx) || (a.id - b.id);
+  });
+  return enriched;
+}
+
 function personLabel(p) {
   var sex = p.gender === 'M' ? '♂' : (p.gender === 'F' ? '♀' : '◇');
-  var label = sex + ' ' + (p.name || (translate('Person') + ' #' + p.id));
+  var idTag = (p.pedigreeId || ('#' + p.id)) + ' · ';
+  var name = p.name || (translate('Person') + ' #' + p.id);
+  var label = idTag + sex + ' ' + name;
   if (p.birthYear) label += ' (' + p.birthYear + ')';
   if (p.externalID) label += ' [' + p.externalID + ']';
   if (p.isProband) label += ' — ' + translate('proband');
@@ -156,20 +209,219 @@ var SplitMergeDialog = Class.create({
     return editor.getGraph().toCollapsedSerialization();
   },
 
-  _fillPeople: function(sel, people, selectedId) {
-    sel.update('');
-    people.forEach(function(p) {
-      var opt = new Element('option', { 'value': p.id }).update(personLabel(p).escapeHTML());
-      if (p.id === selectedId) opt.selected = true;
-      sel.insert(opt);
-    });
-  },
-
   _field: function(labelText, control) {
-    var wrap = new Element('label', { 'class': 'splitmerge-field' });
+    var wrap = new Element('div', { 'class': 'splitmerge-field' });
     wrap.insert(new Element('span', { 'class': 'splitmerge-label' }).update(translate(labelText)));
     wrap.insert(control);
     return wrap;
+  },
+
+  /**
+   * Searchable dropdown (combobox) for picking a person by name, standard ID (e.g. II-3) or external ID.
+   */
+  _createPersonCombobox: function(people, selectedId, onChange) {
+    var wrap = new Element('div', { 'class': 'splitmerge-combo' });
+    var inputWrap = new Element('div', { 'class': 'splitmerge-combo-wrap' });
+    var input = new Element('input', {
+      'type': 'text',
+      'class': 'splitmerge-combo-input',
+      'autocomplete': 'off',
+      'role': 'combobox',
+      'aria-autocomplete': 'list',
+      'aria-expanded': 'false',
+      'placeholder': translate('Type name or ID to search...')
+    });
+    var toggleBtn = new Element('button', {
+      'type': 'button',
+      'class': 'splitmerge-combo-toggle',
+      'tabindex': '-1',
+      'title': translate('Show all')
+    }).update('<i class="fas fa-chevron-down"></i>');
+    inputWrap.insert(input).insert(toggleBtn);
+    var list = new Element('div', { 'class': 'splitmerge-combo-list', 'role': 'listbox', 'style': 'display:none' });
+    wrap.insert(inputWrap).insert(list);
+
+    var items = [];
+    var filtered = [];
+    var activeIdx = -1;
+    var isOpen = false;
+    var currentValue = '';
+
+    var findItem = function(idStr) {
+      for (var i = 0; i < items.length; i++) {
+        if (String(items[i].person.id) === String(idStr)) return items[i];
+      }
+      return null;
+    };
+
+    var syncInputText = function() {
+      var found = findItem(currentValue);
+      input.value = found ? found.label : '';
+    };
+
+    var updateActiveHighlight = function() {
+      var opts = list.select('.splitmerge-combo-option');
+      for (var i = 0; i < opts.length; i++) {
+        if (i === activeIdx) {
+          opts[i].addClassName('active');
+          if (opts[i].scrollIntoView) opts[i].scrollIntoView({ block: 'nearest' });
+        } else {
+          opts[i].removeClassName('active');
+        }
+      }
+    };
+
+    var pick = function(id, fire) {
+      currentValue = (id !== null && id !== undefined) ? String(id) : '';
+      combo.value = currentValue;
+      syncInputText();
+      close(false);
+      if (fire && typeof onChange === 'function') {
+        onChange(currentValue);
+      }
+    };
+
+    var renderList = function(query) {
+      list.update('');
+      var q = normalizeSearch(query).trim();
+      var tokens = q ? q.split(/\s+/) : [];
+      filtered = tokens.length === 0 ? items.slice() : items.filter(function(it) {
+        for (var t = 0; t < tokens.length; t++) {
+          if (it.searchKey.indexOf(tokens[t]) === -1) return false;
+        }
+        return true;
+      });
+      activeIdx = -1;
+      if (filtered.length === 0) {
+        list.insert(new Element('div', { 'class': 'splitmerge-combo-empty' }).update(translate('No matching person').escapeHTML()));
+        return;
+      }
+      filtered.forEach(function(it, idx) {
+        var opt = new Element('div', {
+          'class': 'splitmerge-combo-option' + (String(it.person.id) === currentValue ? ' selected' : ''),
+          'role': 'option',
+          'data-id': it.person.id
+        }).update(it.label.escapeHTML());
+        if (String(it.person.id) === currentValue) {
+          activeIdx = idx;
+        }
+        opt.observe('mousedown', function(ev) {
+          ev.preventDefault();
+          pick(it.person.id, true);
+        });
+        list.insert(opt);
+      });
+      updateActiveHighlight();
+    };
+
+    var open = function(showAll) {
+      isOpen = true;
+      list.setStyle({ display: '' });
+      input.setAttribute('aria-expanded', 'true');
+      renderList(showAll ? '' : input.value);
+    };
+
+    var close = function(restore) {
+      isOpen = false;
+      list.setStyle({ display: 'none' });
+      input.setAttribute('aria-expanded', 'false');
+      activeIdx = -1;
+      if (restore) syncInputText();
+    };
+
+    input.observe('focus', function() {
+      try { input.select(); } catch (e) {}
+      open(true);
+    });
+
+    input.observe('click', function() {
+      if (!isOpen) {
+        try { input.select(); } catch (e) {}
+        open(true);
+      }
+    });
+
+    input.observe('input', function() {
+      open(false);
+    });
+
+    input.observe('blur', function() {
+      setTimeout(function() {
+        if (!wrap.contains(document.activeElement)) {
+          close(true);
+        }
+      }, 120);
+    });
+
+    input.observe('keydown', function(ev) {
+      var key = ev.key || ev.keyCode;
+      if (key === 'ArrowDown' || key === 40) {
+        ev.preventDefault();
+        if (!isOpen) {
+          open(true);
+        } else if (filtered.length > 0) {
+          activeIdx = (activeIdx + 1) % filtered.length;
+          updateActiveHighlight();
+        }
+      } else if (key === 'ArrowUp' || key === 38) {
+        ev.preventDefault();
+        if (!isOpen) {
+          open(true);
+        } else if (filtered.length > 0) {
+          activeIdx = (activeIdx <= 0) ? filtered.length - 1 : activeIdx - 1;
+          updateActiveHighlight();
+        }
+      } else if (key === 'Enter' || key === 13) {
+        if (isOpen && filtered.length > 0) {
+          ev.preventDefault();
+          var target = filtered[activeIdx >= 0 ? activeIdx : 0];
+          pick(target.person.id, true);
+        }
+      } else if (key === 'Escape' || key === 'Esc' || key === 27) {
+        if (isOpen) {
+          ev.stopPropagation();
+          ev.preventDefault();
+          close(true);
+        }
+      }
+    });
+
+    toggleBtn.observe('mousedown', function(ev) {
+      ev.preventDefault();
+    });
+    toggleBtn.observe('click', function() {
+      if (isOpen) {
+        close(true);
+      } else {
+        input.focus();
+        open(true);
+      }
+    });
+
+    var combo = {
+      element: wrap,
+      value: '',
+      setPeople: function(listPeopleArr, selId) {
+        items = (listPeopleArr || []).map(function(p) {
+          var label = personLabel(p);
+          return {
+            person: p,
+            label: label,
+            searchKey: normalizeSearch(label + ' #' + p.id + ' ' + (p.pedigreeId || '') + ' ' + (p.externalID || ''))
+          };
+        });
+        var initial = (selId !== null && selId !== undefined) ? selId : (items.length ? items[0].person.id : '');
+        pick(initial, false);
+      },
+      setValue: function(id, fire) {
+        pick(id, !!fire);
+      }
+    };
+
+    if (people) {
+      combo.setPeople(people, selectedId);
+    }
+    return combo;
   },
 
   _radio: function(name, value, labelText, checked, hint) {
@@ -205,6 +457,7 @@ var SplitMergeDialog = Class.create({
     var status = new Element('div', { 'class': 'splitmerge-status' });
     var linkBox = new Element('div', { 'class': 'splitmerge-link', 'style': 'display:none' });
 
+    var incomingPeople = [];
     var readText = function() {
       status.removeClassName('error');
       try {
@@ -212,13 +465,15 @@ var SplitMergeDialog = Class.create({
         _this._incoming = parsePedigreeText(text.value);
       } catch (err) {
         _this._incoming = null;
+        incomingPeople = [];
         linkBox.setStyle({ display: 'none' });
         status.addClassName('error');
         status.update((translate('Could not read this pedigree: ') + translate(String(err))).escapeHTML());
         return;
       }
       status.update((countPeople(_this._incoming) + ' ' + translate('people read from the other pedigree.')).escapeHTML());
-      _this._fillPeople(otherSel, listPeople(_this._incoming), null);
+      incomingPeople = annotatePeople(listPeople(_this._incoming), _this._incoming);
+      otherCombo.setPeople(incomingPeople, null);
       autoMatch();
       linkBox.setStyle({ display: '' });
     };
@@ -253,39 +508,37 @@ var SplitMergeDialog = Class.create({
     pane.insert(fileInput).insert(actions).insert(status);
 
     // how the two pedigrees connect
-    var people = listPeople(this._currentGG());
+    var people = annotatePeople(listPeople(this._currentGG()), null);
     var proband = people.filter(function(p) { return p.isProband; })[0];
-    var thisSel = new Element('select', { 'class': 'splitmerge-select' });
-    this._fillPeople(thisSel, people, proband ? proband.id : null);
-    var otherSel = new Element('select', { 'class': 'splitmerge-select' });
+    var thisCombo = this._createPersonCombobox(people, proband ? proband.id : null, function() { autoMatch(); });
+    var otherCombo = this._createPersonCombobox([], null);
 
     // pick the same name in both pedigrees when there is one
     var autoMatch = function() {
       if (!_this._incoming) return;
-      var mine = people.filter(function(p) { return String(p.id) === thisSel.value; })[0];
+      var mine = people.filter(function(p) { return String(p.id) === thisCombo.value; })[0];
       if (!mine || !mine.name) return;
-      var match = listPeople(_this._incoming).filter(function(p) {
+      var match = incomingPeople.filter(function(p) {
         return p.name && p.name.toLowerCase() === mine.name.toLowerCase();
       })[0];
-      if (match) otherSel.value = String(match.id);
+      if (match) otherCombo.setValue(match.id);
     };
-    thisSel.observe('change', autoMatch);
 
     linkBox.insert(new Element('div', { 'class': 'splitmerge-section' }).update(translate('How are the two pedigrees connected?')));
     linkBox.insert(this._radio('splitmerge-linktype', 'same', 'Same person in both', true,
       'The two drawings of this person become one; the data in this pedigree are kept and the other only fills in what is missing.'));
     linkBox.insert(this._radio('splitmerge-linktype', 'partners', 'Make them a couple', false,
       'Draws a partnership between the two people.'));
-    linkBox.insert(this._field('In this pedigree', thisSel));
-    linkBox.insert(this._field('In the other pedigree', otherSel));
+    linkBox.insert(this._field('In this pedigree', thisCombo.element));
+    linkBox.insert(this._field('In the other pedigree', otherCombo.element));
 
     var mergeActions = new Element('div', { 'class': 'splitmerge-actions' });
     mergeActions.insert(this._button('Merge', '', function() {
       var typeInput = linkBox.down('input[name="splitmerge-linktype"]:checked');
       var link = {
         type: typeInput ? typeInput.value : 'same',
-        baseId: parseInt(thisSel.value, 10),
-        incomingId: parseInt(otherSel.value, 10)
+        baseId: parseInt(thisCombo.value, 10),
+        incomingId: parseInt(otherCombo.value, 10)
       };
       var merged;
       try {
@@ -312,16 +565,15 @@ var SplitMergeDialog = Class.create({
   _buildSplitPane: function() {
     var _this = this;
     var gg = this._currentGG();
-    var people = listPeople(gg);
+    var people = annotatePeople(listPeople(gg), null);
     var total = countPeople(gg);
     var pane = new Element('div', { 'class': 'splitmerge-pane splitmerge-split' });
     pane.insert(new Element('p', { 'class': 'splitmerge-intro' }).update(translate(
       'Keep only one part of this pedigree, or download that part as a separate file. Keeping a part can be undone.')));
 
     var proband = people.filter(function(p) { return p.isProband; })[0];
-    var personSel = new Element('select', { 'class': 'splitmerge-select' });
-    this._fillPeople(personSel, people, proband ? proband.id : null);
-    pane.insert(this._field('Around', personSel));
+    var personCombo = this._createPersonCombobox(people, proband ? proband.id : null, function() { refresh(); });
+    pane.insert(this._field('Around', personCombo.element));
 
     var modes = new Element('div', { 'class': 'splitmerge-modes' });
     modes.insert(this._radio('splitmerge-mode', 'origin', 'Family of origin', true,
@@ -342,7 +594,7 @@ var SplitMergeDialog = Class.create({
 
     var current = null;
     var refresh = function() {
-      var personId = parseInt(personSel.value, 10);
+      var personId = parseInt(personCombo.value, 10);
       var partners = getPartners(gg, personId).filter(function(c) { return c.partnerId !== null; });
       var byId = {};
       people.forEach(function(p) { byId[p.id] = p; });
@@ -384,7 +636,6 @@ var SplitMergeDialog = Class.create({
         preview.insert(new Element('div', { 'class': 'splitmerge-note' }).update(translate('This part is the whole pedigree.').escapeHTML()));
       }
     };
-    personSel.observe('change', refresh);
     partnerSel.observe('change', refresh);
     modes.select('input[name="splitmerge-mode"]').each(function(r) { r.observe('click', refresh); });
     refresh();

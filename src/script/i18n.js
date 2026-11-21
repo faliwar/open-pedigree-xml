@@ -229,6 +229,8 @@ const translations = {
   // Split or merge pedigrees
   'Split or merge pedigrees': 'Dividir ou unir heredogramas', 'Merge another pedigree': 'Unir outro heredograma',
   'Split this pedigree': 'Dividir este heredograma', 'proband': 'probando', 'Partner': 'Parceiro(a)', 'Merge': 'Unir',
+  'Type name or ID to search...': 'Digite o nome ou identificador (ex.: II-3)…', 'Show all': 'Mostrar todos',
+  'No matching person': 'Nenhuma pessoa encontrada',
   'Select a file': 'Selecionar arquivo', 'Read pedigree': 'Ler heredograma', 'Around': 'A partir de',
   'Add a pedigree drawn separately (e.g. the other side of the family) to this one. Both must share a person, or you can make a couple of one person from each.': 'Adicione a este um heredograma desenhado separadamente (ex.: o outro lado da família). Os dois precisam ter uma pessoa em comum, ou você pode formar um casal com uma pessoa de cada.',
   'Paste the other pedigree here (Progeny/Invitae XML, OPX JSON, GA4GH FHIR, PED, GEDCOM or BOADICEA), or select a file.': 'Cole aqui o outro heredograma (XML Progeny/Invitae, JSON do OPX, GA4GH FHIR, PED, GEDCOM ou BOADICEA) ou selecione um arquivo.',
