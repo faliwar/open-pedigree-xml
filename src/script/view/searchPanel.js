@@ -12,6 +12,7 @@ var HAS_OPS = [['has', 'has'], ['hasnot', 'does not have']];
  *   value2: optional second input shown for some operators
  */
 var FIELDS = [
+  ['name', { label: 'Name, ID or comment', ops: [['contains', 'contains'], ['notcontains', 'does not contain']], value: 'text' }],
   ['clinical', { label: 'Clinical status', ops: IS_OPS, value: 'select', options: function() {
     return [['affected', 'Affected'], ['carrier', 'Carrier'], ['presymptomatic', 'Pre-symptomatic'], ['evaluated', 'Documented evaluation']];
   } }],
@@ -48,12 +49,12 @@ var FIELDS = [
     var list = v.ancestry.length ? v.ancestry : ANCESTRY_OPTIONS;
     return list.map(function(a) { return [a, a]; });
   } }],
-  ['name', { label: 'Name, ID or comment', ops: [['contains', 'contains'], ['notcontains', 'does not contain']], value: 'text' }],
   ['flag', { label: 'Other', ops: IS_OPS, value: 'select', options: function() {
     return [['proband', 'Proband'], ['adopted', 'Adopted'], ['nocontact', 'Not in contact'], ['twin', 'Twin'], ['comments', 'With comments']];
   } }]
 ];
 
+var DEFAULT_FIELD = FIELDS[0][0];
 var FIELD_MAP = {};
 FIELDS.forEach(function(f) { FIELD_MAP[f[0]] = f[1]; });
 
@@ -141,13 +142,13 @@ var SearchPanel = Class.create({
     this._values = collectValues(editor.getGraph());
     this._fixReferences();
     if (!this._filters.length) {
-      this._filters.push(this._newFilter('clinical'));
+      this._filters.push(this._newFilter(DEFAULT_FIELD));
     }
     this._renderFilters();
     this._panel.show();
     this._run();
     editor.getOverlay().setSearchLegendVisible(false);
-    var first = this._panel.down('.search-filter select, .search-filter input');
+    var first = this._panel.down('.search-filter input.search-input') || this._panel.down('.search-filter select, .search-filter input');
     if (first) first.focus();
   },
 
@@ -163,9 +164,11 @@ var SearchPanel = Class.create({
     this._results = null;
     editor.getOverlay() && editor.getOverlay().clearSearchHighlight();
     if (this.isVisible()) {
-      this._filters.push(this._newFilter('clinical'));
+      this._filters.push(this._newFilter(DEFAULT_FIELD));
       this._renderFilters();
       this._renderResults();
+      var input = this._panel.down('.search-filter input.search-input');
+      if (input) input.focus();
     }
   },
 
@@ -293,7 +296,7 @@ var SearchPanel = Class.create({
     var addBtn = new Element('button', { 'type': 'button', 'class': 'search-add' })
       .insert(new Element('span', { 'class': 'fa fa-plus', 'aria-hidden': 'true' })).insert(' ' + translate('Add filter'));
     addBtn.observe('click', function() {
-      _this._filters.push(_this._newFilter('clinical'));
+      _this._filters.push(_this._newFilter(DEFAULT_FIELD));
       _this._renderFilters();
       _this._run();
       var rows = _this._filtersBox.select('.search-filter');

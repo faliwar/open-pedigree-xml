@@ -45,6 +45,11 @@ if (!Array.prototype.without) {
 if (!Array.prototype.each) {
   Array.prototype.each = Array.prototype.forEach;
 }
+if (!String.prototype.escapeHTML) {
+  String.prototype.escapeHTML = function () {
+    return String(this).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  };
+}
 
 class FakeElement {
   constructor(tagName, attrs = {}) {
@@ -56,6 +61,7 @@ class FakeElement {
     this.value = attrs.value || '';
     this.checked = false;
     this.selected = false;
+    this.focused = false;
     this.style = { display: '' };
     this.children = [];
     this.parentNode = null;
@@ -64,6 +70,12 @@ class FakeElement {
     if (this.id) {
       domById.set(this.id, this);
     }
+  }
+  visible() {
+    return this.style.display !== 'none';
+  }
+  focus() {
+    this.focused = true;
   }
   show() {
     this.style.display = '';
@@ -482,4 +494,50 @@ test('LabelOptionsSelector supports hiding and restoring Colour by disorder (col
 
   // Verify Portuguese translation exists
   assert.equal(toPortuguese('Colour by disorder'), 'Colorir por condição');
+});
+
+test('SearchPanel ("Find people") places "Name, ID or comment" first and selects it by default', async () => {
+  const { default: SearchPanel } = await import('../src/script/view/searchPanel.js');
+  domById.clear();
+  const workArea = new FakeElement('div', { id: 'work-area' });
+
+  const graph = {
+    getMaxNodeId: () => 0,
+    isPerson: (id) => id === 0,
+    isPlaceholder: () => false,
+    isVirtualDummyChild: () => false,
+    isVirtualParent: () => false,
+    getProbandId: () => 0
+  };
+
+  globalThis.editor = {
+    getGraph: () => graph,
+    getNode: (id) => (id === 0 ? { getDisorders: () => [], getHPO: () => [], getGeneticTests: () => [], getAncestry: () => [] } : null),
+    getOverlay: () => ({
+      clearSearchHighlight() {},
+      setSearchHighlight() {},
+      setSearchLegendVisible() {}
+    })
+  };
+
+  const panel = new SearchPanel();
+  panel.show();
+
+  assert.equal(panel._filters.length, 1);
+  assert.equal(panel._filters[0].field, 'name', 'default filter field is "name" ("Name, ID or comment")');
+  assert.equal(panel._filters[0].op, 'contains');
+
+  const fieldSelect = panel._panel.down('.search-field');
+  assert.ok(fieldSelect, 'filter field select is rendered');
+  const options = fieldSelect.childElements();
+  assert.ok(options.length > 0);
+  assert.equal(options[0].value, 'name', '"Name, ID or comment" is the first option in the dropdown');
+  assert.equal(options[0].textContent, 'Name, ID or comment');
+  assert.equal(options[0].selected, true);
+
+  // Clearing resets back to "name" as default
+  panel._filters = [{ field: 'sex', op: 'is', value: 'F', value2: '' }];
+  panel.clear();
+  assert.equal(panel._filters.length, 1);
+  assert.equal(panel._filters[0].field, 'name', 'clear() resets default filter to "name"');
 });
