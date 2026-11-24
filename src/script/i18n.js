@@ -64,6 +64,8 @@ const translations = {
   'Show under each person': 'Mostrar abaixo de cada pessoa', 'Chart': 'Heredograma', 'Diagnoses': 'Diagnósticos',
   'Phenotypes (HPO)': 'Fenótipos (HPO)', 'Genetic tests': 'Testes genéticos', 'Comments': 'Comentários',
   'Candidate genes (old files)': 'Genes candidatos (arquivos antigos)', 'Category symbols': 'Símbolos de categoria',
+  'Colour by disorder': 'Colorir por condição',
+  'Fill the symbol of affected people with the disorder colour, and show the disorders legend.': 'Preenche o símbolo das pessoas afetadas com a cor da condição e mostra a legenda de condições.',
   'Colour by gene': 'Colorir por gene', 'Numbering (I-1, II-3)': 'Numeração (I-1, II-3)',
   "Choose how much of each individual's name to display on the pedigree chart.": 'Escolha quanto do nome de cada pessoa exibir no heredograma.',
   'Colour Individuals by Gene': 'Colorir pessoas por gene',

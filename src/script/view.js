@@ -504,6 +504,14 @@ var View = Class.create({
     this._nodeMap = newNodeMap;
 
     this._lineSet.replaceIDs(changedIdsSet);
+    if (typeof editor !== 'undefined' && editor) {
+      ['getDisorderLegend', 'getGeneLegend', 'getHPOLegend'].forEach(function (getter) {
+        var legend = editor[getter] && editor[getter]();
+        if (legend && legend.replaceIDs) {
+          legend.replaceIDs(changedIdsSet);
+        }
+      });
+    }
   },
 
   /**
@@ -634,12 +642,12 @@ var View = Class.create({
     return result;
   },
 
-  // Redraws the colour sectors of every person (e.g. after turning colouring by gene on/off)
+  // Redraws the colour sectors of every person/group (e.g. after turning colouring by disorder/gene on/off)
   updateAllNodeColors: function () {
     for (var id in this._nodeMap) {
       if (this._nodeMap.hasOwnProperty(id)) {
         var node = this._nodeMap[id];
-        if (node && node.getType && node.getType() == 'Person' && node.getGraphics() && node.getGraphics().updateDisorderShapes) {
+        if (node && node.getType && (node.getType() == 'Person' || node.getType() == 'PersonGroup') && node.getGraphics() && node.getGraphics().updateDisorderShapes) {
           node.getGraphics().updateDisorderShapes();
         }
       }
@@ -698,6 +706,7 @@ var View = Class.create({
       if (!this._nodeMap.hasOwnProperty(id)) continue;
       var v = parseInt(id, 10);
       if (!(v <= GG.getMaxRealVertexId()) || !GG.isPerson(v)) continue;
+      if (graph.isHiddenBranch && graph.isHiddenBranch(v)) continue;
       var g = this._nodeMap[id].getGraphics && this._nodeMap[id].getGraphics();
       var bottom = g && g._labelsBottom;
       if (!(bottom > 0)) continue;
@@ -1028,6 +1037,7 @@ var View = Class.create({
 
       // nodes of branches that were just hidden or shown are drawn again
       this._syncBranchVisibility();
+      this._syncLegends();
 
       timer.printSinceLast('=== highlight & update handles runtime: ');
       timer2.printSinceLast('=== Total apply changes runtime: ');
@@ -1045,6 +1055,18 @@ var View = Class.create({
         editor.getAnnotationLayer && editor.getAnnotationLayer() && editor.getAnnotationLayer().bringToFront();
       }
     }
+  },
+
+  _syncLegends: function () {
+    if (typeof editor === 'undefined' || !editor) {
+      return;
+    }
+    ['getDisorderLegend', 'getGeneLegend', 'getHPOLegend'].forEach(function (getter) {
+      var legend = editor[getter] && editor[getter]();
+      if (legend && legend.syncWithView) {
+        legend.syncWithView();
+      }
+    });
   }
 });
 export default View;

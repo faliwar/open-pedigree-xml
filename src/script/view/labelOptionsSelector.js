@@ -24,8 +24,12 @@ var LabelOptionsSelector = Class.create({
       PedigreeEditorParameters.attributes.showLabelPrefixes = !!saved.showPrefixes; // false by default
       PedigreeEditorParameters.attributes.showTestsInLabel = saved.showTests !== undefined ? !!saved.showTests : true; // true by default
       PedigreeEditorParameters.attributes.showIdentifierInLabel = saved.showIdentifier !== undefined ? !!saved.showIdentifier : true; // true by default
+      PedigreeEditorParameters.attributes.colorByDisorder = saved.colorByDisorder !== undefined ? !!saved.colorByDisorder : true; // true by default
       PedigreeEditorParameters.attributes.colorByGene = saved.colorByGene !== undefined ? !!saved.colorByGene : true; // true by default
       PedigreeEditorParameters.attributes.showAncestryInLabel = !!saved.showAncestry; // false by default
+      if (window.editor && editor.getDisorderLegend && editor.getDisorderLegend()) {
+        editor.getDisorderLegend().setEnabled(PedigreeEditorParameters.attributes.colorByDisorder);
+      }
       if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
         editor.getGeneLegend().setEnabled(PedigreeEditorParameters.attributes.colorByGene);
       }
@@ -44,14 +48,22 @@ var LabelOptionsSelector = Class.create({
     PedigreeEditorParameters.attributes.showTestsInLabel = settings.showTests !== undefined ? !!settings.showTests : true;
     PedigreeEditorParameters.attributes.showIdentifierInLabel = settings.showIdentifier !== undefined ? !!settings.showIdentifier : true;
     PedigreeEditorParameters.attributes.showAncestryInLabel = !!settings.showAncestry;
+    var colorByDisorder = settings.colorByDisorder !== undefined ? !!settings.colorByDisorder : true;
+    var disorderColorChanged = colorByDisorder !== (PedigreeEditorParameters.attributes.colorByDisorder !== false);
+    PedigreeEditorParameters.attributes.colorByDisorder = colorByDisorder;
+    if (window.editor && editor.getDisorderLegend && editor.getDisorderLegend()) {
+      editor.getDisorderLegend().setEnabled(colorByDisorder);
+    }
+
     var colorByGene = settings.colorByGene !== undefined ? !!settings.colorByGene : true;
-    var colorChanged = colorByGene !== (PedigreeEditorParameters.attributes.colorByGene !== false);
+    var geneColorChanged = colorByGene !== (PedigreeEditorParameters.attributes.colorByGene !== false);
     PedigreeEditorParameters.attributes.colorByGene = colorByGene;
     if (window.editor && editor.getGeneLegend && editor.getGeneLegend()) {
       editor.getGeneLegend().setEnabled(colorByGene);
-      if (colorChanged && editor.getView && editor.getView().updateAllNodeColors) {
-        editor.getView().updateAllNodeColors();
-      }
+    }
+
+    if ((disorderColorChanged || geneColorChanged) && window.editor && editor.getView && editor.getView().updateAllNodeColors) {
+      editor.getView().updateAllNodeColors();
     }
 
     try {
@@ -116,6 +128,10 @@ var LabelOptionsSelector = Class.create({
       'Prefix entries with compact visual indicators (⬢ Diagnosis, ◈ Phenotype, ⧓ Gene, 🗎︎ Comment) for clarity.',
       PedigreeEditorParameters.attributes.showLabelPrefixes);
 
+    var colorDisorderOpt = createOptionRow('cb-color-by-disorder', 'Colour by disorder',
+      'Fill the symbol of affected people with the disorder colour, and show the disorders legend.',
+      PedigreeEditorParameters.attributes.colorByDisorder !== false);
+
     var colorGeneOpt = createOptionRow('cb-color-by-gene', 'Colour by gene',
       'Fill the symbol of people with a positive test (and candidate genes from older files) with the gene colour, and show the gene legend.',
       PedigreeEditorParameters.attributes.colorByGene !== false);
@@ -168,7 +184,7 @@ var LabelOptionsSelector = Class.create({
 
     optionsList.insert(nameCard);
     optionsList.insert(section('Show under each person', [identifierOpt, disordersOpt, hpoOpt, testsOpt, ancestryOpt, commentsOpt, prefixesOpt, genesOpt]));
-    optionsList.insert(section('Chart', [colorGeneOpt, numberingOpt, inbreedingOpt]));
+    optionsList.insert(section('Chart', [colorDisorderOpt, colorGeneOpt, numberingOpt, inbreedingOpt]));
     mainDiv.insert(optionsList);
 
     numberingOpt.input.observe('change', function () {
@@ -189,6 +205,7 @@ var LabelOptionsSelector = Class.create({
         showPrefixes: prefixesOpt.input.checked,
         showTests: testsOpt.input.checked,
         showAncestry: ancestryOpt.input.checked,
+        colorByDisorder: colorDisorderOpt.input.checked,
         colorByGene: colorGeneOpt.input.checked
       });
     };
@@ -201,6 +218,7 @@ var LabelOptionsSelector = Class.create({
     commentsOpt.input.observe('change', applyCurrentValues);
     testsOpt.input.observe('change', applyCurrentValues);
     ancestryOpt.input.observe('change', applyCurrentValues);
+    colorDisorderOpt.input.observe('change', applyCurrentValues);
     colorGeneOpt.input.observe('change', applyCurrentValues);
     prefixesOpt.input.observe('change', applyCurrentValues);
 

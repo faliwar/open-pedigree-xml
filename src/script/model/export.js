@@ -825,6 +825,7 @@ PedigreeExport._readLegend = function () {
       }
 
       for (let li of c.getElementsByTagName('li')) {
+        if (li.style && li.style.display === 'none') continue;
         let colour = '#CCCCCC';
         let colourArray = li.getElementsByClassName('disorder-color');
         if (colourArray && colourArray.length > 0 && colourArray[0].style) {

@@ -23,6 +23,10 @@ var HPOLegend = Class.create( Legend, {
     return 'phenotype';
   },
 
+  _nodeHasObject: function(node, id) {
+    return !!(node && node.getHPO && node.getHPO().indexOf(id) !== -1);
+  },
+
   /**
      * Returns the HPOTerm object with the given ID. If object is not in cache yet
      * returns a newly created one which may have the term name & other attributes not loaded yet
@@ -77,7 +81,8 @@ var HPOLegend = Class.create( Legend, {
      */
   _updateTermName: function(id) {
     //console.log("updating phenotype display for " + id + ", name = " + this.getTerm(id).getName());
-    var name = this._legendBox.down('li#' + this._getPrefix() + '-' + id + ' .disorder-name');
+    var item = this._getListElementForObjectWithID(id);
+    var name = item && item.down('.disorder-name');
     if (name) {
       name.update(this.getTerm(id).getName());
     }

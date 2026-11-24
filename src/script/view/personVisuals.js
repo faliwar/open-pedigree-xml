@@ -378,8 +378,14 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
      */
   updateDisorderShapes: function () {
     this._disorderShapes && this._disorderShapes.remove();
+    if ((this.getNode().isVirtual && this.getNode().isVirtual()) ||
+        (this.getNode().isHiddenBranch && this.getNode().isHiddenBranch())) {
+      this._disorderShapes = null;
+      return;
+    }
     var colors = this.getNode().getAllNodeColors();
     if (colors.length == 0) {
+      this._disorderShapes = null;
       return;
     }
 
@@ -664,6 +670,11 @@ var PersonVisuals = Class.create(AbstractPersonVisuals, {
     var y;
 
     this._carrierGraphic && this._carrierGraphic.remove();
+    if ((this.getNode().isVirtual && this.getNode().isVirtual()) ||
+        (this.getNode().isHiddenBranch && this.getNode().isHiddenBranch())) {
+      this._carrierGraphic = null;
+      return;
+    }
     var status = this.getNode().getCarrierStatus();
 
     if (status != '' && status != 'affected') {

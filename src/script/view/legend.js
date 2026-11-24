@@ -1,5 +1,3 @@
-import Helpers from 'pedigree/model/helpers';
-
 /**
  * Base class for various "legend" widgets
  *
@@ -13,6 +11,7 @@ var Legend = Class.create( {
     this._affectedNodes  = {};     // for each object: the list of affected person nodes
 
     this._objectColors = {};       // for each object: the corresponding object color
+    this._enabled = true;
 
     var legendContainer = $('legend-container');
     if (legendContainer == undefined) {
@@ -39,6 +38,20 @@ var Legend = Class.create( {
   },
 
   /**
+   * Turns colouring and legend display on or off (configured in Label Display Options).
+   *
+   * @method setEnabled
+   */
+  setEnabled: function(enabled) {
+    this._enabled = !!enabled;
+    this._applyVisibility();
+  },
+
+  isEnabled: function() {
+    return this._enabled !== false;
+  },
+
+  /**
      * Returns the prefix to be used on elements related to the object
      * (of type tracked by this legend) with the given id.
      *
@@ -49,6 +62,80 @@ var Legend = Class.create( {
   _getPrefix: function(id) {
     // To be overwritten in derived classes
     throw 'prefix not defined';
+  },
+
+  /**
+   * Returns true if the given view node currently carries the object with the given id.
+   * Overridden by derived classes for view reconciliation.
+   */
+  _nodeHasObject: function(node, id) {
+    return true;
+  },
+
+  /**
+   * Hook invoked when an object has no remaining cases in the pedigree.
+   */
+  _onObjectRemoved: function(id) {
+  },
+
+  /**
+   * True when nodeID is a real person/group currently drawn on the pedigree chart
+   * (exists in the graph, is not virtual, and is not inside a collapsed branch).
+   */
+  _isNodeVisibleOnChart: function(nodeID) {
+    try {
+      if (typeof editor === 'undefined' || !editor || !editor.getGraph) {
+        return true;
+      }
+      var graph = editor.getGraph();
+      if (!graph) {
+        return true;
+      }
+      if (graph.isValidID && !graph.isValidID(nodeID)) {
+        return false;
+      }
+      if (graph.isPerson && !graph.isPerson(nodeID)) {
+        return false;
+      }
+      if ((graph.isVirtualParent && graph.isVirtualParent(nodeID)) ||
+          (graph.isVirtualDummyChild && graph.isVirtualDummyChild(nodeID)) ||
+          (graph.isPlaceholder && graph.isPlaceholder(nodeID))) {
+        return false;
+      }
+      if (graph.isHiddenBranch && graph.isHiddenBranch(nodeID)) {
+        return false;
+      }
+      return true;
+    } catch (e) {
+      return true;
+    }
+  },
+
+  _visibleNodes: function(id) {
+    if (!this._hasAffectedNodes(id)) {
+      return [];
+    }
+    var _this = this;
+    return this._affectedNodes[id].filter(function(nodeID) {
+      return _this._isNodeVisibleOnChart(nodeID);
+    });
+  },
+
+  _hasVisibleCases: function() {
+    for (var id in this._affectedNodes) {
+      if (this._affectedNodes.hasOwnProperty(id) && this._visibleNodes(id).length > 0) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _applyVisibility: function() {
+    if (this.isEnabled() && this._hasVisibleCases()) {
+      this._legendBox.show();
+    } else {
+      this._legendBox.hide();
+    }
   },
 
   /**
@@ -85,17 +172,23 @@ var Legend = Class.create( {
      * @param {Number} nodeID ID of the Person who has this object associated with it
      */
   addCase: function(id, name, nodeID) {
-    if(Object.keys(this._affectedNodes).length == 0) {
-      this._legendBox.show();
-    }
     if(!this._hasAffectedNodes(id)) {
       this._affectedNodes[id] = [nodeID];
       var listElement = this._generateElement(id, name);
       this._list.insert(listElement);
-    } else {
+    } else if (this._affectedNodes[id].indexOf(nodeID) === -1) {
       this._affectedNodes[id].push(nodeID);
     }
     this._updateCaseNumbersForObject(id);
+    this._applyVisibility();
+  },
+
+  _dropObject: function(id) {
+    delete this._affectedNodes[id];
+    delete this._objectColors[id];
+    var htmlElement = this._getListElementForObjectWithID(id);
+    htmlElement && htmlElement.remove();
+    this._onObjectRemoved(id);
   },
 
   /**
@@ -109,35 +202,96 @@ var Legend = Class.create( {
     if (this._hasAffectedNodes(id)) {
       this._affectedNodes[id] = this._affectedNodes[id].without(nodeID);
       if(this._affectedNodes[id].length == 0) {
-        delete this._affectedNodes[id];
-        delete this._objectColors[id];
-        var htmlElement = this._getListElementForObjectWithID(id);
-        htmlElement.remove();
-        if(Object.keys(this._affectedNodes).length == 0) {
-          this._legendBox.hide();
-        }
+        this._dropObject(id);
       } else {
         this._updateCaseNumbersForObject(id);
       }
+      this._applyVisibility();
     }
   },
 
-  _getListElementForObjectWithID: function(id) {
-    return $(this._getPrefix() + '-' + id);
+  /**
+   * Updates stored node IDs when vertices are removed and higher IDs shift down.
+   */
+  replaceIDs: function(changedIdsSet) {
+    if (!changedIdsSet) return;
+    for (var id in this._affectedNodes) {
+      if (!this._affectedNodes.hasOwnProperty(id)) continue;
+      var updated = [];
+      var list = this._affectedNodes[id];
+      for (var i = 0; i < list.length; i++) {
+        var oldID = list[i];
+        var numOldID = parseInt(oldID, 10);
+        var newID = changedIdsSet.hasOwnProperty(oldID) ? changedIdsSet[oldID] :
+          (changedIdsSet.hasOwnProperty(numOldID) ? changedIdsSet[numOldID] : numOldID);
+        if (updated.indexOf(newID) === -1) {
+          updated.push(newID);
+        }
+      }
+      this._affectedNodes[id] = updated;
+    }
   },
 
   /**
-     * Updates the displayed number of nodes assocated with/affected by the object
+   * Reconciles tracked cases and visible counts against the current view and hidden branches.
+   * Ensures deleted nodes never leave stale entries and hidden-branch nodes are not shown in the legend.
+   */
+  syncWithView: function() {
+    var view = (typeof editor !== 'undefined' && editor && editor.getView) ? editor.getView() : null;
+    var graph = (typeof editor !== 'undefined' && editor && editor.getGraph) ? editor.getGraph() : null;
+    if (!view || !graph) return;
+    var _this = this;
+    Object.keys(this._affectedNodes).forEach(function(id) {
+      var valid = (_this._affectedNodes[id] || []).filter(function(nodeID) {
+        if (graph.isValidID && !graph.isValidID(nodeID)) return false;
+        if (graph.isPerson && !graph.isPerson(nodeID)) return false;
+        var node = view.getNode(nodeID);
+        if (!node || (node.isVirtual && node.isVirtual())) return false;
+        return _this._nodeHasObject(node, id);
+      });
+      if (valid.length === 0) {
+        _this._dropObject(id);
+      } else {
+        _this._affectedNodes[id] = valid;
+        _this._updateCaseNumbersForObject(id);
+      }
+    });
+    this._applyVisibility();
+  },
+
+  _getListElementForObjectWithID: function(id) {
+    var targetId = this._getPrefix() + '-' + id;
+    var el = $(targetId);
+    if (el) return el;
+    var children = (this._list && this._list.childElements) ? this._list.childElements() : [];
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].id === targetId) return children[i];
+    }
+    return null;
+  },
+
+  /**
+     * Updates the displayed number of visible nodes associated with/affected by the object
      *
      * @method _updateCaseNumbersForObject
      * @param {String|Number} id ID of the object
      * @private
      */
   _updateCaseNumbersForObject : function(id) {
-    var label = this._legendBox.down('li#' + this._getPrefix() + '-' + id + ' .disorder-cases');
-    if (label) {
-      var cases = this._affectedNodes.hasOwnProperty(id) ? this._affectedNodes[id].length : 0;
-      label.update(cases + '&nbsp;case' + ((cases - 1) && 's' || ''));
+    var item = this._getListElementForObjectWithID(id);
+    if (!item) return;
+    var cases = this._visibleNodes(id).length;
+    if (cases > 0) {
+      item.show();
+      var label = item.down('.disorder-cases');
+      if (label) {
+        label.update(cases + '&nbsp;case' + ((cases - 1) && 's' || ''));
+      }
+    } else {
+      item.hide();
+      if (this._pickerID === id && this._closePicker) {
+        this._closePicker();
+      }
     }
   },
 
@@ -163,6 +317,7 @@ var Legend = Class.create( {
       //item.setStyle({'text-decoration':'underline', 'cursor' : 'default'});
       item.down('.disorder-name').setStyle({'background': me.getObjectColor(id), 'cursor' : 'default'});
       me._affectedNodes[id] && me._affectedNodes[id].forEach(function(nodeID) {
+        if (!me._isNodeVisibleOnChart(nodeID)) return;
         var node = editor.getNode(nodeID);
         node && node.getGraphics().highlight();
       });
@@ -172,7 +327,7 @@ var Legend = Class.create( {
       item.down('.disorder-name').setStyle({'background':'', 'cursor' : 'default'});
       me._affectedNodes[id] && me._affectedNodes[id].forEach(function(nodeID) {
         var node = editor.getNode(nodeID);
-        node && node.getGraphics().unHighlight();
+        node && (!node.isHiddenBranch || !node.isHiddenBranch()) && node.getGraphics().unHighlight();
       });
     });
     return item;

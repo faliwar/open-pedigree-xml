@@ -276,8 +276,24 @@ var DisorgerLegend = Class.create(Legend, {
     info.setConditionColor(disorderID, color, translate('Changed the color of') + ' ' + name);
   },
 
+  setEnabled: function ($super, enabled) {
+    if (!enabled) {
+      this._closePicker();
+    }
+    $super(enabled);
+  },
+
   _getPrefix: function (id) {
     return 'disorder';
+  },
+
+  _nodeHasObject: function (node, id) {
+    return !!(node && node.getDisorders && node.getDisorders().indexOf(id) !== -1);
+  },
+
+  _onObjectRemoved: function (disorderID) {
+    delete this._autoColors[disorderID];
+    if (this._pickerID === disorderID) this._closePicker();
   },
 
   /**
@@ -325,7 +341,8 @@ var DisorgerLegend = Class.create(Legend, {
      * @private
      */
   _updateDisorderName: function (disorderID) {
-    var name = this._legendBox.down('li#' + this._getPrefix() + '-' + disorderID + ' .disorder-name');
+    var item = this._getListElementForObjectWithID(disorderID);
+    var name = item && item.down('.disorder-name');
     if (name) {
       name.update(this.getDisorder(disorderID).getName());
     }
@@ -379,14 +396,6 @@ var DisorgerLegend = Class.create(Legend, {
       }
     }
     return item;
-  },
-
-  removeCase: function ($super, disorderID, nodeID) {
-    $super(disorderID, nodeID);
-    if (!this._hasAffectedNodes(disorderID)) {
-      delete this._autoColors[disorderID];
-      if (this._pickerID === disorderID) this._closePicker();
-    }
   },
 
   /**

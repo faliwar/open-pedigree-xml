@@ -915,8 +915,11 @@ var Person = Class.create(AbstractPerson, {
      */
   getAllNodeColors: function () {
     var result = [];
-    for (var i = 0; i < this.getDisorders().length; i++) {
-      result.push(editor.getDisorderLegend().getObjectColor(this.getDisorders()[i]));
+    var disorderLegend = editor.getDisorderLegend();
+    if (!disorderLegend.isEnabled || disorderLegend.isEnabled()) { // colouring by disorder can be turned off in Labels
+      for (var i = 0; i < this.getDisorders().length; i++) {
+        result.push(disorderLegend.getObjectColor(this.getDisorders()[i]));
+      }
     }
     var geneLegend = editor.getGeneLegend();
     if (!geneLegend.isEnabled || geneLegend.isEnabled()) { // colouring by gene can be turned off in Labels
@@ -1629,6 +1632,15 @@ var Person = Class.create(AbstractPerson, {
   },
 
   _assignProperties: function (superAssign, info) {
+    if (this._disorders && this._disorders.length > 0) {
+      this.setDisorders([]);
+    }
+    if (this._hpo && this._hpo.length > 0) {
+      this.setHPO([]);
+    }
+    if (this._candidateGenes && this._candidateGenes.length > 0) {
+      this.setGenes([]);
+    }
     this._setDefault();
 
     if (superAssign(info)) {
@@ -1671,6 +1683,8 @@ var Person = Class.create(AbstractPerson, {
       }
       if (info.geneticTests) {
         this.setGeneticTests(info.geneticTests);
+      } else if (this._legendGenes && this._legendGenes.length > 0) {
+        this._syncGeneLegend();
       }
       if (info.disorderDetails) {
         this.setDisorderDetails(info.disorderDetails);

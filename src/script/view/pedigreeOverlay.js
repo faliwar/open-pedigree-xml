@@ -323,20 +323,26 @@ var PedigreeOverlay = Class.create({
 
   // "F = 1/16" above the junction of each consanguineous couple whose common ancestors are drawn
   _drawInbreeding: function() {
-    var paper = editor.getPaper();
     var graph = editor.getGraph();
     var calc = makeInbreeding(graph);
     var lang = getLanguage();
     var _this = this;
     for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (graph.isHiddenBranch && graph.isHiddenBranch(id)) continue;
       var consanguineous = false;
       try {
         consanguineous = graph.isRelationship(id) && coupleIsConsanguineous(graph, id);
       } catch (e) {}
       if (!consanguineous) continue;
+      if ((graph.isSingleParentRelationship && graph.isSingleParentRelationship(id)) ||
+          (graph.isParentlessRelationship && graph.isParentlessRelationship(id))) continue;
       var partners = [];
       try { partners = graph.DG.GG.getParents(id); } catch (e) {}
       if (partners.length !== 2) continue;
+      if (graph.isHiddenBranch && (graph.isHiddenBranch(partners[0]) || graph.isHiddenBranch(partners[1]))) continue;
+      var p0 = editor.getNode(partners[0]);
+      var p1 = editor.getNode(partners[1]);
+      if (!p0 || !p1 || (p0.isVirtual && p0.isVirtual()) || (p1.isVirtual && p1.isVirtual())) continue;
       var f = calc.kinship(partners[0], partners[1]);
       var node = editor.getNode(id);
       if (!(f > 0) || !node || !node.getX) continue;
@@ -355,11 +361,11 @@ var PedigreeOverlay = Class.create({
       'fill': '#1F2937',
       'text-anchor': 'middle'
     }, attrs || {}));
+    this._tag(text, kind);
     var box = text.getBBox();
     var bg = paper.rect(box.x - 4, box.y - 1, box.width + 8, box.height + 2, 3).attr({ 'fill': '#FFFFFF', 'fill-opacity': 0.9, 'stroke': 'none' });
     text.toFront();
     this._tag(bg, kind);
-    this._tag(text, kind);
   },
 
   /**
@@ -430,7 +436,10 @@ var PedigreeOverlay = Class.create({
       if (node.getHistoryUnknown()) {
         // beside the line of descent when the person has parents drawn
         var hasParents = false;
-        try { hasParents = graph.getParentRelationship(id) !== null; } catch (e) {}
+        try {
+          var parentRel = graph.getParentRelationship(id);
+          hasParents = parentRel !== null && (!graph.isHiddenBranch || !graph.isHiddenBranch(parentRel));
+        } catch (e) {}
         this._tag(editor.getPaper().text(node.getX() + (hasParents ? 16 : 0), node.getY() - radius - 16, '?').attr({
           'font-size': 22, 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 'bold', 'fill': '#1F2937'
         }), 'standard');
