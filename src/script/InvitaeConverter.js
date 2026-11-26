@@ -37,7 +37,9 @@ var STANDARD_NOTES = {
   artKey: 'Assisted reproduction key',
   artLinks: 'Assisted reproduction lines',
   // no contact with proband (dashed/dotted cross-bar on relationship line)
-  lostContact: 'Contact with proband'
+  lostContact: 'Contact with proband',
+  // pre-symptomatic carrier (vertical bar in symbol; Progeny's <carrier> only has 0/1)
+  presymptomatic: 'Carrier status'
 };
 
 // a phenotype looked for and not found, one note per phenotype (as Progeny's "Phenotype" notes)
@@ -775,6 +777,8 @@ InvitaeConverter._parseIndividual = function (indiEl) {
   var carrierVal = InvitaeConverter._getChildAttr(indiEl, 'carrier', 'value');
   if (carrierVal === '1') {
     properties.carrierStatus = 'carrier';
+  } else if (carrierVal === '2' || /^pre[-_\s]?symptomatic$/i.test(carrierVal || '')) {
+    properties.carrierStatus = 'presymptomatic';
   }
 
   // Adoption
@@ -931,7 +935,13 @@ InvitaeConverter._parseIndividual = function (indiEl) {
       properties.disorderDetails[condTitle] = detail;
 
       if (condStatus === 'carrier') {
-        properties.carrierStatus = 'carrier';
+        if (properties.carrierStatus !== 'affected' && properties.carrierStatus !== 'presymptomatic') {
+          properties.carrierStatus = 'carrier';
+        }
+      } else if (/^pre[-_\s]?symptomatic$/i.test(condStatus || '')) {
+        if (properties.carrierStatus !== 'affected') {
+          properties.carrierStatus = 'presymptomatic';
+        }
       } else {
         properties.carrierStatus = 'affected';
       }
@@ -1024,6 +1034,12 @@ InvitaeConverter._parseIndividual = function (indiEl) {
           properties.artLinks = noteValue.split(';').map(function(k) { return parseInt(k, 10); }).filter(function(k) { return !isNaN(k); });
         } else if (noteType === STANDARD_NOTES.lostContact || /^(lost|no)\s*contact/i.test(noteType || '')) {
           properties.lostContact = !/^(yes|in\s*contact|false|0)$/i.test(noteValue.trim());
+        } else if (noteType === STANDARD_NOTES.presymptomatic || /^carrier\s*status$/i.test(noteType || '')) {
+          if (/^pre[-_\s]?symptomatic$/i.test(noteValue.trim())) {
+            properties.carrierStatus = 'presymptomatic';
+          } else if (/^carrier$/i.test(noteValue.trim()) && !properties.carrierStatus) {
+            properties.carrierStatus = 'carrier';
+          }
         } else if (noteValue.toLowerCase() !== 'approximate dob') {
           // Generic note → comments
           if (!properties.comments) {
@@ -1505,8 +1521,9 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
       var condStatus = 'affected';
       if (props.carrierStatus === 'carrier') {
         condStatus = 'carrier';
-      }
-      if (detail && detail.status) {
+      } else if (props.carrierStatus === 'presymptomatic') {
+        condStatus = 'presymptomatic';
+      } else if (!props.carrierStatus && detail && detail.status) {
         condStatus = detail.status;
       }
       var condNote = (detail && privacySetting !== 'minimal') ? detail.note : '';
@@ -1559,6 +1576,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
   if (typeof props.artKey === 'number') standardNotes.push([STANDARD_NOTES.artKey, String(props.artKey)]);
   if (props.artLinks && props.artLinks.length) standardNotes.push([STANDARD_NOTES.artLinks, props.artLinks.join('; ')]);
   if (props.lostContact) standardNotes.push([STANDARD_NOTES.lostContact, 'Not in contact']);
+  if (props.carrierStatus === 'presymptomatic') standardNotes.push([STANDARD_NOTES.presymptomatic, 'Pre-symptomatic']);
   if (hasHpoNotes || hasAbsentNotes || hasDobApproxNote || hasEthnicityNote || standardNotes.length) {
     xml += '<notes>';
     standardNotes.forEach(function(sn, idx) {
@@ -1570,7 +1588,7 @@ InvitaeConverter._buildIndiElement = function (nodeId, props, pedigree, privacyS
       var ethnicity = InvitaeConverter._escapeXml(ancestry.join('; '));
       xml += '<note id="1" note_id="1" value="' + ethnicity + '" string_type="composite" string_title="Ethnicity" string_value="' + ethnicity + '"/>';
     }
-    var noteIdx = 12;
+    var noteIdx = Math.max(12, 2 + standardNotes.length);
     if (hasHpoNotes) {
       for (var h = 0; h < props.hpoTerms.length; h++) {
         var hpoName = InvitaeConverter._resolveOntologyName(props.hpoTerms[h], 'hpo');

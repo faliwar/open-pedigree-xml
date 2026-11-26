@@ -877,12 +877,12 @@ var Person = Class.create(AbstractPerson, {
       return;
     }
 
-    if (numDisorders > 0 && status == '') {
+    if (numDisorders > 0 && status != 'affected') {
       if (numDisorders == 1 && this.getDisorders()[0] == 'affected') {
         this.removeDisorder('affected');
         this.getGraphics().updateDisorderShapes();
         this.getGraphics().updateDisordersLabel && this.getGraphics().updateDisordersLabel();
-      } else {
+      } else if (status == '') {
         status = 'affected';
       }
     } else if (numDisorders == 0 && status == 'affected') {
