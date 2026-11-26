@@ -166,7 +166,7 @@ var ExportSelector = Class.create({
       ]);
     configListElementSVG.insert(pngRow.addClassName('png-only'));
     var pngBgRow = new Element('tr', { 'class': 'png-only' });
-    var pngBgInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'png-transparent' });
+    var pngBgInput = new Element('input', { 'type': 'checkbox', 'value': '1', 'name': 'png-transparent', 'checked': 'checked' });
     pngBgRow.insert(new Element('label', { 'class': 'export-subconfig-label' }).insert(pngBgInput).insert('Transparent background').wrap('td'));
     configListElementSVG.insert(pngBgRow);
     var svgLegendRow = new Element('tr');

@@ -1038,7 +1038,7 @@ var withDpi = function (bytes, dpi) {
  * PNG image of the pedigree.
  * @param {Object} options
  *   dpi            print resolution (default 300); drawing units are CSS pixels at 96 per inch
- *   transparent    no white background
+ *   transparent    no white background (default true)
  *   includeLegend, legendPos, blackAndWhite   as for the SVG file
  *   maxDimension   largest width or height in pixels (browsers cannot draw huge canvases);
  *                  a bigger pedigree is drawn smaller but keeps the DPI, so it prints smaller
@@ -1073,7 +1073,7 @@ PedigreeExport.exportAsPNG = function (pedigree, privacySetting = 'all', options
         canvas.width = cw;
         canvas.height = ch;
         var ctx = canvas.getContext('2d');
-        if (!options.transparent) {
+        if (options.transparent === false) {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, cw, ch);
         }

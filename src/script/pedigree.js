@@ -177,7 +177,7 @@ var PedigreeEditor = Class.create({
     // the pedigree as a 300 DPI PNG with its legend, ready to paste into a report
     var copyImageButton = $('action-copy-image');
     copyImageButton && copyImageButton.on('click', function (event) {
-      ExportSelector.exportPNG('all', { dpi: 300, includeLegend: true, legendPos: 'TopRight', blackAndWhite: false }, true);
+      ExportSelector.exportPNG('all', { dpi: 300, transparent: true, includeLegend: true, legendPos: 'TopRight', blackAndWhite: false }, true);
     });
 
     var summaryButton = $('action-family-summary');

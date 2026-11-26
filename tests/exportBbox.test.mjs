@@ -33,3 +33,15 @@ test('export bounding box adds 36px breathing margin avoiding node cropping', ()
   assert.ok(bY < bbox.y, 'ViewBox top extends above topmost element');
   assert.ok(bX < bbox.x, 'ViewBox left extends before leftmost element');
 });
+
+test('PNG export and Copy as image default to transparent background', async () => {
+  const fs = await import('node:fs');
+  const exportJs = fs.readFileSync(new URL('../src/script/model/export.js', import.meta.url), 'utf8');
+  const exportSelectorJs = fs.readFileSync(new URL('../src/script/view/exportSelector.js', import.meta.url), 'utf8');
+  const pedigreeJs = fs.readFileSync(new URL('../src/script/pedigree.js', import.meta.url), 'utf8');
+
+  assert.match(exportJs, /if\s*\(\s*options\.transparent\s*===\s*false\s*\)/, 'exportAsPNG only fills white when options.transparent is explicitly false');
+  assert.match(exportSelectorJs, /'name':\s*'png-transparent',\s*'checked':\s*'checked'/, 'Transparent background checkbox is checked by default');
+  assert.match(pedigreeJs, /ExportSelector\.exportPNG\('all',\s*\{[^}]*transparent:\s*true[^}]*\},\s*true\)/, 'Copy as image passes transparent: true');
+});
+
