@@ -211,12 +211,16 @@ var ChildlessBehaviorVisuals = {
      * @method updateChildlessShapes
      */
   updateChildlessShapes: function() {
-    var status = this.getNode().getChildlessStatus();
+    var node = this.getNode();
+    var status = node.getChildlessStatus();
     this._childlessShape && this._childlessShape.remove();
     this._childlessShape = null;
 
-    // (nothing is drawn for a node of a hidden branch)
-    if(status && !editor.getGraph().isHiddenBranch(this.getNode().getID())) {
+    var incompletePartnership = (node.getType && node.getType() === 'Partnership' &&
+      this._getVisiblePartnerPaths && this._getVisiblePartnerPaths().length < 2);
+
+    // (nothing is drawn for a node of a hidden branch or a partnership missing a visible partner)
+    if(status && !incompletePartnership && !editor.getGraph().isHiddenBranch(node.getID())) {
       var x    = this.getX();
       var y    = this.getY();
       var r    = PedigreeEditorParameters.attributes.infertileMarkerWidth;
@@ -247,8 +251,10 @@ var ChildlessBehaviorVisuals = {
     var node = this.getNode();
     var status = node.getChildlessStatus();
     var text = (status && node.getChildlessReason) ? node.getChildlessReason() : '';
+    var incompletePartnership = (node.getType && node.getType() === 'Partnership' &&
+      this._getVisiblePartnerPaths && this._getVisiblePartnerPaths().length < 2);
 
-    if (text != '' && !editor.getGraph().isHiddenBranch(node.getID())) {
+    if (text != '' && !incompletePartnership && !editor.getGraph().isHiddenBranch(node.getID())) {
       var attrs = PedigreeEditorParameters.attributes;
       var fontSize = (attrs.label && attrs.label['font-size']) || 18;
       var y = this.getBottomY() + attrs.infertileMarkerHeight + (status == 'infertile' ? 5 : 0) + fontSize * 0.5 + 6;

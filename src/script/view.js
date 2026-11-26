@@ -977,6 +977,23 @@ var View = Class.create({
         }
       }
 
+      if (markNew && newPersons.length > 0 && editor.getGraph().isFocusMode && editor.getGraph().isFocusMode()) {
+        var focus = editor.getGraph().getFocusMode();
+        var maxNeeded = focus.maxDegree;
+        for (var fp = 0; fp < newPersons.length; fp++) {
+          var npId = newPersons[fp];
+          if (editor.getGraph().DG && editor.getGraph().DG._isRealPerson(npId)) {
+            var d = editor.getGraph().getPersonStepDistance(focus.personId, npId);
+            if (d !== null && d > maxNeeded) {
+              maxNeeded = d;
+            }
+          }
+        }
+        if (maxNeeded > focus.maxDegree) {
+          editor.getGraph().setFocusMode(focus.personId, maxNeeded);
+        }
+      }
+
       timer.printSinceLast('=== Bookkeeping/sorting runtime: ');
 
       for (var i = 0; i < movedPersons.length; i++) {

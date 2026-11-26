@@ -179,6 +179,10 @@ var SaveLoadEngine = Class.create( {
     console.log('---- load: parsing data ----', JSONString);
     document.fire('pedigree:load:start');
 
+    if (!noUndo && editor.getGraph() && editor.getGraph().clearFocusMode) {
+      editor.getGraph().clearFocusMode();
+    }
+
     try {
       var changeSet = editor.getGraph().fromJSON(JSONString);
     } catch(err) {
@@ -215,6 +219,10 @@ var SaveLoadEngine = Class.create( {
   createGraphFromImportData: function(importString, importType, importOptions, noUndo, centerAround0) {
     console.log('---- import: parsing data ----');
     document.fire('pedigree:load:start');
+
+    if (!noUndo && editor.getGraph() && editor.getGraph().clearFocusMode) {
+      editor.getGraph().clearFocusMode();
+    }
 
     try {
       var changeSet = editor.getGraph().fromImport(importString, importType, importOptions);
@@ -266,6 +274,9 @@ var SaveLoadEngine = Class.create( {
   createGraphFromSplitMerge: function(serializedGG) {
     var backup = editor.getGraph().toJSON();
     document.fire('pedigree:load:start');
+    if (editor.getGraph() && editor.getGraph().clearFocusMode) {
+      editor.getGraph().clearFocusMode();
+    }
     try {
       var changeSet = editor.getGraph().fromCollapsedSerialization(serializedGG);
     } catch(err) {

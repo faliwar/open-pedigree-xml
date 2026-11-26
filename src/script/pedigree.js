@@ -142,6 +142,17 @@ var PedigreeEditor = Class.create({
       document.fire('pedigree:graph:relayout');
     });
 
+    var focusModeButton = $('action-focus-mode');
+    focusModeButton && focusModeButton.on('click', function (event) {
+      var graph = editor.getGraph();
+      if (graph.isFocusMode && graph.isFocusMode()) {
+        Controller.clearFocusMode();
+      } else {
+        var root = (graph.DG && graph.DG.getBranchRoot) ? graph.DG.getBranchRoot() : graph.getProbandId();
+        Controller.setFocusMode(root, 2);
+      }
+    });
+
     var expandAllButton = $('action-expand-all');
     expandAllButton && expandAllButton.on('click', function (event) {
       if (!Controller.expandAll()) {

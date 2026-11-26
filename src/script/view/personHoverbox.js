@@ -2,6 +2,7 @@ import { Timer } from 'pedigree/model/helpers';
 import AbstractHoverbox from 'pedigree/view/abstractHoverbox';
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { translate } from 'pedigree/i18n';
+import Controller from 'pedigree/controller';
 
 /**
  * PersonHoverbox is a class for all the UI elements and graphics surrounding a Person node and
@@ -100,8 +101,19 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     this.generateHandle('sibling', x-PedigreeEditorParameters.attributes.personSiblingHandleLengthX+strokeWidth/3, splitLocationY, x-PedigreeEditorParameters.attributes.personSiblingHandleLengthX+strokeWidth/2, splitLocationY+PedigreeEditorParameters.attributes.personSiblingHandleLengthY,
       'Click to create a sibling or drag to an existing parentless person (valid choices will be highlighted in green)');
 
-    var parentRel = editor.getGraph().getParentRelationship(node.getID());
-    if (parentRel === null || editor.getGraph().isParentlessRelationship(parentRel) || editor.getGraph().isSingleParentRelationship(parentRel)) {
+    var graph = editor.getGraph();
+    var parentRel = graph.getParentRelationship(node.getID());
+    var hasHiddenRealParent = false;
+    if (parentRel !== null) {
+      var relParents = graph.DG.GG.getParents(parentRel);
+      for (var pi = 0; pi < relParents.length; pi++) {
+        if (!graph.isVirtualParent(relParents[pi]) && graph.isHiddenBranch(relParents[pi])) {
+          hasHiddenRealParent = true;
+          break;
+        }
+      }
+    }
+    if (!hasHiddenRealParent && (parentRel === null || graph.isParentlessRelationship(parentRel) || graph.isSingleParentRelationship(parentRel))) {
       // parent handle
       this.generateHandle('parent', x, splitLocationY, x, y - PedigreeEditorParameters.attributes.personHandleLength,
         'Click to create new nodes for the parents or drag to an existing person or partnership (valid choices will be highlighted in green). Dragging to a person will create a new relationship.');
@@ -109,7 +121,7 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
 
     // donor / surrogate handle (assisted reproduction): diagonal, up and to the right, like the
     // line of descent it adds
-    if (parentRel !== null && !editor.getGraph().isParentlessRelationship(parentRel)) {
+    if (parentRel !== null && !graph.isParentlessRelationship(parentRel)) {
       var diagonal = Math.SQRT1_2;
       var artBreak = PedigreeEditorParameters.attributes.personHandleBreakX * diagonal;
       var artLength = PedigreeEditorParameters.attributes.personHandleLength * diagonal;
@@ -161,6 +173,8 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
 
     this.generateBranchBtn();
 
+    this.generateFocusBtn();
+
     // proband (and the root node 0) can't be removed
     if (!this.getNode().isProband() && this.getNode().getID() != 0) {
       this.generateDeleteBtn();
@@ -195,6 +209,46 @@ var PersonHoverbox = Class.create(AbstractHoverbox, {
     var y = this.getY() + this.getHeight() - 20;
     this.createButton(x, y, icon, { x: 0, y: 0, width: 14, height: 14 }, attributes, action, 'branch-toggle',
       collapsed ? 'Show the hidden branch' : 'Hide this person\'s branch');
+  },
+
+  /**
+     * Button in the lower right corner that focuses the pedigree around this person (or exits
+     * Focus Mode when this person is already the focus target). Works regardless of consanguinity
+     * loops.
+     *
+     * @method generateFocusBtn
+     */
+  generateFocusBtn: function() {
+    var graph = editor.getGraph();
+    var node = this.getNode();
+    if (!graph || !graph.getRealPersonCount) {
+      return;
+    }
+    var focus = graph.getFocusMode ? graph.getFocusMode() : null;
+    if (!focus && graph.getRealPersonCount() <= 2) {
+      return;
+    }
+    var isCurrentFocus = !!(focus && focus.personId === node.getID());
+    var me = this;
+    var action = function() {
+      me.unpin(true);
+      me.animateHideHoverZone(true);
+      if (isCurrentFocus) {
+        Controller.clearFocusMode();
+      } else {
+        Controller.setFocusMode(node.getID(), focus ? focus.maxDegree : 2);
+      }
+    };
+    var icon = 'M7,2.5 a4.5,4.5 0 1,0 0.001,0 z M7,0 v3 M7,11 v3 M0,7 h3 M11,7 h3';
+    var attributes = {
+      'stroke': '#0F766E',
+      'stroke-width': 1.6,
+      'fill': isCurrentFocus ? '#99F6E4' : '#FFFFFF'
+    };
+    var x = this.getX() + this.getWidth() - 20;
+    var y = this.getY() + this.getHeight() - 20;
+    this.createButton(x, y, icon, { x: 0, y: 0, width: 14, height: 14 }, attributes, action, 'focus-toggle',
+      translate(isCurrentFocus ? 'Exit focus mode' : 'Focus on this person'));
   },
 
   generateNodeShapeBtn: function() {

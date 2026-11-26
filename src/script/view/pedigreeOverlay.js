@@ -1,8 +1,10 @@
 import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
 import { computeStandardNumbering } from 'pedigree/model/nomenclature';
+import { romanize } from 'pedigree/model/helpers';
 import { getLanguage, translate } from 'pedigree/i18n';
 import { makeInbreeding, formatCoefficient, coupleIsConsanguineous } from 'pedigree/model/kinship';
 import { moveTextFast } from 'pedigree/view/graphicHelpers';
+import Controller from 'pedigree/controller';
 
 /**
  * PedigreeOverlay draws non-interactive annotations on top of the pedigree canvas:
@@ -25,6 +27,7 @@ var PedigreeOverlay = Class.create({
     this._cascade = null;          // { indexId, colorById: {id: color} }
     this._search = null;           // { ids, dimOthers, summary }
     this._searchLegend = null;
+    this._focusLegend = null;
     this._redrawTimer = null;
     this._legend = null;
     this._loadSettings();
@@ -139,6 +142,7 @@ var PedigreeOverlay = Class.create({
     if (this._cascade && editor.getCascadeTestingDialog) {
       editor.getCascadeTestingDialog().onGraphChanged();
     }
+    this.updateFocusLegend();
     this.scheduleRedraw();
   },
 
@@ -234,6 +238,9 @@ var PedigreeOverlay = Class.create({
     }
     try {
       this._drawStandardMarks();
+      if (editor.getGraph && editor.getGraph() && editor.getGraph().isFocusMode && editor.getGraph().isFocusMode()) {
+        this._drawFocusTarget();
+      }
       if (this._search) {
         this._drawSearch();
       }
@@ -428,7 +435,15 @@ var PedigreeOverlay = Class.create({
       }
       if (node.getRelationDegree) {
         if (node.getRelationDegree()) {
-          this._boxedText(node.getX(), node.getY() - 22, node.getRelationDegree(), 'standard');
+          var visRelPartners = [];
+          try {
+            visRelPartners = graph.DG.GG.getParents(id).filter(function(p) {
+              return !graph.isVirtualParent(p) && !graph.isHiddenBranch(p);
+            });
+          } catch (e) {}
+          if (visRelPartners.length === 2) {
+            this._boxedText(node.getX(), node.getY() - 22, node.getRelationDegree(), 'standard');
+          }
         }
         continue;
       }
@@ -648,6 +663,147 @@ var PedigreeOverlay = Class.create({
   setSearchLegendVisible: function(visible) {
     if (this._searchLegend) {
       this._searchLegend.setStyle({ display: visible ? '' : 'none' });
+    }
+  },
+
+  _drawFocusTarget: function() {
+    var graph = editor.getGraph();
+    var focus = graph.getFocusMode ? graph.getFocusMode() : null;
+    if (!focus) return;
+    var node = editor.getNode(focus.personId);
+    if (!node || !node.getX || graph.isHiddenBranch(focus.personId)) return;
+    var paper = editor.getPaper();
+    var radius = PedigreeEditorParameters.attributes.radius || 40;
+    var background = editor.getWorkspace && editor.getWorkspace().background;
+    var ring = paper.circle(node.getX(), node.getY(), radius * 1.48).attr({
+      'stroke': '#0D9488',
+      'stroke-width': 4,
+      'stroke-dasharray': '- ',
+      'fill': '#14B8A6',
+      'fill-opacity': 0.09
+    });
+    if (background) ring.insertAfter(background);
+    if (ring.node) ring.node.setAttribute('data-opx-export', 'omit');
+    this._tag(ring, 'focus');
+  },
+
+  updateFocusLegend: function() {
+    var graph = (typeof editor !== 'undefined' && editor && editor.getGraph) ? editor.getGraph() : null;
+    if (!graph || !graph.isFocusMode || !graph.isFocusMode()) {
+      this._hideFocusLegend();
+      return;
+    }
+    this._showFocusLegend();
+  },
+
+  _showFocusLegend: function() {
+    this._hideFocusLegend();
+    var workArea = $('work-area');
+    var graph = editor.getGraph();
+    var focus = graph && graph.getFocusMode ? graph.getFocusMode() : null;
+    if (!workArea || !focus) return;
+
+    var numbering = { byId: {} };
+    try { numbering = computeStandardNumbering(editor); } catch (e) {}
+    var probandId = graph.getProbandId ? graph.getProbandId() : 0;
+
+    var personIds = [];
+    for (var id = 0; id <= graph.getMaxNodeId(); id++) {
+      if (graph.DG && graph.DG._isRealPerson(id)) {
+        personIds.push(id);
+      }
+    }
+    personIds.sort(function(a, b) {
+      var ga = 99, gb = 99, oa = a, ob = b;
+      try { ga = graph.getGeneration(a); } catch (e) {}
+      try { gb = graph.getGeneration(b); } catch (e) {}
+      try { oa = graph.DG.order.vOrder[a]; } catch (e) {}
+      try { ob = graph.DG.order.vOrder[b]; } catch (e) {}
+      return (ga - gb) || (oa - ob) || (a - b);
+    });
+
+    var legend = new Element('div', { 'class': 'cascade-chart-legend focus-chart-legend', 'role': 'status' });
+    legend.insert(new Element('span', { 'class': 'cascade-chart-legend-swatch focus-chart-legend-swatch' }).setStyle({ borderColor: '#0D9488' }));
+    legend.insert(new Element('span', { 'class': 'cascade-chart-legend-title' }).update(translate('Focus:')));
+
+    var select = new Element('select', { 'class': 'focus-person-select', 'aria-label': translate('Focused person') });
+    personIds.forEach(function(pid) {
+      var props = graph.getProperties(pid) || {};
+      var fullName = [props.fName || '', props.lName || ''].join(' ').trim();
+      var numEntry = numbering.byId[pid];
+      var prefix = numEntry ? numEntry.label : (function() {
+        try { return romanize(graph.getGeneration(pid)); } catch (e) { return '#' + pid; }
+      })();
+      var parts = [prefix];
+      if (fullName) {
+        parts.push(fullName);
+      } else if (pid === probandId) {
+        parts.push(translate('Proband'));
+      } else if (props.externalID) {
+        parts.push(String(props.externalID));
+      } else {
+        parts.push('#' + (pid + 1));
+      }
+      var label = parts.join(' · ');
+      if (pid === probandId && fullName) {
+        label += ' (' + translate('Proband') + ')';
+      }
+      if (graph.isHiddenBranch(pid)) {
+        label += ' [' + translate('hidden') + ']';
+      }
+      var opt = new Element('option', { 'value': String(pid) });
+      opt.textContent = label;
+      if (pid === focus.personId) {
+        opt.selected = true;
+      }
+      select.insert(opt);
+    });
+    select.observe('change', function() {
+      Controller.setFocusMode(parseInt(select.value, 10), focus.maxDegree);
+    });
+    legend.insert(select);
+
+    var degGroup = new Element('span', { 'class': 'focus-degree-group' });
+    [1, 2, 3, 4, 5].forEach(function(deg) {
+      var btn = new Element('button', {
+        'type': 'button',
+        'class': 'cascade-chart-legend-btn focus-degree-btn' + (deg === focus.maxDegree ? ' active' : ''),
+        'title': translate('Up to ' + deg + '° degree')
+      }).update(deg + '°');
+      btn.observe('click', function() {
+        Controller.setFocusMode(focus.personId, deg);
+      });
+      degGroup.insert(btn);
+    });
+    legend.insert(degGroup);
+
+    var hiddenCount = graph.getFocusHiddenCount ? graph.getFocusHiddenCount() : 0;
+    var countSpan = new Element('span', { 'class': 'focus-hidden-count' }).update(
+      hiddenCount > 0
+        ? '(' + hiddenCount + ' ' + translate(hiddenCount === 1 ? 'person hidden' : 'people hidden') + ')'
+        : '(' + translate('all visible') + ')'
+    );
+    legend.insert(countSpan);
+
+    var closeBtn = new Element('button', {
+      'type': 'button',
+      'class': 'cascade-chart-legend-btn',
+      'title': translate('Exit focus mode'),
+      'aria-label': translate('Exit focus mode')
+    }).update('&times;');
+    closeBtn.observe('click', function() {
+      Controller.clearFocusMode();
+    });
+    legend.insert(closeBtn);
+
+    this._legendStack().insert({ top: legend });
+    this._focusLegend = legend;
+  },
+
+  _hideFocusLegend: function() {
+    if (this._focusLegend) {
+      this._focusLegend.remove();
+      this._focusLegend = null;
     }
   }
 });

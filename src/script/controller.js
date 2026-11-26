@@ -912,21 +912,22 @@ Controller._anyCollapsed = function() {
 };
 
 /**
- * Shows every hidden branch at once ("Show all hidden branches" in the Tools menu).
- * One step in the undo history.
+ * Shows every hidden branch at once ("Show all hidden branches" in the Tools menu), and exits
+ * Focus Mode if active. One step in the undo history when collapsed branches were expanded.
  */
 Controller.expandAll = function() {
   var graph = editor.getGraph();
-  var changed = false;
+  var collapsedChanged = false;
+  var focusCleared = graph.clearFocusMode ? graph.clearFocusMode() : false;
   for (var id = 0; id <= graph.getMaxNodeId(); id++) {
     var node = graph.isPerson(id) ? editor.getView().getNode(id) : null;
     if (node && node.getCollapsed && node.getCollapsed()) {
       node.setCollapsed(false);
       graph.setProperties(id, node.getProperties());
-      changed = true;
+      collapsedChanged = true;
     }
   }
-  if (!changed) {
+  if (!collapsedChanged && !focusCleared) {
     return false;
   }
   var relayoutChanges = graph.relayout();
@@ -934,7 +935,59 @@ Controller.expandAll = function() {
     editor.getView().applyChanges(relayoutChanges, false);
     editor.getWorkspace().adjustSizeToScreen();
   }
-  editor.getActionStack().addState(null, null, editor.getSaveLoadEngine().serialize());
+  if (editor.getOverlay && editor.getOverlay() && editor.getOverlay().updateFocusLegend) {
+    editor.getOverlay().updateFocusLegend();
+  }
+  if (collapsedChanged) {
+    editor.getActionStack().addState(null, null, editor.getSaveLoadEngine().serialize());
+  }
+  return true;
+};
+
+/**
+ * Focuses the pedigree chart on `personId` up to `maxDegree` relationship steps, hiding everyone
+ * outside that neighborhood even when consanguinity loops are present.
+ */
+Controller.setFocusMode = function(personId, maxDegree) {
+  var graph = editor.getGraph();
+  personId = parseInt(personId, 10);
+  var current = graph.getFocusMode ? graph.getFocusMode() : null;
+  var deg = Math.max(1, parseInt(maxDegree, 10) || (current ? current.maxDegree : 2));
+  if (current && current.personId === personId && current.maxDegree === deg) {
+    return false;
+  }
+  if (!graph.setFocusMode || !graph.setFocusMode(personId, deg)) {
+    return false;
+  }
+  var relayoutChanges = graph.relayout();
+  if (relayoutChanges && relayoutChanges.moved) {
+    editor.getView().applyChanges(relayoutChanges, false);
+    editor.getWorkspace().adjustSizeToScreen();
+  }
+  if (editor.getOverlay && editor.getOverlay() && editor.getOverlay().updateFocusLegend) {
+    editor.getOverlay().updateFocusLegend();
+    editor.getOverlay().redraw();
+  }
+  return true;
+};
+
+/**
+ * Exits Focus Mode and restores the full pedigree layout.
+ */
+Controller.clearFocusMode = function() {
+  var graph = editor.getGraph();
+  if (!graph.clearFocusMode || !graph.clearFocusMode()) {
+    return false;
+  }
+  var relayoutChanges = graph.relayout();
+  if (relayoutChanges && relayoutChanges.moved) {
+    editor.getView().applyChanges(relayoutChanges, false);
+    editor.getWorkspace().adjustSizeToScreen();
+  }
+  if (editor.getOverlay && editor.getOverlay() && editor.getOverlay().updateFocusLegend) {
+    editor.getOverlay().updateFocusLegend();
+    editor.getOverlay().redraw();
+  }
   return true;
 };
 

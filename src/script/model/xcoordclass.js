@@ -17,7 +17,8 @@ var XCoord = function (xinit, graph, halfWidth) {
   } else {
     this.halfWidth = [];
     for (var i = 0; i < graph.GG.vWidth.length; i++) {
-      if (this.hidden[i] || this.isSingleParentRel(i) || this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
+      if (this.hidden[i] || this.isSingleParentRel(i) || this.hasFewerThanTwoVisiblePartners(i) ||
+          this.isArtLinkRel(i) || this.isArtLinkChildhub(i) || this.isArtLinkDummyChild(i)) {
         this.halfWidth[i] = 0;
       } else {
         this.halfWidth[i] = Math.floor(graph.GG.vWidth[i] / 2);
@@ -38,6 +39,25 @@ XCoord.prototype = {
   isSingleParentRel: function (v) {
     return this.graph.GG.type[v] == BaseGraph.TYPE.RELATIONSHIP &&
       this.graph.GG.getInEdges(v).length == 1;
+  },
+
+  hasFewerThanTwoVisiblePartners: function (v) {
+    if (this.graph.GG.type[v] != BaseGraph.TYPE.RELATIONSHIP) {
+      return false;
+    }
+    var inEdges = this.graph.GG.getInEdges(v);
+    if (inEdges.length < 2) {
+      return true;
+    }
+    var visible = 0;
+    for (var i = 0; i < inEdges.length; i++) {
+      var p = this.graph.GG.upTheChainUntilNonVirtual(inEdges[i]);
+      var props = this.graph.GG.properties[p] || {};
+      if (!props.isVirtualParent && !(this.hidden && this.hidden[p])) {
+        visible++;
+      }
+    }
+    return visible < 2;
   },
 
   isArtLinkRel: function (v) {
@@ -86,6 +106,9 @@ XCoord.prototype = {
 
     if (this.isSingleParentRel(v1)) {
       var p1 = this.graph.GG.getInEdges(v1)[0];
+      if (this.hidden && this.hidden[p1]) {
+        return Math.ceil(this.graph.horizontalPersonSeparationDist / 2);
+      }
       if (v2 == p1 || (this.isSingleParentRel(v2) && this.graph.GG.getInEdges(v2)[0] == p1)) {
         return 0;
       }
@@ -93,6 +116,9 @@ XCoord.prototype = {
     }
     if (this.isSingleParentRel(v2)) {
       var p2 = this.graph.GG.getInEdges(v2)[0];
+      if (this.hidden && this.hidden[p2]) {
+        return Math.ceil(this.graph.horizontalPersonSeparationDist / 2);
+      }
       if (v1 == p2) {
         return 0;
       }

@@ -10,6 +10,7 @@ import { XCoord } from 'pedigree/model/xcoordclass';
 
 var DynamicPositionedGraph = function( drawGraph ) {
   this.DG = drawGraph;
+  this._focusMode = (drawGraph && drawGraph.getFocusMode) ? drawGraph.getFocusMode() : null;
 
   this._heuristics = new Heuristics( drawGraph );  // heuristics & helper methods separated into a separate class
 
@@ -168,61 +169,91 @@ DynamicPositionedGraph.prototype = {
     return this.DG.GG.properties[id];
   },
 
-  /** True for a node of a hidden (collapsed) branch, see PositionedGraph.getHiddenNodes() */
+  /** True for a node of a hidden (collapsed or out-of-focus) branch, see PositionedGraph.getHiddenNodes() */
   isHiddenBranch: function( id ) {
     return !!this.DG.getHiddenNodes()[id];
   },
 
   /**
-   * Number of people that are (or would be) hidden by collapsing this person: those connected to
-   * the proband only through them. 0 for the proband and for people with nobody "behind" them.
+   * Number of people that are (or would be) hidden by collapsing this person, using geodesic
+   * (shortest-path) propagation from the branch root so consanguinity loops do not prevent
+   * collapsing branches. 0 for the root and for people with nobody "behind" them.
    */
   getBranchSize: function( id ) {
     id = parseInt(id, 10);
-    var GG = this.DG.GG;
-    var root = this.DG.getBranchRoot();
-    if (id == root || !GG.isPerson(id)) {
+    if (!this.DG._isRealPerson(id)) {
       return 0;
     }
-    // what the proband reaches without going through this person or a collapsed one
-    var reached = {};
-    reached[root] = true;
-    var stack = [root];
-    while (stack.length > 0) {
-      var next = stack.pop();
-      if (next == id || (next != root && GG.isPerson(next) && (GG.properties[next] || {}).collapsed)) {
-        continue;
-      }
-      var neighbours = GG.getOutEdges(next).concat(GG.getInEdges(next));
-      for (var i = 0; i < neighbours.length; i++) {
-        if (!reached[neighbours[i]]) {
-          reached[neighbours[i]] = true;
-          stack.push(neighbours[i]);
-        }
-      }
+    var focus = (this._focusMode && this.DG._isRealPerson(this._focusMode.personId)) ? this._focusMode : null;
+    var root = focus ? focus.personId : this.DG.getBranchRoot();
+    if (id === root) {
+      return 0;
     }
-    if (!reached[id]) {
-      return 0;  // already inside another hidden branch
+    var props = this.DG.GG.properties[id] || {};
+    if (!props.collapsed && this.isHiddenBranch(id)) {
+      return 0;
     }
-    // the rest of what this person reaches is their branch
+    var withCol = this.DG.computeHiddenNodes({ personId: id, collapsed: true });
+    var withoutCol = this.DG.computeHiddenNodes({ personId: id, collapsed: false });
+    return Math.max(0, withCol.hiddenPersonCount - withoutCol.hiddenPersonCount);
+  },
+
+  /**
+   * Focus Mode: restricts the visible chart to people within `maxDegree` 1-step relationships
+   * around `personId` (regardless of consanguinity loops).
+   */
+  setFocusMode: function( personId, maxDegree ) {
+    personId = parseInt(personId, 10);
+    if (!this.DG._isRealPerson(personId)) {
+      return false;
+    }
+    var deg = Math.max(1, parseInt(maxDegree, 10) || 2);
+    this._focusMode = { personId: personId, maxDegree: deg };
+    this.DG.setFocusMode(this._focusMode);
+    return true;
+  },
+
+  clearFocusMode: function() {
+    if (!this._focusMode && !this.DG.getFocusMode()) {
+      return false;
+    }
+    this._focusMode = null;
+    this.DG.setFocusMode(null);
+    return true;
+  },
+
+  getFocusMode: function() {
+    if (!this._focusMode || !this.DG._isRealPerson(this._focusMode.personId)) {
+      return null;
+    }
+    return { personId: this._focusMode.personId, maxDegree: this._focusMode.maxDegree };
+  },
+
+  isFocusMode: function() {
+    return this.getFocusMode() !== null;
+  },
+
+  getFocusHiddenCount: function() {
+    return this.DG.getFocusHiddenCount();
+  },
+
+  getPersonStepDistance: function( fromId, toId ) {
+    fromId = parseInt(fromId, 10);
+    toId = parseInt(toId, 10);
+    var adj = this.DG._buildPersonStepAdj();
+    if (!adj[fromId] || !adj[toId]) {
+      return null;
+    }
+    var bfs = this.DG._bfsPersonDistances(adj, fromId, null);
+    return bfs.dist.hasOwnProperty(toId) ? bfs.dist[toId] : null;
+  },
+
+  getRealPersonCount: function() {
     var count = 0;
-    var seen = {};
-    seen[id] = true;
-    stack = [id];
-    while (stack.length > 0) {
-      var v = stack.pop();
-      var around = GG.getOutEdges(v).concat(GG.getInEdges(v));
-      for (var j = 0; j < around.length; j++) {
-        var u = around[j];
-        if (seen[u] || reached[u]) {
-          continue;
-        }
-        seen[u] = true;
-        stack.push(u);
-        var props = GG.properties[u] || {};
-        if (GG.isPerson(u) && !props.isVirtualParent && !props.isVirtualDummyChild && !props.isPlaceholder) {
-          count += (props.numPersons > 1 ? props.numPersons : 1);
-        }
+    var size = this.DG.GG.getNumVertices();
+    for (var v = 0; v < size; v++) {
+      if (this.DG._isRealPerson(v)) {
+        count++;
       }
     }
     return count;
@@ -232,7 +263,8 @@ DynamicPositionedGraph.prototype = {
     var oldProps = this.DG.GG.properties[id] || {};
     if (!!oldProps.collapsed != !!(newSetOfProperties && newSetOfProperties.collapsed) ||
         !!oldProps.consultand != !!(newSetOfProperties && newSetOfProperties.consultand) ||
-        !!oldProps.probandFlag != !!(newSetOfProperties && newSetOfProperties.probandFlag)) {
+        !!oldProps.probandFlag != !!(newSetOfProperties && newSetOfProperties.probandFlag) ||
+        JSON.stringify(oldProps.artLinks || null) !== JSON.stringify((newSetOfProperties && newSetOfProperties.artLinks) || null)) {
       this.DG.invalidateHiddenNodes();
     }
     var hadArt = !!(oldProps.artLink || oldProps.artRole);
@@ -1740,6 +1772,14 @@ DynamicPositionedGraph.prototype = {
       this.DG.ranks.splice(v,1);
       this.DG.positions.splice(v, 1);
 
+      if (this._focusMode) {
+        if (this._focusMode.personId === v) {
+          this._focusMode = null;
+        } else if (this._focusMode.personId > v) {
+          this._focusMode.personId--;
+        }
+      }
+
       // Adjust any IDs in newNodes that were above v
       for (var n = 0; n < newNodes.length; n++) {
         if (newNodes[n] > v) {
@@ -1747,6 +1787,8 @@ DynamicPositionedGraph.prototype = {
         }
       }
     }
+
+    this.DG.setFocusMode(this._focusMode);
 
     this.DG.maxRank = Math.max.apply(null, this.DG.ranks);
 
@@ -1953,6 +1995,8 @@ DynamicPositionedGraph.prototype = {
     var node0properties = emptyGraph ? {} : cloneObject(this.getProperties(0));
     delete node0properties.probandFlag;  // clearing resets the proband back to node 0
 
+    this._focusMode = null;
+
     // it is easier to create abrand new graph transferirng node 0 propertie sthna to remove on-by-one
     // each time updating ranks, orders, etc
 
@@ -2097,7 +2141,10 @@ DynamicPositionedGraph.prototype = {
 
     this.DG.positions = serializedData['positions'];
     this.normalizeProband();
-    this.DG.invalidateHiddenNodes();
+    if (this._focusMode && !this.DG._isRealPerson(this._focusMode.personId)) {
+      this._focusMode = null;
+    }
+    this.DG.setFocusMode(this._focusMode);
 
     this._updateauxiliaryStructures();
 
@@ -2188,6 +2235,9 @@ DynamicPositionedGraph.prototype = {
   // suggestedRanks: when provided, attempt to use the suggested rank for all nodes,
   //                 in order to keep the new layout as close as possible to the previous layout
   _recreateUsingBaseGraph: function (baseGraph, suggestedRanks) {
+    if (baseGraph && this._focusMode) {
+      baseGraph._focusMode = { personId: this._focusMode.personId, maxDegree: this._focusMode.maxDegree };
+    }
     try {
       var newDG = new PositionedGraph( baseGraph,
         this.DG.horizontalPersonSeparationDist,
@@ -2202,6 +2252,10 @@ DynamicPositionedGraph.prototype = {
     }
 
     this.DG          = newDG;
+    if (this._focusMode && !this.DG._isRealPerson(this._focusMode.personId)) {
+      this._focusMode = null;
+    }
+    this.DG.setFocusMode(this._focusMode);
     this._heuristics = new Heuristics( this.DG );
 
     //this._debugPrintAll("before improvement");

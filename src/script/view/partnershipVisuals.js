@@ -1,5 +1,4 @@
 import Raphael from 'pedigree/raphael';
-import Helpers from 'pedigree/model/helpers';
 import AbstractNodeVisuals, { ChildlessBehaviorVisuals } from 'pedigree/view/abstractNodeVisuals';
 import { drawCornerCurve, findXInterceptGivenLineAndY } from 'pedigree/view/graphicHelpers';
 import PartnershipHoverbox from 'pedigree/view/partnershipHoverbox';
@@ -18,6 +17,41 @@ import PedigreeEditorParameters from 'pedigree/pedigreeEditorParameters';
  */
 var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
+  _getVisiblePartnerPaths: function () {
+    var positionedGraph = editor.getGraph();
+    var id = this.getNode().getID();
+    if (!positionedGraph || !positionedGraph.isValidID(id) || !positionedGraph.isRelationship(id)) {
+      return [];
+    }
+    var partnerPaths = positionedGraph.getPathToParents(id) || [];
+    var visible = [];
+    for (var i = 0; i < partnerPaths.length; i++) {
+      var path = partnerPaths[i];
+      var person = path[path.length - 1];
+      if (!positionedGraph.isVirtualParent(person) && !positionedGraph.isHiddenBranch(person)) {
+        visible.push(path);
+      }
+    }
+    return visible;
+  },
+
+  _getVisibleChildren: function () {
+    var positionedGraph = editor.getGraph();
+    var id = this.getNode().getID();
+    if (!positionedGraph || !positionedGraph.isValidID(id) || !positionedGraph.isRelationship(id)) {
+      return [];
+    }
+    var allChildren = positionedGraph.getRelationshipChildrenSortedByOrder(id) || [];
+    var visible = [];
+    for (var i = 0; i < allChildren.length; i++) {
+      var c = allChildren[i];
+      if (!positionedGraph.isVirtualDummyChild(c) && !positionedGraph.isHiddenBranch(c)) {
+        visible.push(c);
+      }
+    }
+    return visible;
+  },
+
   initialize: function ($super, partnership, x, y) {
     $super(partnership, x, y);
     this._childlessShape = null;
@@ -26,12 +60,13 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     // the junction is an editing handle: left out of exported images and PDFs
     this._junctionShape.node.setAttribute('data-opx-export', 'omit');
 
-    var isSingleParent = editor.getGraph().isSingleParentRelationship(partnership.getID());
-    // a donor / surrogate link is drawn like a parentless relationship: nothing at all
-    // (the line from the donor to the child is drawn by the chart overlay)
-    // (a relationship of a hidden branch is not drawn either)
-    var isParentless = editor.getGraph().isParentlessRelationship(partnership.getID()) || partnership.isArtLink() ||
-      editor.getGraph().isHiddenBranch(partnership.getID());
+    var visPartnerPaths = this._getVisiblePartnerPaths();
+    var visChildren = this._getVisibleChildren();
+    var isHidden = editor.getGraph().isHiddenBranch(partnership.getID()) || partnership.isArtLink() ||
+      (visPartnerPaths.length === 0 && visChildren.length < 2) ||
+      (visPartnerPaths.length === 1 && visChildren.length === 0);
+    var isSingleParent = (visPartnerPaths.length === 1 && visChildren.length >= 1);
+    var isParentless = isHidden || (visPartnerPaths.length === 0);
 
     // Hide the junction circle and hoverbox for single-parent relationships or parentless relationships
     if (isSingleParent || isParentless) {
@@ -199,9 +234,13 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
     var id = this.getNode().getID();
 
-    var isSingleParent = positionedGraph.isSingleParentRelationship(id);
-    var isHidden = positionedGraph.isHiddenBranch(id);
-    var isParentless = positionedGraph.isParentlessRelationship(id) || this.getNode().isArtLink() || isHidden;
+    var visPartnerPaths = this._getVisiblePartnerPaths();
+    var visChildren = this._getVisibleChildren();
+    var isHidden = positionedGraph.isHiddenBranch(id) || this.getNode().isArtLink() ||
+      (visPartnerPaths.length === 0 && visChildren.length < 2) ||
+      (visPartnerPaths.length === 1 && visChildren.length === 0);
+    var isSingleParent = !isHidden && (visPartnerPaths.length === 1 && visChildren.length >= 1);
+    var isParentless = isHidden || (visPartnerPaths.length === 0);
 
     // A relationship which used to be parentless (read-only hoverbox) and has just got parents needs a regular hoverbox.
     // This must be created BEFORE paper.setStart(): Raphael adds every element/set created between setStart() and
@@ -228,27 +267,14 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
       }
     }
 
-    // Parentless relationship: no lines to parents
+    // Parentless or hidden relationship: no lines to parents
     if (isParentless) {
       this._partnerConnections = editor.getPaper().setFinish().toBack();
       return;
     }
 
-    // Single-parent relationship: draw a straight vertical line from parent to this point
-    if (positionedGraph.isSingleParentRelationship(id)) {
-      var partnerPaths = positionedGraph.getPathToParents(id);
-      if (partnerPaths.length > 0) {
-        var path = partnerPaths[0];
-        var person = path[path.length - 1];
-        if (!positionedGraph.isVirtualParent(person)) {
-          var nodePos = positionedGraph.getPosition(person);
-          var personPos = editor.convertGraphCoordToCanvasCoord(nodePos.x, nodePos.y);
-          var lineAttr = PedigreeEditorParameters.attributes.partnershipLines;
-
-          // Draw a straight vertical line from parent bottom to this relationship point
-          editor.getPaper().path('M ' + personPos.x + ' ' + personPos.y + ' L ' + this.getX() + ' ' + this.getY()).attr(lineAttr).toBack();
-        }
-      }
+    // Single visible parent with visible children: vertical descent stem is drawn in updateChildhubConnection
+    if (isSingleParent) {
       this._partnerConnections = editor.getPaper().setFinish().toBack();
       if (this.getNode().getGraphics()) {
         this.getHoverBox().regenerateHandles();
@@ -268,7 +294,7 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
     var lineAttr = consangr ? PedigreeEditorParameters.attributes.consangrPartnershipLines : PedigreeEditorParameters.attributes.partnershipLines;
 
-    var partnerPaths = positionedGraph.getPathToParents(id);  // partnerPaths = [ [virtual_node_11, ..., virtual_node_1n, parent1], [virtual_node_21, ..., virtual_node_2n, parent21] ]
+    var partnerPaths = visPartnerPaths;
 
     // TODO: a better curve algo for the entire curve at once?
     var smoothCorners = true;
@@ -442,28 +468,34 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     var childlinePos = positionedGraph.getRelationshipChildhubPosition(id);
     var childlineY = editor.convertGraphCoordToCanvasCoord(childlinePos.x, childlinePos.y).y;
 
-    // draw child edges from childhub
-    var allChildren = positionedGraph.getRelationshipChildrenSortedByOrder(id);
-    var children = [];
-    for (var k = 0; k < allChildren.length; k++) {
-      if (!positionedGraph.isVirtualDummyChild(allChildren[k])) {
-        children.push(allChildren[k]);
-      }
-    }
+    var visPartnerPaths = this._getVisiblePartnerPaths();
+    var children = this._getVisibleChildren();
 
-    if (children.length === 0 || positionedGraph.isHiddenBranch(id)) {
+    if (children.length === 0 || positionedGraph.isHiddenBranch(id) || this.getNode().isArtLink()) {
       this._childhubConnection = editor.getPaper().setFinish();
       return;
     }
 
-    var isParentless = positionedGraph.isParentlessRelationship(id);
+    var isParentless = (visPartnerPaths.length === 0);
+    var isSingleParent = (visPartnerPaths.length === 1);
     if (isParentless && children.length < 2) {
       this._childhubConnection = editor.getPaper().setFinish();
       return;
     }
 
-    var leftmostX = this.getX();
-    var rightmostX = this.getX();
+    var stemX = this.getX();
+    var stemTopY = this.getY();
+    if (isSingleParent) {
+      var singlePath = visPartnerPaths[0];
+      var singleParentId = singlePath[singlePath.length - 1];
+      var singleParentPos = positionedGraph.getPosition(singleParentId);
+      var singleCanvasPos = editor.convertGraphCoordToCanvasCoord(singleParentPos.x, singleParentPos.y);
+      stemX = singleCanvasPos.x;
+      stemTopY = singleCanvasPos.y;
+    }
+
+    var leftmostX = stemX;
+    var rightmostX = stemX;
 
     if (isParentless && children.length > 0) {
       var firstChildX = editor.getView().getNode(children[0]).getX();
@@ -482,14 +514,17 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     for (var j = 0; j < children.length; j++) {
       var child = children[j];
 
-      var twinGroupId = positionedGraph.getTwinGroupId(child);
+      var rawTwinGroupId = positionedGraph.getTwinGroupId(child);
+      var allTwins = (rawTwinGroupId !== null)
+        ? positionedGraph.getAllTwinsSortedByOrder(child).filter(function(t) { return !positionedGraph.isHiddenBranch(t); })
+        : [];
+      var twinGroupId = (allTwins.length >= 2) ? rawTwinGroupId : null;
 
-      if (twinGroupId != currentTwinGroup) {
+      if (twinGroupId != null && twinGroupId != currentTwinGroup) {
         numPregnancies++;
 
         currentTwinGroup = twinGroupId;
 
-        var allTwins = positionedGraph.getAllTwinsSortedByOrder(child);
         var positionL = editor.getView().getNode(allTwins[0]).getX();
         var positionR = editor.getView().getNode(allTwins[allTwins.length - 1]).getX();
         var positionY = editor.getView().getNode(allTwins[0]).getY();
@@ -514,6 +549,7 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
         }
       } else if (twinGroupId == null) {
         numPregnancies++;
+        currentTwinGroup = null;
         currentIsMonozygothic = false;
       }
 
@@ -576,13 +612,13 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
     editor.getView().drawLineWithCrossings(id, leftmostX, childlineY, rightmostX, childlineY, PedigreeEditorParameters.attributes.partnershipLines);
     if (!isParentless) {
       // when every child was adopted in, the whole line of descent is dashed
-      editor.getView().drawLineWithCrossings(id, this.getX(), this.getY(), this.getX(), childlineY,
+      editor.getView().drawLineWithCrossings(id, stemX, stemTopY, stemX, childlineY,
         allAdoptedIn ? adoptedLineAttr : PedigreeEditorParameters.attributes.partnershipLines);
     }
 
     //draw small non-functional childhub junction orb
-    if (numPregnancies > 1 && !isParentless) {
-      var orb = editor.getPaper().circle(this.getX(), childlineY, PedigreeEditorParameters.attributes.partnershipRadius / 2).attr({ fill: '#666666', stroke: '#888888', 'stroke-width': 1, 'opacity': 1 });
+    if (numPregnancies > 1 && !isParentless && !isSingleParent) {
+      var orb = editor.getPaper().circle(stemX, childlineY, PedigreeEditorParameters.attributes.partnershipRadius / 2).attr({ fill: '#666666', stroke: '#888888', 'stroke-width': 1, 'opacity': 1 });
       orb.node.setAttribute('data-opx-export', 'omit');
     }
 
@@ -615,6 +651,7 @@ var PartnershipVisuals = Class.create(AbstractNodeVisuals, {
 
     this.updatePartnerConnections();
     this.updateChildhubConnection();
+    this.updateChildlessShapes();
     this.updateChildlessStatusLabel();
   },
 

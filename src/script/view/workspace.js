@@ -443,6 +443,7 @@ var Workspace = Class.create({
         dropdown: { key : 'tools-menu', label : translate('Tools'), icon : 'tools' },
         items: [
           { key : 'relayout',  label : translate('Re-layout'), icon : 'sitemap'},
+          { key : 'focus-mode', label : translate('Focus mode'), icon : 'crosshairs'},
           { key : 'expand-all', label : translate('Show all hidden branches'), icon : 'expand-arrows-alt'},
           { key : 'labels',    label : translate('Labels'),    icon : 'tags'},
           { key : 'pedigree-info', label : translate('Title and header'), icon : 'heading'},

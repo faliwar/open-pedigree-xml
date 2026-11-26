@@ -637,6 +637,20 @@ const translations = {
   , 'Install OPX directly on Android, iOS or desktop for full-screen offline access.': 'Instale o OPX diretamente no Android, iOS ou computador para acesso offline em tela cheia.'
   , 'Descendants on grouped symbols': 'Descendentes em símbolos agrupados'
   , 'Numbered and "n" sibling group symbols can now have partners, parents and descendants.': 'Símbolos de grupo numerados e com "n" agora podem ter parceiros, pais e descendentes.'
+  , 'Focus mode': 'Modo foco'
+  , 'Focus:': 'Foco:'
+  , 'Focused person': 'Pessoa em foco'
+  , 'Focus on this person': 'Focar nesta pessoa'
+  , 'Exit focus mode': 'Sair do modo foco'
+  , 'Up to 1° degree': 'Até 1° grau'
+  , 'Up to 2° degree': 'Até 2° grau'
+  , 'Up to 3° degree': 'Até 3° grau'
+  , 'Up to 4° degree': 'Até 4° grau'
+  , 'Up to 5° degree': 'Até 5° grau'
+  , 'hidden': 'oculto'
+  , 'person hidden': 'pessoa oculta'
+  , 'people hidden': 'pessoas ocultas'
+  , 'all visible': 'todos visíveis'
 };
 
 export function getLanguage() {

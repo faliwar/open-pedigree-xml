@@ -3779,6 +3779,48 @@ div.suggestItems .hide-button-wrapper {
   background: #F1F5F9;
 }
 
+.focus-chart-legend {
+  border-color: #99F6E4;
+}
+
+.focus-person-select {
+  height: 26px;
+  max-width: 210px;
+  padding: 0 6px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: #FFF;
+  color: #1E293B;
+  font: inherit;
+  cursor: pointer;
+}
+
+.focus-degree-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.focus-degree-btn {
+  padding: 0 7px;
+  font-weight: 600;
+}
+
+.focus-degree-btn.active {
+  background: #0F766E;
+  border-color: #0F766E;
+  color: #FFFFFF;
+}
+
+.focus-degree-btn.active:hover {
+  background: #0D9488;
+}
+
+.focus-hidden-count {
+  color: #64748B;
+  font-size: 12px;
+}
+
 /* ===== Genetic tests and diagnosis details ===== */
 
 .msdialog-box.clinical-modal-box,

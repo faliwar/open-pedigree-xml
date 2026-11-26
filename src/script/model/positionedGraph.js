@@ -33,6 +33,7 @@ var PositionedGraph = function( baseG,                          // mandatory, Ba
 
   this.ancestors = undefined;  // {}: for each node contains a set of all its ancestors and the closest relationship distance
   this.consangr  = undefined;  // {}: for each node a set of consanguineous relationship IDs
+  this._focusMode = (baseG && baseG._focusMode) ? { personId: baseG._focusMode.personId, maxDegree: baseG._focusMode.maxDegree } : null;
 
   this.initialize( baseG,
     horizontalPersonSeparationDist, horizontalRelSeparationDist,
@@ -3354,15 +3355,307 @@ PositionedGraph.prototype = {
     TIME_DRAWING_DEBUG = debugTimer.report();
   },
 
+  _isRealPerson: function(v) {
+    var GG = this.GG;
+    if (!GG || !GG.isPerson(v)) return false;
+    var p = GG.properties[v] || {};
+    return !p.isVirtualParent && !p.isVirtualDummyChild && !p.isPlaceholder;
+  },
+
   /**
-   * Hidden branches. A person can be "collapsed": everything that is connected to the consultand
-   * (see getBranchRoot)
-   * only through that person is then hidden on the chart. The hidden people stay in the graph (and
-   * so in exports, kinship and risk calculations); the layout only gives them no room.
+   * Undirected 1-step person adjacency on GG:
+   *   parent <-> child, full sibling <-> full sibling, partner <-> partner, ART donor/surrogate <-> child.
+   * Used both for Focus Mode degree radii and for geodesic (shortest-path) branch collapsing across
+   * consanguinity loops.
+   */
+  _buildPersonStepAdj: function() {
+    var GG = this.GG;
+    var size = GG.getNumVertices();
+    var adj = {};
+    var donorByKey = {};
+    for (var v = 0; v < size; v++) {
+      if (this._isRealPerson(v)) {
+        adj[v] = [];
+        var props = GG.properties[v] || {};
+        if (props.artRole && props.artKey !== undefined && props.artKey !== null) {
+          donorByKey[props.artKey] = v;
+        }
+      }
+    }
+    var link = function(a, b) {
+      if (a === b || !adj[a] || !adj[b]) return;
+      if (adj[a].indexOf(b) === -1) adj[a].push(b);
+      if (adj[b].indexOf(a) === -1) adj[b].push(a);
+    };
+    for (var r = 0; r < size; r++) {
+      if (!GG.isRelationship(r)) continue;
+      if (GG.properties[r] && GG.properties[r].artLink) continue;
+      var inEdges = GG.getInEdges(r);
+      var partners = [];
+      for (var i = 0; i < inEdges.length; i++) {
+        var p = GG.upTheChainUntilNonVirtual(inEdges[i]);
+        if (this._isRealPerson(p)) partners.push(p);
+      }
+      var outEdges = GG.getOutEdges(r);
+      var children = [];
+      if (outEdges.length > 0) {
+        var h = GG.downTheChainUntilNonVirtual(outEdges[0]);
+        if (GG.isChildhub(h)) {
+          var chList = GG.getOutEdges(h);
+          for (var j = 0; j < chList.length; j++) {
+            if (this._isRealPerson(chList[j])) children.push(chList[j]);
+          }
+        }
+      }
+      if (partners.length === 2) {
+        link(partners[0], partners[1]);
+      }
+      for (var pi = 0; pi < partners.length; pi++) {
+        for (var ci = 0; ci < children.length; ci++) {
+          link(partners[pi], children[ci]);
+        }
+      }
+      for (var c1 = 0; c1 < children.length; c1++) {
+        for (var c2 = c1 + 1; c2 < children.length; c2++) {
+          link(children[c1], children[c2]);
+        }
+      }
+    }
+    for (var childId in adj) {
+      if (!adj.hasOwnProperty(childId)) continue;
+      var cNum = parseInt(childId, 10);
+      var artLinks = (GG.properties[cNum] || {}).artLinks;
+      if (Array.isArray(artLinks)) {
+        for (var k = 0; k < artLinks.length; k++) {
+          if (donorByKey.hasOwnProperty(artLinks[k])) {
+            link(cNum, donorByKey[artLinks[k]]);
+          }
+        }
+      }
+    }
+    return adj;
+  },
+
+  _bfsPersonDistances: function(adj, startId, excludedMap) {
+    var dist = {};
+    var byDist = [];
+    var maxDist = 0;
+    if (!adj[startId] || (excludedMap && excludedMap[startId])) {
+      return { dist: dist, byDist: byDist, maxDist: maxDist };
+    }
+    var queue = [startId];
+    var head = 0;
+    dist[startId] = 0;
+    byDist[0] = [startId];
+    while (head < queue.length) {
+      var u = queue[head++];
+      var d = dist[u];
+      if (d > maxDist) maxDist = d;
+      var nbrs = adj[u] || [];
+      for (var i = 0; i < nbrs.length; i++) {
+        var w = nbrs[i];
+        if (excludedMap && excludedMap[w]) continue;
+        if (!dist.hasOwnProperty(w)) {
+          dist[w] = d + 1;
+          (byDist[d + 1] = byDist[d + 1] || []).push(w);
+          queue.push(w);
+        }
+      }
+    }
+    return { dist: dist, byDist: byDist, maxDist: maxDist };
+  },
+
+  /**
+   * Computes hidden vertices for the chart, combining:
+   *  1. Focus Mode (optional `{ personId, maxDegree }` neighborhood around any chosen person);
+   *  2. Collapsed branches (`props.collapsed`), using layer-by-layer shortest-path (geodesic)
+   *     propagation from the branch root so consanguinity loops never prevent collapsing a branch.
    *
-   * @return {Object} { nodeId: true } for every hidden node (people, relationships, child hubs
-   *                  and pieces of long edges), cached until the graph changes size or
-   *                  invalidateHiddenNodes() is called
+   * @param {Object|null} override optional `{ personId, collapsed }` to preview toggling one person
+   * @return {Object} `{ hidden, hiddenPersonCount, totalPersonCount }`
+   */
+  computeHiddenNodes: function(override) {
+    var GG = this.GG;
+    var size = GG ? GG.getNumVertices() : 0;
+    var hidden = {};
+    if (size === 0) {
+      return { hidden: hidden, hiddenPersonCount: 0, totalPersonCount: 0 };
+    }
+
+    var focus = (this._focusMode && this._isRealPerson(this._focusMode.personId)) ? this._focusMode : null;
+    var root = focus ? focus.personId : this.getBranchRoot();
+
+    var anchors = {};
+    var anyAnchor = false;
+    var totalPersonCount = 0;
+    for (var v = 0; v < size; v++) {
+      if (!this._isRealPerson(v)) continue;
+      var props = GG.properties[v] || {};
+      totalPersonCount += (props.numPersons > 1 ? props.numPersons : 1);
+      var isCol = (override && override.personId === v) ? !!override.collapsed : !!props.collapsed;
+      if (isCol && v !== root) {
+        anchors[v] = true;
+        anyAnchor = true;
+      }
+    }
+
+    if (!focus && !anyAnchor) {
+      return { hidden: hidden, hiddenPersonCount: 0, totalPersonCount: totalPersonCount };
+    }
+
+    var adj = this._buildPersonStepAdj();
+    var hiddenPerson = {};
+
+    // 1) Focus Mode: hide everyone outside `maxDegree` steps from `focus.personId`
+    if (focus) {
+      var maxDeg = Math.max(1, parseInt(focus.maxDegree, 10) || 2);
+      var focusBfs = this._bfsPersonDistances(adj, focus.personId, null);
+      for (var pId in adj) {
+        if (!adj.hasOwnProperty(pId)) continue;
+        var pNum = parseInt(pId, 10);
+        if (!focusBfs.dist.hasOwnProperty(pNum) || focusBfs.dist[pNum] > maxDeg) {
+          hiddenPerson[pNum] = true;
+          delete anchors[pNum];
+        }
+      }
+    }
+
+    // 2) Geodesic branch collapsing: shortest-path DAG from `root` cuts consanguinity loops cleanly
+    if (Object.keys(anchors).length > 0 && adj[root] && !hiddenPerson[root]) {
+      var bfs = this._bfsPersonDistances(adj, root, hiddenPerson);
+      var reached = {};
+      var forcedHidden = {};
+      reached[root] = true;
+      for (var d = 0; d <= bfs.maxDist; d++) {
+        var layer = bfs.byDist[d] || [];
+        for (var i = 0; i < layer.length; i++) {
+          var a = layer[i];
+          if (reached[a] && anchors[a]) {
+            var aNbrs = adj[a] || [];
+            for (var j = 0; j < aNbrs.length; j++) {
+              var w = aNbrs[j];
+              if (!hiddenPerson[w] && bfs.dist[w] === d + 1) {
+                forcedHidden[w] = true;
+              }
+            }
+          }
+        }
+        for (var k = 0; k < layer.length; k++) {
+          var u = layer[k];
+          if (reached[u] && !anchors[u]) {
+            var uNbrs = adj[u] || [];
+            for (var m = 0; m < uNbrs.length; m++) {
+              var nxt = uNbrs[m];
+              if (!hiddenPerson[nxt] && bfs.dist[nxt] === d + 1 && !forcedHidden[nxt]) {
+                reached[nxt] = true;
+              }
+            }
+          }
+        }
+      }
+      for (var qId in adj) {
+        if (!adj.hasOwnProperty(qId)) continue;
+        var qNum = parseInt(qId, 10);
+        if (!hiddenPerson[qNum] && !reached[qNum]) {
+          hiddenPerson[qNum] = true;
+        }
+      }
+    }
+
+    // 3) Derive hidden state for relationships, childhubs, virtual helpers, and count hidden people
+    var hiddenPersonCount = 0;
+    for (var hp in hiddenPerson) {
+      if (hiddenPerson.hasOwnProperty(hp)) {
+        var hpNum = parseInt(hp, 10);
+        hidden[hpNum] = true;
+        var hpProps = GG.properties[hpNum] || {};
+        hiddenPersonCount += (hpProps.numPersons > 1 ? hpProps.numPersons : 1);
+      }
+    }
+
+    for (var r = 0; r < size; r++) {
+      if (!GG.isRelationship(r)) continue;
+      var rProps = GG.properties[r] || {};
+      var inEdges = GG.getInEdges(r);
+      var outEdges = GG.getOutEdges(r);
+      var h = outEdges.length > 0 ? GG.downTheChainUntilNonVirtual(outEdges[0]) : null;
+
+      if (rProps.artLink) {
+        var anyArtPartnerHidden = false;
+        for (var ai = 0; ai < inEdges.length; ai++) {
+          var ap = GG.upTheChainUntilNonVirtual(inEdges[ai]);
+          if (hidden[ap]) anyArtPartnerHidden = true;
+        }
+        if (anyArtPartnerHidden) {
+          hidden[r] = true;
+          if (h !== null && GG.isChildhub(h)) {
+            hidden[h] = true;
+            GG.getOutEdges(h).forEach(function(dc) { hidden[dc] = true; });
+          }
+        }
+        continue;
+      }
+
+      var visPartners = 0;
+      for (var pi = 0; pi < inEdges.length; pi++) {
+        var partner = GG.upTheChainUntilNonVirtual(inEdges[pi]);
+        if (this._isRealPerson(partner) && !hidden[partner]) {
+          visPartners++;
+        }
+      }
+
+      var visChildren = 0;
+      if (h !== null && GG.isChildhub(h)) {
+        var chEdges = GG.getOutEdges(h);
+        for (var ci = 0; ci < chEdges.length; ci++) {
+          if (this._isRealPerson(chEdges[ci]) && !hidden[chEdges[ci]]) {
+            visChildren++;
+          }
+        }
+      }
+
+      if ((visPartners === 0 && visChildren < 2) || (visPartners === 1 && visChildren === 0)) {
+        hidden[r] = true;
+      }
+      if (h !== null && GG.isChildhub(h)) {
+        if (hidden[r]) {
+          hidden[h] = true;
+        }
+        var allCh = GG.getOutEdges(h);
+        for (var di = 0; di < allCh.length; di++) {
+          var chNode = allCh[di];
+          if (!this._isRealPerson(chNode) && (hidden[r] || visPartners < 2)) {
+            hidden[chNode] = true;
+          }
+        }
+      }
+
+      for (var vi = 0; vi < inEdges.length; vi++) {
+        var chain = GG.getUpPathEndingInNonVirtual(inEdges[vi]);
+        var topPerson = chain[chain.length - 1];
+        if (!this._isRealPerson(topPerson) && hidden[r]) {
+          hidden[topPerson] = true;
+        }
+        if (hidden[r] || hidden[topPerson] || visPartners < 2) {
+          for (var cv = 0; cv < chain.length - 1; cv++) {
+            hidden[chain[cv]] = true;
+          }
+        }
+      }
+      if (outEdges.length > 0 && GG.isVirtual(outEdges[0]) && (hidden[r] || (h !== null && hidden[h]))) {
+        var vCur = outEdges[0];
+        while (GG.isVirtual(vCur)) {
+          hidden[vCur] = true;
+          vCur = GG.getOutEdges(vCur)[0];
+        }
+      }
+    }
+
+    return { hidden: hidden, hiddenPersonCount: hiddenPersonCount, totalPersonCount: totalPersonCount };
+  },
+
+  /**
+   * @return {Object} { nodeId: true } for every hidden node, cached until invalidated
    */
   getHiddenNodes: function() {
     var GG = this.GG;
@@ -3370,45 +3663,28 @@ PositionedGraph.prototype = {
     if (this._hiddenNodes && this._hiddenNodesSize === size) {
       return this._hiddenNodes;
     }
-    var hidden = {};
-    var anchors = {};
-    var anyAnchor = false;
-    var root = this.getBranchRoot();
-    for (var v = 0; v < size; v++) {
-      var props = GG.properties[v];
-      if (props && GG.isPerson(v) && props.collapsed) {
-        anchors[v] = true;
-        anyAnchor = true;
-      }
-    }
-    delete anchors[root];  // the consultand's own branch is the pedigree itself
-    if (anyAnchor && size > 0) {
-      // everything reached from the proband without going through a collapsed person stays
-      var reached = {};
-      var stack = [root];
-      reached[root] = true;
-      while (stack.length > 0) {
-        var next = stack.pop();
-        if (anchors[next]) {
-          continue;
-        }
-        var neighbours = GG.getOutEdges(next).concat(GG.getInEdges(next));
-        for (var i = 0; i < neighbours.length; i++) {
-          if (!reached[neighbours[i]]) {
-            reached[neighbours[i]] = true;
-            stack.push(neighbours[i]);
-          }
-        }
-      }
-      for (var u = 0; u < size; u++) {
-        if (!reached[u]) {
-          hidden[u] = true;
-        }
-      }
-    }
-    this._hiddenNodes = hidden;
+    var res = this.computeHiddenNodes(null);
+    this._hiddenNodes = res.hidden;
+    this._hiddenPersonCount = res.hiddenPersonCount;
+    this._totalPersonCount = res.totalPersonCount;
     this._hiddenNodesSize = size;
-    return hidden;
+    return this._hiddenNodes;
+  },
+
+  setFocusMode: function(focus) {
+    this._focusMode = (focus && typeof focus.personId === 'number')
+      ? { personId: focus.personId, maxDegree: Math.max(1, parseInt(focus.maxDegree, 10) || 2) }
+      : null;
+    this.invalidateHiddenNodes();
+  },
+
+  getFocusMode: function() {
+    return this._focusMode ? { personId: this._focusMode.personId, maxDegree: this._focusMode.maxDegree } : null;
+  },
+
+  getFocusHiddenCount: function() {
+    this.getHiddenNodes();
+    return this._hiddenPersonCount || 0;
   },
 
   /**
